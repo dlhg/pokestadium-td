@@ -13,9 +13,10 @@ typedef struct unk_D_800FCB18_044 {
 } unk_D_800FCB18_044; // size = 0x6
 
 typedef struct unk_D_800FCB18 {
-    /* 0x00 */ char unk00[0x1];
+    /* 0x00 */ u8 unk_00;
     /* 0x01 */ u8 unk_01;
-    /* 0x02 */ char unk02[0x3];
+    /* 0x02 */ char unk02[0x2];
+    /* 0x04 */ u8 unk_04;
     /* 0x05 */ u8 unk_05;
     /* 0x06 */ char unk06[0x5];
     /* 0x0B */ u8 unk_0B;
@@ -95,8 +96,8 @@ void func_8003D828(u8, u8, u8, u8);
 void func_8003D918(u32 arg0, u32 arg1);
 void func_8003DB84(s32 arg0);
 void func_8003EB40(s32, unk_D_800FCB18*);
-void func_8003F1AC(s32);
-void func_8003F4C0(s32);
+void func_8003F1AC(u32);
+void func_8003F4C0(u32);
 void func_8003F624(u32 arg0);
 void func_8003F660(s32);
 void func_80040A70(unk_D_800FCB18* arg0, s32 arg1, s32 arg2, s32 arg3);
