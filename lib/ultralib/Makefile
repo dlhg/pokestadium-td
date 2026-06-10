@@ -26,7 +26,7 @@ ifeq ($(VERBOSE),0)
 endif
 
 CPP := cpp -P
-AR := ar
+AR := $(CROSS)ar
 
 VERSION_D := 1
 VERSION_E := 2
