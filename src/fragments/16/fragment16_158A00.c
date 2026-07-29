@@ -1554,7 +1554,7 @@ void func_86A013C8(u8 arg0, u8 arg1, unk_D_86A03014* arg2) {
 void func_86A01490(void) {
     static u32 D_86A0621C;
     s32 temp_v0 = D_800A62E0.unk_A34;
-    s32 t5;
+
     if (D_86A06212 == 0) {
         D_86A06212 = 1;
     } else if ((u32) D_86A0621C < (u32) temp_v0) {
