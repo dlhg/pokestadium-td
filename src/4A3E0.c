@@ -17,21 +17,77 @@ typedef struct unk_D_800FD068 {
     /* 0x06 */ u16 unk_06;
 } unk_D_800FD068; // size = 0x8
 
+typedef struct unk_D_800FCFD8 {
+    /* 0x00 */ u32 unk_00;
+    /* 0x04 */ u8 unk_04;
+    /* 0x05 */ u8 pad05[0x3];
+    /* 0x04 */ u32 unk_08;
+    /* 0x04 */ f32 unk_0C;
+    /* 0x04 */ f32 unk_10;
+    /* 0x04 */ f32 unk_14;
+    /* 0x04 */ f32 unk_18;
+    /* 0x04 */ u32 unk_1C;
+    /* 0x04 */ u32 unk_20;
+    /* 0x04 */ u32 unk_24;
+    /* 0x04 */ u8 unk_28;
+} unk_D_800FCFD8; // size = 0x29
+
+typedef struct unk_D_800FCF90 {
+    /* 0x00 */ u32 unk_00;
+    /* 0x04 */ u8 unk04[0x20];
+    /* 0x24 */ u8 unk_24;
+} unk_D_800FCF90; // size = 0x25
+
+typedef struct unk_D_800FCFB8 {
+    /* 0x00 */ u32 unk_00;
+    /* 0x04 */ u8 unk04[0x18];
+    /* 0x1C */ u8 unk_1C;
+} unk_D_800FCFB8; // size = 0x1D
+
+typedef struct unk_D_800FCF60 {
+    /* 0x00 */ u32 unk_00;
+    /* 0x04 */ u32 unk_04;
+    /* 0x08 */ u32 unk_08;
+    /* 0x0C */ s16 unk_0C;
+    /* 0x0E */ s16 unk_0E;
+    /* 0x10 */ u32 unk_10;
+    /* 0x14 */ s32 unk_14;
+    /* 0x18 */ s16 unk_18;
+    /* 0x1A */ s16 unk_1A;
+    /* 0xCA */ s16 unk_1C;
+    /* 0x1E */ s16 unk_1E;
+    /* 0x20 */ u32 unk_20;
+    /* 0x24 */ u32 unk_24;
+    /* 0x28 */ u32 unk_28;
+    /* 0x2C */ u8 unk_2C;
+} unk_D_800FCF60; // size = 0x2D
+
+extern unk_D_800FCF60 D_800FCF60;
+extern unk_D_800FCF90 D_800FCF90;
+extern unk_D_800FCFB8 D_800FCFB8;
+extern unk_D_800FCFD8 D_800FCFD8;
 extern unk_D_800FD008 D_800FD008;
 extern unk_D_800FD068 D_800FD068[199];
+extern u32 D_800FD004;
+extern u8 D_800FD048[16];
+extern s16 D_800FD06E;
+extern u8 D_800FD6A0[8];
 extern u32 D_800FD6A8;
+extern u32 D_800FD6AC;
 extern u8 D_800FD6E0;
 extern u8 D_800FD6E1;
 extern f32 D_800FD6E4;
+extern s32 D_800FD6E8;
 extern u32 D_800FD6F0;
 extern u32 D_800FD6F4;
 extern s16 D_800FD6F8[0x1140];
-extern u8 D_800FD6A0[8];
-extern u32 D_800FD6AC;
 extern u32 D_800FF978;
 extern u8 D_800FF97C;
 extern s32 D_800FF980;
+
 void func_80049A60(u32);
+void func_8004AC9C();                                  /* extern */
+void func_8004ACD0();
 
 void func_800497E0(s16* arg0, s32 arg1, u32 arg2, f32 arg3) {
     func_80049A60(arg2);
@@ -51,7 +107,70 @@ u8 func_80049890(u16 arg0) {
     return D_800FD6A0[arg0 & 0xFF];
 }
 
-#pragma GLOBAL_ASM("asm/us/nonmatchings/4A3E0/func_800498A8.s")
+void func_800498A8(u32 arg0, u8 arg1, u32 arg2) {
+    u8* p;
+    s32 i;
+    D_800FD004 = arg0 >> 1;
+    D_800FD6E4 = 1048576.0f / (f32) D_800FD004;
+
+    p = (u8*) &D_800FD008;
+    for (i = 0; i < 48; i++) {
+       p[i * 2 + 1] = 1;
+    }
+    p = (u8*) &D_800FD008;
+    p[0x00] = 8;
+    p[0x02] = 0;
+    p[0x04] = 0;
+    p[0x06] = 0;
+    p[0x08] = 0x40;
+    p[0x0C] = 0;
+    p[0x0E] = 0;
+    p[0x10] = 0;
+    p[0x12] = 0x40;
+    p[0x14] = 0;
+    p[0x16] = 0;
+    p[0x18] = 0;
+    p[0x1A] = 0;
+    p[0x1C] = 0x40;
+    p[0x20] = 0;
+    p[0x22] = 0;
+    p[0x24] = 0;
+    p[0x26] = 0x40;
+    p[0x28] = 0;
+    p[0x2A] = 0;
+    p[0x2C] = 0;
+
+    p = D_800FD048;
+    for (i = 0; i < 16; i++) {
+        p[i * 2] = 0;
+    }
+    D_800FD6AC = 0;
+    D_800FD06E = 0;
+    D_800FD6A8 = 0;
+    D_800FCF60.unk_00 = 0;
+    D_800FCF60.unk_2C = 0;
+
+    D_800FCF90.unk_00 = 0;
+    D_800FCF90.unk_24 = 0;
+
+    D_800FCFB8.unk_00 = 0;
+    D_800FCFB8.unk_1C = 0;
+
+    D_800FCFD8.unk_00 = 0;
+    D_800FCFD8.unk_28 = 0;
+    D_800FCFD8.unk_04 = 0xFF;
+
+    func_8004ACD0();
+    func_8004AC9C();
+
+    D_800FF97C = arg1;
+    D_800FF980 = arg2;
+    D_800FF980 *= 2;
+    if (D_800FF980 >= 0x1141U) {
+        D_800FF980 = 0x1140;
+    }
+    D_800FD6E8 = 2;
+}
 
 void func_80049D5C(u16);
 s16 func_80049DF0(void);

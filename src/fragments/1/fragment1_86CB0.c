@@ -53,18 +53,27 @@ extern s32 D_8120EA60;
 extern u32 D_8120EA80;
 extern s32 D_8120EB78;
 extern s32 D_8120EB7C;
+
+// .rodata
 extern f32 D_8122B0A0;
 extern f32 D_8122B0A4;
-extern s32 D_8122C794;
+extern f32 D_8122B0A8;
+extern f32 D_8122B0AC;
 
+// .bss
+extern s16 D_8122C790;
+extern s16 D_8122C792;
+extern u8* D_8122C794;
 extern unk_func_81208D7C D_8122C798;
 extern unk_func_81208D7C D_8122C7E8;
 extern unk_func_81208D7C D_8122C838;
 extern unk_func_81208D7C D_8122C888;
+extern u8 D_8122EE58[40];
+extern s32 D_8122EE98;
 extern unk_D_8122EEA8 D_8122EEA8;
-
 extern OSMesgQueue D_8122EEB0;
 extern OSMesg D_8122EEC8;
+extern void* D_812346E0;
 
 void func_81207330(void) {
 }
@@ -106,14 +115,52 @@ u32 func_812073B8(u16 arg0) {
 
 #pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86CB0/func_81207494.s")
 
-s32 func_812075C0(s32);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86CB0/func_812075C0.s")
+u32 func_812075C0(u16 arg0) {
+  u32 temp;
+  temp = ((131072.0f / (0x800 - arg0)) / D_8120EAC0) * 65536;
+  return temp;
+}
 
 void func_81207690(void) {
 }
 
-s32 func_81207698(u32, u16);
+#ifdef NON_MATCHING
+// Matching needs rodata mapping
+s32 func_81207698(u32 arg0, s32 arg1) {
+    switch (arg0) {
+    case 0:
+        if ((arg1 >= 4) && (arg1 < 8)) {
+            return 0x7F;
+        }
+        return 0;
+    case 1:
+        if (arg1 < 8) {
+            return 0x7F;
+        }
+        return 0;
+    case 2:
+        if (arg1 < 0x10) {
+            return 0x7F;
+        }
+        return 0;
+    case 3:
+        if (arg1 < 8) {
+            return 0;
+        }
+        return 0x7F;
+    case 4:
+        return (u8)(D_8122C794[arg1 + D_8122EE98] & 0x7F);
+    case 5:
+        return (u8)(D_8122EE58[arg1] << 3);
+    case 6:
+    case 7:
+        break;
+    }
+}
+#else
+s32 func_81207698(u32, s32);
 #pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86CB0/func_81207698.s")
+#endif
 
 #pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86CB0/func_81207774.s")
 
@@ -300,7 +347,28 @@ void func_81208E28(s32 arg0) {
   func_81208D7C();
 }
 
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86CB0/func_81208E4C.s")
+void func_81208E4C(void) {
+    void* sp34 = D_812346E0;
+    f32 x = (f32) D_8122C790;
+    f32 y = (f32) D_8122C792;
+    f32 dx = x / 640.0f;
+    f32 dy = y / 640.0f;
+    s32 i;
+    s32 idx;
+
+    func_81208D7C();
+    for (i = 0, idx = 0; i != 0x280; i++) {
+        ((s16*)sp34)[idx + 0] = x;
+        ((s16*)sp34)[idx + 1] = y;
+        x -= dx;
+        y -= dy;
+        idx += 2;
+    }
+     do {
+     } while (osAiGetStatus() & 0x80000000);
+    osWritebackDCache(sp34, 0xA00);
+    osGbSetNextBuffer(sp34, 0xA00);
+}
 
 void func_81208F94(void) {
 }
@@ -354,4 +422,9 @@ void func_81209688(UNUSED s32 arg0) {
 }
 
 // Decrypting this function causes issues
+#ifdef NON_MATCHING
+void func_81209690(UNUSED s32 arg0) {
+}
+#else
 #pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86CB0/func_81209690.s")
+#endif
