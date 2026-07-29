@@ -11,6 +11,7 @@
 #include "src/49790.h"
 #include "src/hal_libc.h"
 #include "src/fragments/25/fragment25.h"
+#include "src/fragments/26/fragment26.h"
 #include "src/memmap.h"
 #include "src/memory.h"
 #include "src/stage_loader.h"
@@ -47,6 +48,19 @@ typedef struct unk_D_88217EA4 {
     /* 0x14 */ s32 unk_14;
     /* 0x18 */ u16 unk_18;
 } unk_D_88217EA4; // size = 0x1C
+
+typedef struct unk_func_8820634C_arg2_unk0 {
+    /* 0x00 */ char pad00[0x8];
+    /* 0x08 */ s32 unk_08;
+    /* 0x0C */ s32 unk_0C;
+} unk_func_8820634C_arg2_unk0;
+
+typedef struct unk_func_8820634C_arg2 {
+    /* 0x00 */ unk_func_8820634C_arg2_unk0* unk_00;
+    /* 0x00 */ char pad04[0x4];
+    /* 0x08 */ s32 unk_08;
+    /* 0x0C */ s32 unk_0C;
+} unk_func_8820634C_arg2; // size = 0x54
 
 void func_8820C5BC(unk_func_8820BE14*);
 void func_8820C63C(unk_func_8820BE14*);
@@ -205,12 +219,45 @@ s32 func_882062E4(unk_func_882062E4* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg
 static Color_RGBA8 D_88217DE8 = { 0xF0, 0xF0, 0xF0, 0xFF };
 static Color_RGBA8 D_88217DEC = { 0xF0, 0xF0, 0xF0, 0x4D };
 static Color_RGBA8 D_88217DF0 = { 0xF0, 0xF0, 0x00, 0xFF };
-static Color_RGBA8 D_88217DF4 = { 0x6C, 0x6C, 0x7E, 0xFF };
 
-void func_8820634C();
-// const char D_88224E90[] = "%d";
-// const char D_88224E94[] = " 00";
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/23/fragment23_1AE680/func_8820634C.s")
+const char D_88224E90[] = "%d";
+const char D_88224E94[] = " 00";
+
+void func_8820634C(s32 arg0, s32 arg1, unk_func_8820634C_arg2* arg2, s32 arg3, s32 arg4, unk_func_88200FA0_030_030* arg5) {
+    static Color_RGBA8 D_88217DF4 = { 0x6C, 0x6C, 0x7E, 0xFF };
+    Color_RGBA8 sp64;
+    s32 pad60[1];
+    char* sp5C;
+    char sp58[4];
+    s32 color;
+
+    sp5C = func_8002D7C0(0, 0, D_88224FB4, 0x41);
+    gDPPipeSync(gDisplayListHead++);
+    gDPSetCycleType(gDisplayListHead++, G_CYC_FILL);
+    gDPSetRenderMode(gDisplayListHead++, 0, 0);
+
+    color = GPACK_RGBA5551(D_88217DF4.r, D_88217DF4.g, D_88217DF4.b, 1);
+    gDPPipeSync(gDisplayListHead++);
+    gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+    gDPFillRectangle(gDisplayListHead++, arg0, arg1, (arg5->unk_3C + arg0) - 1, (arg1 + arg5->unk_3E) - 1);
+    func_8001F3F4();
+    if (arg4 & 0x100) {
+        sp64 = *(Color_RGBA8 *)&D_88217DF0;
+    } else if (arg4 & 4) {
+        sp64 = *(Color_RGBA8 *)&D_88217DEC;
+    } else {
+        sp64 = *(Color_RGBA8 *)&D_88217DE8;
+    }
+    func_8001F324(sp64.r, sp64.g, sp64.b, sp64.a);
+    func_8001EBE0(8, 0);
+
+    func_8001F1E8(arg0 + 8, arg1 + 2, sp5C);
+    sprintf(sp58, D_88224E90, (int)arg3 + 1);
+    func_8001F1E8(((arg0 + func_8001F5B0(0, 0, sp5C) + func_8001F5B0(0, 0, D_88224E94)) - func_8001F5B0(0, 0, sp58)) + 8, arg1 + 2, sp58);
+    func_8001F444();
+    func_8821711C((arg5->unk_3C + arg0) - 0x35, arg1 + 8, arg2->unk_0C, arg2->unk_08, 2);
+}
+
 
 static u8 D_88217DF8[] = {
     0x18,
@@ -220,10 +267,38 @@ static u8 D_88217DF8[] = {
 static Color_RGBA8 D_88217DFC = { 0xF0, 0xF0, 0xF0, 0xFF };
 static Color_RGBA8 D_88217E00 = { 0xF0, 0xF0, 0xF0, 0x4D };
 static Color_RGBA8 D_88217E04 = { 0xF0, 0xF0, 0x00, 0xFF };
-static Color_RGBA8 D_88217E08 = { 0x6C, 0x6C, 0x7E, 0xFF };
 
-void func_8820660C();
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/23/fragment23_1AE680/func_8820660C.s")
+void func_8820660C(s32 arg0, s32 arg1, unk_func_8820634C_arg2* arg2, s32 arg3, s32 arg4, unk_func_88200FA0_030_030* arg5) {
+    static Color_RGBA8 D_88217E08 = { 0x6C, 0x6C, 0x7E, 0xFF };
+    unk_func_8820634C_arg2_unk0* temp_v0_7;
+    Color_RGBA8 sp48;
+    u32 color;
+
+    gDPPipeSync(gDisplayListHead++);
+    gDPSetCycleType(gDisplayListHead++, G_CYC_FILL);
+    gDPSetRenderMode(gDisplayListHead++, 0, 0);
+
+    color = GPACK_RGBA5551(D_88217E08.r, D_88217E08.g, D_88217E08.b, 1);
+    gDPPipeSync(gDisplayListHead++);
+    gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+    gDPFillRectangle(gDisplayListHead++, arg0, arg1, (arg5->unk_3C + arg0) - 1, (arg1 + arg5->unk_3E) - 1);
+    func_8001F3F4();
+    if (arg4 & 0x100) {
+        sp48 = *(Color_RGBA8 *)&D_88217E04;
+    } else if (arg4 & 4) {
+        sp48 = *(Color_RGBA8 *)&D_88217E00;
+    } else {
+        sp48 = *(Color_RGBA8 *)&D_88217DFC;
+    }
+    func_8001F324(sp48.r, sp48.g, sp48.b, sp48.a);
+    func_8001EBE0(8, 0);
+    func_8001F1E8(arg0 + 8, arg1 + 4, func_8002D7C0(0, 0, D_88224FB4, D_88217DF8[arg3]));
+    func_8001F444();
+    if (arg2->unk_08 == 1) {
+        temp_v0_7 = arg2->unk_00;
+        func_8821711C((arg5->unk_3C + arg0) - 0x35, arg1 + 0xA, temp_v0_7->unk_0C, temp_v0_7->unk_08, 2);
+    }
+}
 
 s32 func_88206868(unk_func_8820BE14_02C_078_034* arg0, Controller* arg1) {
     s32 var_v1;
@@ -495,16 +570,88 @@ void func_8820723C(unk_func_88205880_00D0* arg0, s32 arg1, s32 arg2, s32 arg3) {
     func_8001F444();
 }
 
-static Color_RGBA8 D_88217E18 = { 0x40, 0x40, 0x74, 0xFF };
-static Color_RGBA8 D_88217E1C[] = {
-    { 0x78, 0x78, 0xF1, 0xFF },
-    { 0x5E, 0x5E, 0xBE, 0xFF },
-    { 0xFF, 0xCB, 0xDE, 0xFF },
-    { 0xFF, 0xBF, 0xD6, 0xFF },
-};
+void func_88207354(s32 arg0, s32 arg1, unk_func_88205880_00D0* arg2, s32 arg3, s32 arg4, unk_func_88200FA0_030_030* arg5) {
+    static Color_RGBA8 D_88217E18 = { 0x40, 0x40, 0x74, 0xFF };
+    static Color_RGBA8 D_88217E1C[] = {
+        { 0x78, 0x78, 0xF1, 0xFF },
+        { 0x5E, 0x5E, 0xBE, 0xFF },
+        { 0xFF, 0xCB, 0xDE, 0xFF },
+        { 0xFF, 0xBF, 0xD6, 0xFF },
+    };
+    Color_RGBA8 spD4;
+    s32 sp94;
+    
 
-void func_88207354();
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/23/fragment23_1AE680/func_88207354.s")
+    if (arg2 != 0) {
+        if (arg4 & 2) {
+            spD4 = func_8002D444(D_88217E18, 1.4f);
+        } else {
+            spD4 = *(Color_RGBA8 *)&D_88217E18;
+        }
+        gDPPipeSync(gDisplayListHead++);
+        gDPSetCycleType(gDisplayListHead++, G_CYC_FILL);
+        gDPSetRenderMode(gDisplayListHead++, 0, 0);
+        {
+            
+            s32 color = GPACK_RGBA5551(spD4.r, spD4.g, spD4.b, 1);
+            gDPPipeSync(gDisplayListHead++);
+            gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+            gDPFillRectangle(gDisplayListHead++, arg0, arg1 + 1, arg0 + 0xCB, arg1 + 0x1A);
+        }
+        {
+            s32 color = GPACK_RGBA5551(D_88217E1C[1].r, D_88217E1C[1].g, D_88217E1C[1].b, 1);
+            gDPPipeSync(gDisplayListHead++);
+            gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+            gDPFillRectangle(gDisplayListHead++, arg0, arg1, arg0 + 0xCB, arg1);
+        }
+        {
+            s32 color = GPACK_RGBA5551(D_88217E1C[1].r, D_88217E1C[1].g, D_88217E1C[1].b, 1);
+            gDPPipeSync(gDisplayListHead++);
+            gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+            gDPFillRectangle(gDisplayListHead++, arg0, arg1 + 0x1B, arg0 + 0xCB, arg1 + 0x1B);
+        }
+        if (!(arg4 & 0x100)) {
+            func_8820723C(arg2, arg0, arg1, arg5->unk_3C);
+        }
+    } else {
+        if (arg4 & 1) {
+            spD4 = *(Color_RGBA8 *)&D_88217E18;
+            gDPPipeSync(gDisplayListHead++);
+            gDPSetCycleType(gDisplayListHead++, G_CYC_FILL);
+            gDPSetRenderMode(gDisplayListHead++, 0, 0);
+            {
+                s32 color = GPACK_RGBA5551(spD4.r, spD4.g, spD4.b, 1);
+                gDPPipeSync(gDisplayListHead++);
+                gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+                gDPFillRectangle(gDisplayListHead++, arg0, arg1 + 1, arg0 + 0xCB, arg1 + 0x1A);
+            }
+            {
+                s32 color = GPACK_RGBA5551(D_88217E1C[1].r, D_88217E1C[1].g, D_88217E1C[1].b, 1);
+                gDPPipeSync(gDisplayListHead++);
+                gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+                gDPFillRectangle(gDisplayListHead++, arg0, arg1, arg0 + 0xCB, arg1);
+            }
+            {
+                s32 color = GPACK_RGBA5551(D_88217E1C[1].r, D_88217E1C[1].g, D_88217E1C[1].b, 1);
+                gDPPipeSync(gDisplayListHead++);
+                gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+                gDPFillRectangle(gDisplayListHead++, arg0, arg1 + 0x1B, arg0 + 0xCB, arg1 + 0x1B);
+            }
+            return;
+        }
+        spD4 = func_8002D444(D_88217E18, 0.8f);
+        gDPPipeSync(gDisplayListHead++);
+        gDPSetCycleType(gDisplayListHead++, G_CYC_FILL);
+        gDPSetRenderMode(gDisplayListHead++, 0, 0);
+        {
+            s32 color = GPACK_RGBA5551(spD4.r, spD4.g, spD4.b, 1);
+            gDPPipeSync(gDisplayListHead++);
+            gDPSetFillColor(gDisplayListHead++, (color << 16) | color);
+            gDPFillRectangle(gDisplayListHead++, arg0, arg1, arg0 + 0xCB, arg1 + 0x1B);
+        }
+    }
+}
+
 
 void func_882079D8(unk_func_882079D8* arg0, s32 arg1, s32 arg2, s32 arg3, unk_func_88205880_00D0* arg4) {
     ((func885007CC)Memmap_GetFragmentVaddr(func_885007CC))(&arg0->unk_00, sizeof(unk_func_882079D8));

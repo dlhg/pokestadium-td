@@ -34,9 +34,14 @@ typedef struct unk_D_81234690 {
     /* 0x0E */ u8 pad0E[0x2A];
 } unk_D_81234690; // size = 0x38
 
+// .data
 extern s32 D_812286EC;
 extern s32 D_812286F0;
+
+// .rodata
 extern f32 D_8122AF70;
+
+// .bss
 extern unk_D_81231450 D_81231450[0x640];
 extern unk_D_81234650 D_81234650[0x6];
 extern unk_func_81206FA0 D_81234680;

@@ -428,16 +428,7 @@ extern char D_86A06134;
 extern u8 D_86A06210;
 extern u8 D_86A06211;
 
-extern u16 D_86A06220;
-extern u16 D_86A06222;
-extern Vec3f D_86A06228;
-extern f32 D_86A06234;
-extern Vec3f D_86A06238;
-extern f32 D_86A06244;
 extern Vec3f D_86A06248;
-extern unk_D_86002F34_00C* D_86A06254;
-extern s16 D_86A06258;
-extern s16* D_86A0625C;
 
 s32 func_86A00020(s32 arg0, GraphNode* arg1);
 void func_86A013C8(u8 arg0, u8 arg1, unk_D_86A03014* arg2);

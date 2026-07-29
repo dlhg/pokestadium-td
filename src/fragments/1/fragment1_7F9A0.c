@@ -220,8 +220,33 @@ void func_812003EC(unk_D_8122B2C0* arg0, s32 arg1) {
   }
 }
 
-s32 func_812004B8(unk_D_8122B2C0*);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_7F9A0/func_812004B8.s")
+s32 func_812004B8(unk_D_8122B2C0* arg0) {
+    s32 ret;
+    s32 count;
+
+    count = 3;
+    do {
+        func_812003EC(arg0, count);
+        ret = func_812002BC(arg0, arg0->unk_5DA0 / 8192);
+        if (ret == 0) {
+            ret = osGbpakReadWrite(&arg0->pfs, 1, ((arg0->unk_5DA0 & 0x1FFF) | 0xA000), &arg0->unk_5D80, sizeof(D_8122C520));
+            if (ret == 0) {
+                ret = osGbpakReadWrite(&arg0->pfs, 0, ((arg0->unk_5DA0 & 0x1FFF) | 0xA000), D_8122C520, sizeof(D_8122C520));
+                if (ret == 0) {
+                    ret = bcmp(D_8122C520, &arg0->unk_5D80, sizeof(D_8122C520));
+                    if (ret == 0) {
+                        count -= 1;
+                        if (count == 0) {
+                            arg0->unk_5DC4 = 1;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    } while ((ret == 0));
+    return ret;
+}
 
 s32 func_812005D8(unk_D_8122B2C0* arg0) {
   s32 ret;

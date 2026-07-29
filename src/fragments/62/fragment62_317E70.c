@@ -14,7 +14,6 @@ void func_8432D5B0(void) {
     D_8140E72C = 0;
 }
 
-#ifdef NON_MATCHING
 unk_D_8140E724* func_8432D61C(void) {
     s32 i;
     s32 var_v0 = D_8140E730;
@@ -36,20 +35,18 @@ unk_D_8140E724* func_8432D61C(void) {
     }
 
     if (i >= 300) {
-        return -1;
+        var_v1 = -1;
+    } else {
+        var_v1->unk_15 = 1;
+        
+        D_8140E730 = var_v0 + 1;
+        if (D_8140E730 >= 300) {
+            D_8140E730 = 0;
+        }
     }
 
-    var_v1->unk_15 = 1;
-
-    D_8140E730 = var_v0 + 1;
-    if (D_8140E730 >= 300) {
-        D_8140E730 = 0;
-    }
     return var_v1;
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/62/fragment62_317E70/func_8432D61C.s")
-#endif
 
 void func_8432D6B0(unk_D_8140E724* arg0) {
     arg0->unk_0E = 0;
