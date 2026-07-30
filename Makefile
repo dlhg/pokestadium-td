@@ -275,6 +275,7 @@ build/src/hal_libc.o: CFLAGS += -signed
 build/src/libleo/%.o: CC := $(CC_OLD)
 
 build/src/jpegutils.o: CC := $(CC_OLD)
+build/src/jpeg_decoder.o: CC := $(CC_OLD)
 
 build/src/D470.o: CC := $(CC_OLD)
 build/src/D470.o: OPTFLAGS := -O0
