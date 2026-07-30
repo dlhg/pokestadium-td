@@ -97,7 +97,9 @@ typedef struct StadiumModel {
     /* 0x02 */  s16 unk_02;
     /* 0x04 */  StadiumTransform transforms[5];
     /* 0x130 */ u32 modelSegment;
-    /* 0x134 */ s8 pad134[0x24];
+    /* 0x134 */ s8 pad134[0x4];
+    /* 0x138 */ u32 unkSegment;
+    /* 0x13C */ s8 pad13C[0x1C];
     /* 0x158 */ Vec3f position;
     /* 0x164 */ s8 pad164[0xC];
     /* 0x170 */ ModelVertex mvtx;
