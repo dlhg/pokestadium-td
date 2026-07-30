@@ -48,7 +48,7 @@
     - [0xC4B0, c, libleo/bootdisk]
     - [0xC910, hasm, ../../src/libleo/bootstrap]
     - [0xC970, c, jpegutils]
-    - [0xCE80, c] #
+    - [0xCE80, c, jpeg_decoder]
     - [0xD470, c] #
     - [0xDDC0, c]
     - [0xE1C0, c] # load gb emulator (fragment 1)
@@ -505,7 +505,8 @@
     - {vram: 0x800A7450, type: .bss, name: stage_loader}
     - {vram: 0x800A74C0, type: .bss, name: crash_screen}
     - {vram: 0x800A7EA0, type: .bss, name: profiler}
-    - {vram: 0x800A8100, type:  bss, name: unk_bss_2}
+    - {vram: 0x800A8100, type: bss, name: unk_bss_2}
+    - {vram: 0x800A82D0, type: .bss, name: jpeg_decoder}
     - {vram: 0x800A82E0, type:  .bss, name: D470}
     - {vram: 0x800A83A0, type:  bss, name: unk_bss_17}
     - {vram: 0x800AA680, type:  .bss, name: E890}
