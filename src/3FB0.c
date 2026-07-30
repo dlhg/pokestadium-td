@@ -119,15 +119,15 @@ void func_80003558(UnkStruct80001380* arg0, unk_func_80003680_sp90* arg1) {
     osCreateMesgQueue(&arg0->queue, &arg0->mesg, 1);
 }
 
-void func_80003608(unk_func_80003680_sp27* arg0, JpegHuffmanTable* arg1, unk_func_80003680_sp300* arg2) {
-    arg0->unk_00 = arg2->start_of_scan;
-    arg0->unk_04 = arg2->unk_00;
-    arg0->unk_05 = 2;
-    arg0->unk_08 = &arg1[0];
-    arg0->unk_0C = &arg1[2];
-    arg0->unk_10 = &arg1[1];
-    arg0->unk_14 = &arg1[3];
-    arg0->unk_18 = arg2->unk_01;
+void func_80003608(JpegDecoder* decoder, JpegHuffmanTable* hTable, unk_func_80003680_sp300* arg2) {
+    decoder->imageData = arg2->start_of_scan;
+    decoder->mode = arg2->unk_00;
+    decoder->unk_05 = 2;
+    decoder->hTablePtrs[0] = &hTable[0];
+    decoder->hTablePtrs[1] = &hTable[2];
+    decoder->hTablePtrs[2] = &hTable[1];
+    decoder->hTablePtrs[3] = &hTable[3];
+    decoder->unk_18 = arg2->unk_01;
 }
 
 void func_80003648(unk_func_80003680_sp90* arg0, u8(arg1)[2][0x80], unk_func_80003680_sp300* arg2) {
@@ -147,8 +147,8 @@ s32 func_80003680(u32 addr, s32 arg1, u8* arg2) {
     u16* temp_s0;
     u8* temp_s3;
     unk_func_80003680_sp90 sp90;
-    unk_func_80003680_sp27 sp74;
-    unk_func_80003680_sp60 sp60;
+    JpegDecoder sp74;
+    JpegDecoderState sp60;
     u32 var_s1;
     s32 i;
     s32 j;
@@ -177,7 +177,7 @@ s32 func_80003680(u32 addr, s32 arg1, u8* arg2) {
                 return 0;
             }
 
-            if (func_8000C280(&sp74, addr, 1, var_s4, &sp60) != 0) {
+            if (JpegDecoder_Decode(&sp74, addr, 1, var_s4, &sp60) != 0) {
                 return 0;
             }
 
