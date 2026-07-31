@@ -2,7 +2,9 @@
 #include "controller.h"
 
 extern s32 D_800697E0;
-extern u8 D_800A82B0[32];
+
+static u8 D_800A82B0[31];
+static u8 D_800A82CF;
 
 extern OSMesgQueue gSIEventMesgQueue;
 
@@ -10,8 +12,6 @@ s32 __osContRamWrite(OSMesgQueue* mq, int channel, u16 address, u8* buffer, int 
 s32 __osContRamRead(OSMesgQueue* mq, int channel, u16 address, u8* buffer);
 
 extern s32 osPfsIsPlug(OSMesgQueue*, u8*);
-
-extern u8 D_800A82CF;
 
 // some kind of cycle count sleep function. just like the one in crash_screen.c
 void func_8000B430(long ms) {

@@ -3,6 +3,7 @@
 #include "src/49790.h"
 #include "src/4CBC0.h"
 #include "src/373A0.h"
+#include "src/50A00.h"
 
 static s32 D_80078A30 = 0;
 static s32 D_80078A34 = 0;

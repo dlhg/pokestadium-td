@@ -44,10 +44,10 @@ extern u32 D_80077950[];
 //     gsSPEndDisplayList(),
 // };
 
-extern s16 D_800AF7C0[4];
-extern MtxBuffer D_800AF7C8[2];
-extern StadiumModelSlot D_800AFFC8[2][3];
-extern unk_D_800B2EA8 D_800B2EA8[1];
+s16 D_800AF7C0[4];
+static MtxBuffer D_800AF7C8[2];
+static StadiumModelSlot D_800AFFC8[2][3];
+static unk_D_800B2EA8 D_800B2EA8[1];
 
 void func_800328D0(s32 arg0) {
 
@@ -101,34 +101,29 @@ void func_80032A34(s32 arg0) {
     }
 }
 
-#ifdef NON_MATCHING
 Gfx* func_80032A7C(Gfx* gfx) {
-    s16 temp_a1;
-    u8 temp_v0;
+    u8 temp_v0 = D_8006F09C->unk_01D;
 
-    temp_v0 = D_8006F09C->unk_01D;
-    temp_a1 = D_8006F09C->unk_01A;
-    if (temp_a1 != 0x7E) {
-        if (temp_a1 != 0x92) {
-            gSPDisplayList(gfx++, &D_800762C8);
-            gDPSetPrimColor(gfx++, 0, temp_v0 & 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
-            gDPSetEnvColor(gfx++, (0xB4 - (((s32) D_8006F084 % 8) * 0xA)), 0x20, 0, 0);
-            return gfx;
-        }
-        gSPDisplayList(gfx++, &D_800762C8);
-        gDPSetPrimColor(gfx++, 0, temp_v0 & 0xFF, 0xFF, 0xFF, 0xFF, 0xC8);
-        gDPSetEnvColor(gfx++, 0xFF, 0x20, 0, 0);
-        return gfx;
+    switch (D_8006F09C->unk_01A) {
+        case 0x92:
+            gSPDisplayList(gfx++, D_800762C8);
+            gDPSetPrimColor(gfx++, 0, temp_v0, 255, 255, 255, 200);
+            gDPSetEnvColor(gfx++, 255, 32, 0, 0);
+            break;
+        case 0x7E:
+            gSPDisplayList(gfx++, D_800762C8);
+            gDPSetPrimColor(gfx++, 0, temp_v0, 255, 255, 5, 255);
+            gDPSetEnvColor(gfx++, 255, 32, 0, 0);
+            break;
+        default:
+            gSPDisplayList(gfx++, D_800762C8);
+            gDPSetPrimColor(gfx++, 0, temp_v0, 255, 255, 255, 255);
+            gDPSetEnvColor(gfx++, 180 - (D_8006F084 % 8) * 10, 32, 0, 0);
+            break;
     }
-    gSPDisplayList(gfx++, &D_800762C8);
-    gDPSetPrimColor(gfx++, 0, temp_v0 & 0xFF, 0x07, 0x08, 0x02, 0x00);
-    gDPSetEnvColor(gfx++, 0xFF, 0x20, 0, 0);
+
     return gfx;
 }
-#else
-Gfx* func_80032A7C(Gfx*);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/334D0/func_80032A7C.s")
-#endif
 
 void func_80032BD4(void) {
     u8 index;

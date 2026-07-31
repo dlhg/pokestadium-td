@@ -14,16 +14,17 @@ typedef struct unk_func_800228F0_sp24 {
     /* 0x14 */ char unk_14[0x8];
 } unk_func_800228F0_sp24; // size >= 0x1C
 
-extern unk_D_800AC910 D_800AC910[4];
-extern u32 D_800ACA70;
-extern u8 D_800ACA74;
-extern u8 D_800ACA75;
-extern unk_D_800AC910_050 D_800ACA78;
 
 extern u8 D_80073267[];
 extern u8 D_800732FF[];
 
-extern char D_800AC890[][0x20];
+static char D_800AC890[4][0x20];
+static unk_D_800AC910 D_800AC910[4];
+static u32 D_800ACA70;
+static u8 D_800ACA74;
+static u8 D_800ACA75;
+static unk_D_800AC910_050 D_800ACA78;
+static u8 D_800ADA38[0xAA8]; // unreferenced bss
 
 u16 func_800226C0(s32 arg0, u32 arg1) {
     s32 i;

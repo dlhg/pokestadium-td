@@ -5,6 +5,8 @@
 #include "src/50860.h"
 #include "src/373A0.h"
 
+u8* D_800FF9C0;
+
 s32 func_8004FE00(u8* arg0) {
     UNUSED s32 pad[2];
     u8* sp1C;

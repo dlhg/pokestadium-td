@@ -12,7 +12,7 @@
  */
 u32 gExpansionRAMStart = FALSE;
 
-extern MainPool** gMainPool; // gMainPool
+MainPool** gMainPool;
 
 void func_80003860(void);
 s32 func_80007A58(void);
