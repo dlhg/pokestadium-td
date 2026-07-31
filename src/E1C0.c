@@ -9,9 +9,9 @@
 #include "util.h"
 #include "src/fragments/1/fragment1.h"
 
-extern unk_D_800AA660* D_800AA660;
-extern unk_D_800AA664* D_800AA664;
-extern char D_800AA668;
+unk_D_800AA660* D_800AA660;
+unk_D_800AA664* D_800AA664;
+static char D_800AA668;
 
 extern u8 D_81200000[];
 

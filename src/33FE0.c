@@ -17,6 +17,7 @@ extern s16 D_80076FC8[0x102];
 extern s16 D_800771CC[0x102];
 extern s16 D_800773D0[0x102];
 extern f32 D_800775D4[];
+
 extern f32 D_8007C5D0;
 extern f32 D_8007C5D4;
 extern f32 D_8007C5D8;
@@ -25,9 +26,9 @@ extern f32 D_8007C5E0;
 extern f32 D_8007C5E4;
 extern f32 D_8007C5E8;
 extern f32 D_8007C5EC;
-extern Mtx D_800B3258;
 extern Vec3fCounter* D_800B2F50;
 extern SomeStruct* D_800B2F58[0x10];
+extern Mtx D_800B3258;
 
 s32 func_800333E0(s32 arg0) {
     u8 stack[4];

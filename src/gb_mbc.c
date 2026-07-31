@@ -16,7 +16,7 @@
         return ret
 
 // Track ram banks for channels
-extern u8 D_800AA670[16];
+static u8 D_800AA670[16];
 
 s32 osGbmbcRamEnable(OSPfs* pfs) {
   s32 i;

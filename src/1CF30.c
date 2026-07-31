@@ -10,6 +10,8 @@
 #include "stdarg.h"
 #include "lib/ultralib/src/libc/xstdio.h"
 
+unk_D_800AC870* D_800AC870;
+
 void func_8001C330(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s16 arg6, s16 arg7, s32 arg8) {
     unk_D_800A7440 sp30;
 
