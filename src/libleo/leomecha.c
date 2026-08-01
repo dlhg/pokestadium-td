@@ -1,9 +1,7 @@
 #include "global.h"
 #include "libleo/internal.h"
 
-extern u32 asic_cur_status; // static?
-extern u32 unit_atten;      // static?
-extern s32 currentCommand;
+s32 currentCommand;
 
 s32 osEPiWriteIo(OSPiHandle*, u32, u32);
 
