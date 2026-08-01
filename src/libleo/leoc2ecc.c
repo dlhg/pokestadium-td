@@ -62,11 +62,13 @@ const u8 glog[512] = {
 };
 
 //.bss
-extern block_param_form LEOc2_param;
-
-// extern
-extern u8 LEO_TempBuffer[0xE8];
-extern u8 LEOC2_Syndrome[2][0xE8 * 4];
+u32 asic_cur_status;
+u32 unit_atten;
+u8 D_80100848[0x8]; // pad
+u8 LEO_TempBuffer[0xE8];
+u8 D_80100938[0x8]; // unused
+u8 LEOC2_Syndrome[2][0xE8 * 4];
+block_param_form LEOc2_param;
 
 s32 leoC2_Correction(void) {
     switch (LEOc2_param.err_num) {

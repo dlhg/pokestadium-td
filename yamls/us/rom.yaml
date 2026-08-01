@@ -378,7 +378,11 @@
 
     # libleo
     - [0x7A180, .data, libleo/driverominit]
-    - [0x7A190, data, rom_data_7A190]
+    - [0x7A190, .data, libleo/leord_diskid]
+    - [0x7A1B0, .data, libleo/cjcreateleomanager]
+
+    # fragment1?
+    - [0x7A1C0, data, rom_data_7A1C0]
 
     # libultra
     - [0x7A210, lib, libultra, piacs,          .data]
@@ -460,7 +464,7 @@
     # libleo
     - [0x7E630, .rodata, libleo/leofunc]
     - [0x7E640, .rodata, libleo/leocmdex]
-    - [0x7E6F0, rodata, rom_rodata_7E6F0]
+    - [0x7E6F0, .rodata, libleo/leord_diskid]
     - [0x7E700, .rodata, libleo/leomecha]
     - [0x7E770, .rodata, libleo/leo_tbl]
     - [0x7E950, .rodata, libleo/leoc2ecc]
@@ -541,11 +545,18 @@
     - {vram: 0x800FF9C0, type: .bss, name: 50A00}
   
     # libleo
-    - {vram: 0x800FF9D0, type:  bss, name: unk_bss_4}
+    - {vram: 0x800FF9D0, type: .bss, name: libleo/leofunc}
+    - {vram: 0x801006C0, type: .bss, name: libleo/leocmdex}
+    - {vram: 0x801006E0, type: .bss, name: libleo/leoint}
+    - {vram: 0x80100730, type: .bss, name: libleo/leomecha}
     - {vram: 0x80100740, type: .bss, name: libleo/driverominit}
-    - {vram: 0x801007C0, type:  bss, name: unk_bss_5}
+    - {vram: 0x801007C0, type: .bss, name: libleo/leodiskinit}
+    - {vram: 0x80100840, type: .bss, name: libleo/leoc2ecc}
     - {vram: 0x80101090, type: .bss, name: libleo/leomseq_tbl}
-    - {vram: 0x801010D0, type:  bss, name: unk_bss_6} # cjcreateleomanager + pad
+    - {vram: 0x801010D0, type: .bss, name: libleo/cjcreateleomanager}
+
+    # padding
+    - {vram: 0x801010E0, type:  bss, name: bss_pad}
 
     # ultralib
     - {type: lib, vram: 0x801020D0, name: libultra, object: leointerrupt, section: .bss}

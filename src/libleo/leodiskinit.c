@@ -2,8 +2,9 @@
 #include "PR/R4300.h"
 #include "libleo/internal.h"
 
-extern OSPiHandle __LeoDiskHandle;
-extern OSPiHandle* __osDiskHandle;
+OSPiHandle __LeoDiskHandle;
+OSPiHandle* __osDiskHandle;
+
 extern OSPiHandle* __osPiTable;
 
 OSPiHandle* osLeoDiskInit(void) {

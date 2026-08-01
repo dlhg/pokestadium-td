@@ -4,6 +4,10 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
 
+s32 __leoActive = 0;
+
+LEOVersion __leoVersion;
+
 s32 LeoCJCreateLeoManager(OSPri comPri, OSPri intPri, OSMesg* cmdBuf, s32 cmdMsgCnt) {
     OSPiHandle* driveRomHandle;
     OSPiHandle* leoDiskHandle;
