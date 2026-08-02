@@ -280,40 +280,30 @@ s32 func_8002FF8C(s32 arg0) {
     return 0;
 }
 
-#ifdef NON_MATCHING
 s32 func_80030010(s32 arg0, unk_D_86002F34_00C* arg1) {
-    s32* src;
-    s32* dst;
+    s32 pad;
+    unk_D_83403C60_050_00C* src;
 
     if (arg0 == 2) {
-        src = (s32*)((u8*)D_80075F84->unk_18 + 0x50);
+        src = (unk_D_83403C60_050_00C*)((u8*)D_80075F84->unk_18 + 0x50);
         func_80011DAC(arg1, 0, 0, D_80075F84->unk_04, D_80075F84->unk_06);
         func_80011E68(arg1, func_8002FF3C(D_80075F84->unk_18), 20.0f, 10000.0f);
-        dst = (s32*)((u8*)arg1 + 0xA8);
-        dst[0] = src[0];
-        dst[1] = src[1];
-        dst[2] = src[2];
-        dst[3] = src[3];
-        dst[4] = src[4];
-        dst[5] = src[5];
+        ((unk_D_83403C60_050_00C*)((u8*)arg1 + 0xA8))[0] = src[0];
+        ((unk_D_83403C60_050_00C*)((u8*)arg1 + 0xA8))[1] = src[1];
+        pad = 0;
     }
     return 0;
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/30640/func_80030010.s")
-#endif
 
-#ifdef NON_MATCHING
 s32 func_800300CC(s32 arg0, unk_D_86002F34_00C* arg1) {
-    if ((func_8002FF8C(arg0) != 0) && (arg0 == 2)) {
-        func_80011DAC(arg1, 0, 0, D_80075F84->unk_04, D_80075F84->unk_06);
-        func_80011E68(arg1, 45.0f, 20.0f, 8000.0f);
+    if (func_8002FF8C(arg0) != 0) {
+        if (arg0 == 2) {
+            func_80011DAC(arg1, 0, 0, D_80075F84->unk_04, D_80075F84->unk_06);
+            func_80011E68(arg1, 45.0f, 20.0f, 8000.0f);
+        }
     }
     return 0;
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/30640/func_800300CC.s")
-#endif
 
 s32 func_8003013C(s32 arg0, unk_func_8003013C_arg1* arg1) {
     UNUSED s32 pad;
@@ -414,76 +404,37 @@ void func_800302A4(s32 arg0, s32 arg1) {
     }
 }
 
-#ifdef NON_MATCHING
 s32 func_800303C8(s32 arg0, UNUSED GraphNode* arg1) {
-    char* sp16C;
-    u8* sp40;
-    char* temp_s2;
     s32 temp_v0;
-    s32 var_a0;
-    s32 var_a0_2;
-    s32 var_a1;
-    s32 var_ra;
-    s32 var_ra_2;
-    s32 var_s1;
-    s32 var_s2;
-    s32 var_s4;
-    s32 var_s5;
-    s32 var_t4;
-    s32 var_t4_2;
-    s32 var_t5;
-    s32 var_v0;
-    s32 var_v1;
+    s32 i;
+    char* sp16C;
 
     temp_v0 = func_8002FF8C(arg0);
     if ((temp_v0 != 0) && (arg0 == 2)) {
-        temp_s2 = (char*)((u8*)D_80075F84->unk_18 + 0x73);
-        D_80075F9C = func_8001F5B0(0x10, 0, temp_s2);
+        sp16C = (char*)((u8*)D_80075F84->unk_18 + 0x73);
+        D_80075F9C = func_8001F5B0(0x10, 0, sp16C);
         func_800302A4(0, -0x96);
         func_80006498(&gDisplayListHead, D_80075F90);
         func_8000699C(&gDisplayListHead, 0);
         gDPPipeSync(gDisplayListHead++);
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE3000C00;    _gfx->words.w1 = 0;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE3001201;    _gfx->words.w1 = 0x2000;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE3001402;    _gfx->words.w1 = 0xC00;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE3000F00;    _gfx->words.w1 = 0;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE3000D01;    _gfx->words.w1 = 0;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE3000A01;    _gfx->words.w1 = 0;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xFCFFFFFF;    _gfx->words.w1 = 0xFFFCF279;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE200001C;    _gfx->words.w1 = 0x553048;    }
-        sp16C = temp_s2;
+        gDPSetTexturePersp(gDisplayListHead++, G_TP_NONE);
+        gDPSetTextureFilter(gDisplayListHead++, G_TF_BILERP);
+        gDPSetTextureConvert(gDisplayListHead++, G_TC_FILT);
+        gDPSetTextureLOD(gDisplayListHead++, G_TL_TILE);
+        gDPSetTextureDetail(gDisplayListHead++, G_TD_CLAMP);
+        gDPSetCycleType(gDisplayListHead++, G_CYC_1CYCLE);
+        gDPSetCombineMode(gDisplayListHead++, G_CC_DECALRGBA, G_CC_DECALRGBA);
+        gDPSetRenderMode(gDisplayListHead++, G_RM_AA_TEX_EDGE, G_RM_AA_TEX_EDGE2);
+
         if (temp_v0 == 1) {
-            var_t4 = 0;
-            var_ra = 0xF;
-            for (var_t5 = 0xE; var_t5 < 0x2C; var_t5 += 0xF) {
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xFD100063;    _gfx->words.w1 = &D_5001950;    }
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF5103200;    _gfx->words.w1 = 0x07080200;    }
-                gDPLoadSync(gDisplayListHead++);
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((var_t4 * 4) & 0xFFF) | 0xF4000000);    _gfx->words.w1 = (s32) (((var_t5 * 4) & 0xFFF) | 0x0718C000);    }
-                gDPPipeSync(gDisplayListHead++);
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF5103200;    _gfx->words.w1 = 0x80200;    }
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((var_t4 * 4) & 0xFFF) | 0xF2000000);    _gfx->words.w1 = (s32) (((var_t5 * 4) & 0xFFF) | 0x18C000);    }
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((var_ra * 4) & 0xFFF) | 0xE4190000);    _gfx->words.w1 = (var_t4 * 4) & 0xFFF;    }
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE1000000;    _gfx->words.w1 = (var_t4 << 5) & 0xFFFF;    }
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF1000000;    _gfx->words.w1 = 0x04000400;    }
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((var_ra * 4) & 0xFFF) | 0xE4320000);    _gfx->words.w1 = (s32) (((var_t4 * 4) & 0xFFF) | 0x190000);    }
-                {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE1000000;    _gfx->words.w1 = (s32) (((var_t4 << 5) & 0xFFFF) | 0x0C800000);    }
-                var_t4 += 0xF;
-                var_ra += 0xF;
+            for (i = 0; i < 2; i++) {
+                gDPLoadTextureTile(gDisplayListHead++, D_5001950, G_IM_FMT_RGBA, G_IM_SIZ_16b, 100, 0, 0, (i * 15), 99, ((i + 1) * 15) - 1, 0, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+                gSPTextureRectangle(gDisplayListHead++, 0, (i * 15) << 2, 100 << 2, ((i + 1) * 15) << 2, 0, 0, (i * 15) << 5, 1 << 10, 1 << 10);
+                gSPTextureRectangle(gDisplayListHead++, 100 << 2, (i * 15) << 2, 200 << 2, ((i + 1) * 15) << 2, 0, 100 << 5, (i * 15) << 5, -(1 << 10), 1 << 10);
             }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xFD100063;    _gfx->words.w1 = &D_5001950;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF5103200;    _gfx->words.w1 = 0x07080200;    }
-            gDPLoadSync(gDisplayListHead++);
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF4000078;    _gfx->words.w1 = 0x0718C0A8;    }
-            gDPPipeSync(gDisplayListHead++);
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF5103200;    _gfx->words.w1 = 0x80200;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF2000078;    _gfx->words.w1 = 0x18C0A8;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE41900AC;    _gfx->words.w1 = 0x78;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE1000000;    _gfx->words.w1 = 0x3C0;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF1000000;    _gfx->words.w1 = 0x04000400;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE43200AC;    _gfx->words.w1 = 0x190078;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE1000000;    _gfx->words.w1 = 0x0C8003C0;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF1000000;    _gfx->words.w1 = 0xFC000400;    }
+            gDPLoadTextureTile(gDisplayListHead++, D_5001950, G_IM_FMT_RGBA, G_IM_SIZ_16b, 100, 0, 0, 30, 99, 42, 0, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+            gSPTextureRectangle(gDisplayListHead++, 0, 30 << 2, 100 << 2, 43 << 2, 0, 0, 30 << 5, 1 << 10, 1 << 10);
+            gSPTextureRectangle(gDisplayListHead++, 100 << 2, 30 << 2, 200 << 2, 43 << 2, 0, 100 << 5, 30 << 5, -(1 << 10), 1 << 10);
             func_8001F3F4();
             func_8001F470();
             func_8001F324(0xF0, 0x78, 0x6E, 0xFF);
@@ -493,19 +444,9 @@ s32 func_800303C8(s32 arg0, UNUSED GraphNode* arg1) {
             func_8001F4C4();
             func_8001F444();
         } else {
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xFD10001F;    _gfx->words.w1 = &D_5003AE8;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF5101000;    _gfx->words.w1 = 0x07080200;    }
-            gDPLoadSync(gDisplayListHead++);
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF4000000;    _gfx->words.w1 = 0x0707C09C;    }
-            gDPPipeSync(gDisplayListHead++);
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF5101000;    _gfx->words.w1 = 0x80200;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF2000000;    _gfx->words.w1 = 0x7C09C;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE42600A0;    _gfx->words.w1 = 0x40000;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE1000000;    _gfx->words.w1 = 0;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF1000000;    _gfx->words.w1 = 0x04000400;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE42E40A0;    _gfx->words.w1 = 0x260000;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE1000000;    _gfx->words.w1 = 0x04000000;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF1000000;    _gfx->words.w1 = 0xFC000400;    }
+            gDPLoadTextureTile(gDisplayListHead++, D_5003AE8, G_IM_FMT_RGBA, G_IM_SIZ_16b, 32, 40, 0, 0, 31, 39, 0, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+            gSPTextureRectangle(gDisplayListHead++, 16 << 2, 0 << 2, 152 << 2, 40 << 2, 0, 0, 0, 1 << 10, 1 << 10);
+            gSPTextureRectangle(gDisplayListHead++, 152 << 2, 0 << 2, 185 << 2, 40 << 2, 0, 32 << 5, 0, -(1 << 10), 1 << 10);
             func_8001F3F4();
             func_8001F470();
             func_8001F324(0xDC, 0xFF, 0xDC, 0xFF);
@@ -517,76 +458,22 @@ s32 func_800303C8(s32 arg0, UNUSED GraphNode* arg1) {
         }
         func_80006498(&gDisplayListHead, D_80075F84->unk_08);
         gDPPipeSync(gDisplayListHead++);
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE3000A01;    _gfx->words.w1 = 0;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xFCFFFFFF;    _gfx->words.w1 = 0xFFFCF279;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE200001C;    _gfx->words.w1 = 0x553048;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xD7000002;    _gfx->words.w1 = -1;    }
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xDA380003;    _gfx->words.w1 = &D_8006F010;    }
-        var_s4 = 0;
-        var_s5 = 9;
-        var_ra_2 = 0;
-        var_s1 = 4;
-        var_s2 = 2;
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0x0100C018;    _gfx->words.w1 = &D_800761B0;    }
-        for (var_t4_2 = 6; var_t4_2 < 0x1A; var_t4_2 += 4) {
-            var_s5 += 0xA;
-            var_s4 += 0xA;
-            var_v1 = var_s2 & 0xFF;
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((D_80075F94 - 1) & 0xFFF) | 0xFD100000);    _gfx->words.w1 = (s32) D_80075F90->img_p;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((((s32) ((D_80075F94 * 2) + 7) >> 3) & 0x1FF) << 9) | 0xF5100000);    _gfx->words.w1 = 0x07080200;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xE6000000;    _gfx->words.w1 = 0;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((var_s4 * 4) & 0xFFF) | 0xF4000000);    _gfx->words.w1 = (s32) (((((D_80075F94 - 1) * 4) & 0xFFF) << 0xC) | 0x07000000 | ((var_s5 * 4) & 0xFFF));    }
-            gDPPipeSync(gDisplayListHead++);
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((((s32) ((D_80075F94 * 2) + 7) >> 3) & 0x1FF) << 9) | 0xF5100000);    _gfx->words.w1 = 0x80200;    }
-            {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((var_s4 * 4) & 0xFFF) | 0xF2000000);    _gfx->words.w1 = (s32) (((((D_80075F94 - 1) * 4) & 0xFFF) << 0xC) | ((var_s5 * 4) & 0xFFF));    }
-            {   
-                Gfx *_gfx = (Gfx *)(gDisplayListHead++);
-                var_v0 = var_s1 & 0xFF;
-                if (var_t4_2 == 6) {
-                    var_a0 = ((var_ra_2 & 0xFF) << 0x10) | (var_v0 << 8) | var_v1;
-                } else {
-                    var_v1 = var_s2 & 0xFF;
-                    if (var_t4_2 == 8) {
-                        var_v0 = var_s1 & 0xFF;
-                        var_v1 = var_s2 & 0xFF;
-                        var_a1 = (var_v0 << 0x10) | (var_v1 << 8) | (var_ra_2 & 0xFF);
-                    } else {
-                        var_v0 = var_s1 & 0xFF;
-                        var_a1 = (var_v1 << 0x10) | ((var_ra_2 & 0xFF) << 8) | var_v0;
-                    }
-                    var_a0 = var_a1;
-                }
-                _gfx->words.w0 = (s32) (var_a0 | 0x06000000);
-                if (var_t4_2 == 6) {
-                    _gfx->words.w1 = (s32) ((var_v1 << 0x10) | (var_v0 << 8) | (var_t4_2 & 0xFF));
-                } else {
-                    if (var_t4_2 == 8) {
-                        var_a0_2 = (var_v0 << 0x10) | ((var_t4_2 & 0xFF) << 8) | var_v1;
-                    } else {
-                        var_a0_2 = ((var_t4_2 & 0xFF) << 0x10) | (var_v1 << 8) | var_v0;
-                    }
-                    _gfx->words.w1 = var_a0_2;
-                }
-            }
-            var_ra_2 += 4;
-            var_s1 += 4;
-            var_s2 += 4;
-        }
-        gDPSetTextureImage(gDisplayListHead++, G_IM_FMT_RGBA, G_IM_SIZ_16b, D_80075F94, D_80075F90->img_p);
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = (s32) (((((s32) ((D_80075F94 * 2) + 7) >> 3) & 0x1FF) << 9) | 0xF5100000);    _gfx->words.w1 = 0;    }
-        gDPLoadSync(gDisplayListHead++);
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF40000A0;    _gfx->words.w1 = (s32) (((((D_80075F94 - 1) * 4) & 0xFFF) << 0xC) | 0x07000000 | (((D_80075F98 - 1) * 4) & 0xFFF));    }
-        gDPPipeSync(gDisplayListHead++);
-        gDPSetTile(gDisplayListHead++, G_IM_FMT_RGBA, G_IM_SIZ_16b, (((D_80075F94 * 2) + 7) >> 3), 0, 0, 0, G_TX_CLAMP, 0, 0, G_TX_CLAMP, 0, 0);
-        {    Gfx *_gfx = (Gfx *)(gDisplayListHead++);    _gfx->words.w0 = 0xF20000A0;    _gfx->words.w1 = (s32) (((((D_80075F94 - 1) * 4) & 0xFFF) << 0xC) | (((D_80075F98 - 1) * 4) & 0xFFF));    }
-        gSP2Triangles(gDisplayListHead++, 9, 8, 10, 0, 11, 9, 10, 0);
+        gDPSetCycleType(gDisplayListHead++, G_CYC_1CYCLE);
+        gDPSetCombineMode(gDisplayListHead++, G_CC_DECALRGBA, G_CC_DECALRGBA);
+        gDPSetRenderMode(gDisplayListHead++, G_RM_AA_TEX_EDGE, G_RM_AA_TEX_EDGE2);
         gSPTexture(gDisplayListHead++, 0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_ON);
+        gSPMatrix(gDisplayListHead++, &D_8006F010, G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+        gSPVertex(gDisplayListHead++, D_800761B0, 12, 0);
+        for (i = 0; i < 10; i += 2) {
+            gDPLoadMultiTile(gDisplayListHead++, D_80075F90->img_p, 0, 0, G_IM_FMT_RGBA, G_IM_SIZ_16b, D_80075F94, D_80075F98, 0, i * 5, D_80075F94 - 1, (i + 2) * 5 - 1, 0, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+            gSP2Triangles(gDisplayListHead++, i, 2 + i, 1 + i, i, 1 + i, 2 + i, 3 + i, i);
+        }
+        gDPLoadMultiTile(gDisplayListHead++, D_80075F90->img_p, 0, 0, G_IM_FMT_RGBA, G_IM_SIZ_16b, D_80075F94, D_80075F98, 0, 40, D_80075F94 - 1, D_80075F98 - 1, 0, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+        gSP2Triangles(gDisplayListHead++, 9, 8, 10, 0, 11, 9, 10, 0);
+        gSPTexture(gDisplayListHead++, 0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_OFF);
     }
     return 0;
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/30640/func_800303C8.s")
-#endif
 
 void func_8003107C(unk_D_83402EE0_070* arg0, unk_func_80026268_arg0* arg1) {
     s32 i;
