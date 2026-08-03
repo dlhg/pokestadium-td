@@ -307,28 +307,33 @@ u8 func_800431DC(u32 arg0) {
     return 0;
 }
 
-#ifdef NON_MATCHING
 u8 func_800431FC(u32 arg0) {
     u8 temp_a0;
     u8 temp_a1;
     u8 temp_v0;
+    u8 temp_t9;
 
     temp_v0 = func_80044180(arg0);
     D_800FCD70[arg0].unk_03 = temp_v0;
     D_800FCD70[arg0].unk_04 = temp_v0;
+
     temp_v0 = func_80044180(arg0);
     temp_a0 = temp_v0 & 0xF0;
-    temp_a0 = (temp_a0 >> 4) & 0xFF;
-    temp_a1 = temp_a0 >> 1;
-    temp_v0 &= 0xF;
-    temp_a0 &= 1;
-    D_800FCD70[arg0].unk_00 = ((temp_a1 + temp_a0) * 0x10) | temp_a1;
-    D_800FCD70[arg0].unk_01 = (temp_v0 * 0x10) | temp_v0;
+    temp_a0 >>= 4;
+    temp_a1 = temp_a0;
+    temp_a1 >>= 1;
+    temp_t9 = temp_a0 & 1;
+    temp_a0 = temp_a1 + temp_t9;
+    temp_a0 <<= 4;
+    temp_t9 = temp_a0 | temp_a1;
+    D_800FCD70[arg0].unk_00 = temp_t9;
+
+    temp_t9 = temp_v0 & 0xF;
+    temp_v0 = temp_t9 << 4;
+    temp_v0 |= temp_t9;
+    D_800FCD70[arg0].unk_01 = temp_v0;
     return 0;
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/435D0/func_800431FC.s")
-#endif
 
 u8 func_8004327C(u32 arg0) {
     UNUSED s32 pad;
@@ -427,8 +432,7 @@ u8 func_800435CC(u32 arg0, u8 arg1) {
     return 0;
 }
 
-#ifdef NON_MATCHING
-u8 func_800435E8(u32 arg0, u8 arg1) {
+s32 func_800435E8(u32 arg0, u8 arg1) {
     u8 sp27;
     u8 sp26;
     u8 sp25;
@@ -453,9 +457,6 @@ u8 func_800435E8(u32 arg0, u8 arg1) {
     }
     return var_v1;
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/435D0/func_800435E8.s")
-#endif
 
 u8 func_80043708(u32 arg0, u8 arg1) {
     if (arg0 < 4) {
