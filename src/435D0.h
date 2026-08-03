@@ -24,7 +24,7 @@ u8 func_800434E0(u32 arg0);
 u8 func_80043514(u32 arg0);
 u8 func_80043534(u32 arg0, u8 arg1);
 u8 func_800435CC(u32 arg0, u8 arg1);
-u8 func_800435E8(u32 arg0, u8 arg1);
+s32 func_800435E8(u32 arg0, u8 arg1);
 u8 func_80043708(u32 arg0, u8 arg1);
 u8 func_800437A0(u32 arg0, u8 arg1);
 s32 func_80043838(u32 arg0, u8 arg1);
