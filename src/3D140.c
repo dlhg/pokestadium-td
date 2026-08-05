@@ -760,9 +760,8 @@ void func_8003D828(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     func_8003D6DC(1);
 }
 
-#ifdef NON_MATCHING
 void func_8003D918(u32 arg0, u32 arg1) {
-    u32 temp_v0 = arg1 == 0x10;
+    s32 pad[1];
     u8 sp1B = 0;
     u16 var_a0;
 
@@ -817,8 +816,7 @@ void func_8003D918(u32 arg0, u32 arg1) {
                 D_80078400 = 0;
                 arg0 = 1;
             } else {
-                D_800783FC = 1;
-                if (temp_v0) {
+                if (arg1 == 0x10) {
                     var_a0 = 0x48;
                     D_80078400 = 1;
                     arg0 = 1;
@@ -826,6 +824,7 @@ void func_8003D918(u32 arg0, u32 arg1) {
                     var_a0 = 0;
                     D_80078400 = 1;
                 }
+                D_800783FC = 1;
             }
         }
 
@@ -838,9 +837,6 @@ void func_8003D918(u32 arg0, u32 arg1) {
         }
     }
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/3D140/func_8003D918.s")
-#endif
 
 #ifdef NON_MATCHING
 void func_8003DB84(s32 arg0) {
