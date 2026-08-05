@@ -71,6 +71,7 @@ gSIEventMesgBuf = 0x800A73F8;
 gEepromMesgQueue = 0x800A7400;
 gEepromMesgBuf = 0x800A73FC;
 .L8120A860 = 0x8120A860;
+hdwrBugFlag = 0x8120EA50; // defined:true size:0x4
 D_8780FA30 = 0x8780FA30; // size:0x8
 miniShowHUB = 0x87906044;
 D_87906048 = 0x87906048;

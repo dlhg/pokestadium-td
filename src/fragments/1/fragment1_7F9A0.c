@@ -278,8 +278,84 @@ s32 func_812005D8(unk_D_8122B2C0* arg0) {
   return ret;
 }
 
-s32 func_812006AC(unk_D_8122B2C0* arg0);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_7F9A0/func_812006AC.s")
+s32 func_812006AC(unk_D_8122B2C0* arg0) {
+    s32 var_s1 = 0;
+    s32 var_s2;
+    s32 var_s2_2;
+    s32 var_s4;
+    s32 var_v1;
+    u32 var_s3;
+    u8* var_s0;
+    u32 offset;
+    s32 i;
+    u32 temp;
+    var_v1 = func_812005D8(arg0);
+    var_s0 = arg0->transferBuffer;
+    var_s3 = arg0->gbAddress;
+    var_s4 = arg0->transferSize;
+
+    if (var_v1 == 0 && var_s3 < 0x4000U) {
+        temp = var_s3;
+        temp += var_s4;
+        if (temp >= 0x4001U) {
+            var_s2 = 0x4000 - var_s3;
+        } else {
+            var_s2 = var_s4;
+        }
+
+        var_v1 = osGbpakReadWrite(&arg0->pfs, 0, var_s3, var_s0, var_s2);
+
+        if (var_v1 == 0) {
+            var_v1 = var_s2;
+
+            while (var_v1 != 0) {
+                var_s1 += *var_s0;
+                var_s0++;
+                var_v1--;
+            }
+            var_s4 -= var_s2;
+            var_s3 = 0x4000;
+        }
+    }
+
+    while (var_v1 == 0 && var_s4 != 0) {
+        var_v1 = func_812001E4(arg0, var_s3 >> 14);
+        if (var_v1 == 0) {
+            offset = var_s3 & 0x3FFF;
+            temp = offset;
+            temp += var_s4;
+            if (temp >= 0x4001U) {
+                var_s2_2 = 0x4000 - offset;
+            } else {
+                var_s2_2 = var_s4;
+            }
+    
+            var_v1 = osGbpakReadWrite(&arg0->pfs, 0, (offset | 0x4000), var_s0, var_s2_2);
+    
+            if (var_v1 == 0) {
+                var_v1 = var_s2_2;
+    
+                    while (var_v1 != 0) {
+                        var_s1 += *var_s0;
+                        var_s0++;
+                        var_v1--;
+                    }
+    
+                var_s4 -= var_s2_2;
+                var_s3 = (var_s3 + 0x4000) & ~0x3FFF;
+            }
+        }
+    }
+
+    if (var_v1 == 0) {
+        var_v1 = func_8120019C(arg0);
+        if (var_v1 == 0) {
+            arg0->unk_5D70[0] += var_s1;
+        }
+    }
+
+    return var_v1;
+}
 
 s32 func_812008C8(unk_D_8122B2C0* arg0, s32 arg1) {
   s32 temp_v0;
@@ -384,7 +460,26 @@ void func_812015EC(u16* dst, u16* src, s32 mode, s32 width, s32 height) {
 
 #pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_7F9A0/func_812016DC.s")
 
+#ifdef NON_MATCHING
+void func_812018C0(u16* arg0, s32 arg1, u16* arg2, s32 arg3, s32 arg4) {
+    s32 r = arg1 & 0xF800;
+    s32 g = arg1 & 0x7C0;
+    s32 b = arg1 & 0x3E;
+    s32 x;
+    s32 y;
+
+    for (y = 0; y < arg4; y++) {
+        u16* dst = &arg0[y * 160];
+        u16* src = &arg2[y * arg3];
+        for (x = 0; x < arg3; x++) {
+            s32 intensity = (s32) (src[x] & 0x3E) >> 1;
+            dst[x] = (((r * intensity) / 31) & 0xF800) | (((g * intensity) / 31) & 0x7C0) | (((b * intensity) / 31) & 0x3E);
+        }
+    }
+}
+#else
 #pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_7F9A0/func_812018C0.s")
+#endif
 
 #ifdef NON_MATCHING
 void func_81201DDC(u16* dst, u8* alpha_map, s32 color, s32 width, s32 height, u32 alpha_stride) {
@@ -532,7 +627,7 @@ void func_8120241C(void);
 void func_812029B0(u8*, u16 (*)[6][0x640], s32, s32);
 void func_812070A0(void);
 void func_8120735C(s32);
-void func_81208C08(s32, s32, s32);
+void func_81208C08(u16, u8, u16);
 void func_81208D7C(void);
 void func_81208E28(unk_D_8122B2F8*);
 void func_81208F94(void);
