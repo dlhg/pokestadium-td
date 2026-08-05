@@ -696,34 +696,26 @@ void func_86201814(unk_D_86203E50* arg0, s32 arg1) {
     }
 }
 
-#ifdef NON_MATCHING
 void func_86201900(unk_D_86203E50* arg0) {
     s32 i;
-    f32 sp64;
     f32 temp_fs1;
     u32 temp_v0;
     unk_D_86002F58_004_000* temp_s1;
     s32 arg0_unk000 = arg0->unk_000;
+    f32 unk_190;
 
     for (i = 0; i < 10; i++) {
-        f32 unk_190;
         D_86208280 = &D_86204720[arg0_unk000][i];
+        temp_s1 = &D_86208280->unk_004;
         D_86208280->unk_000 = 0;
-
-        temp_fs1 = D_86203BA0[D_8620471C][i];
-        sp64 = temp_fs1 * 10.44f * 1.7f - 30.0f;
-        temp_s1 = &D_86204720[arg0_unk000][i].unk_004;
         unk_190 = arg0->unk_190;
+        temp_fs1 = D_86203BA0[D_8620471C][i] * 10.44f * 1.7f;
 
-        // if ((sp64 >= unk_190) || (unk_190 >= (sp64 + 67.64706f))) {
-        //	continue;
-        // }
-
-        if ((sp64 >= unk_190) && (unk_190 >= (sp64 + 67.64706f))) {
+        if (((temp_fs1 - 30.0f) <= unk_190) && (unk_190 <= ((temp_fs1 - 30.0f) + 67.64706f))) {
 
             switch (D_86208280->unk_002) {
                 case 0:
-                    if ((unk_190 - sp64) < 5.0f) {
+                    if ((unk_190 - (temp_fs1 - 30.0f)) < 5.0f) {
                         D_86208280->unk_002 = 1;
                         func_8001BC34(temp_s1, 0, 0xB0, D_86203E34->unk_08->unk_00[arg0_unk000]);
                     }
@@ -746,7 +738,7 @@ void func_86201900(unk_D_86203E50* arg0) {
                     break;
             }
 
-            if ((D_86208280->unk_002 > 0) && ((unk_190 - sp64) > 64.70588f)) {
+            if ((D_86208280->unk_002 > 0) && ((unk_190 - (temp_fs1 - 30.0f)) > 64.70588f)) {
                 D_86208280->unk_002 = 0;
                 func_8001BCF0(temp_s1);
             }
@@ -759,7 +751,7 @@ void func_86201900(unk_D_86203E50* arg0) {
                 }
             }
 
-            temp_v0 = ((unk_190 - temp_fs1 * 10.44f * 1.7f) + 30.0f) * 1.7f * 65536.0f;
+            temp_v0 = ((unk_190 - temp_fs1) + 30.0f) * 1.7f * 65536.0f;
             temp_s1->unk_040.unk_08 = (D_86208280->unk_16C + temp_v0) >> 1;
             D_86208280->unk_16C = temp_v0;
 
@@ -780,10 +772,6 @@ void func_86201900(unk_D_86203E50* arg0) {
 
     if (arg0) {}
 }
-#else
-void func_86201900(unk_D_86203E50* arg0);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/8/fragment8/func_86201900.s")
-#endif
 
 s16 func_86201CD8(void) {
     s32 i;
@@ -1171,7 +1159,6 @@ void func_862023F8(void) {
     }
 }
 
-#ifdef NON_MATCHING
 void func_86202C7C(void) {
     s32 i;
 
@@ -1179,17 +1166,18 @@ void func_86202C7C(void) {
         D_86204590 = &D_86203E50[i];
         D_86204594 = &D_86204590->unk_008;
 
-        if (((D_86204590->unk_19E <= 0) || (D_86204590->unk_1C8 != 1)) &&
-            ((func_80017514(D_86204594) != 0) || (D_86204594->unk_040.unk_08 >= 0x340000))) {
-            func_8001BD04(D_86204594, 5);
-            D_86204594->unk_040.unk_08 = 0x270000;
+        if ((D_86204590->unk_19E > 0) && (D_86204590->unk_1C8 == 1)) {
+            continue;
         }
+
+        if ((func_80017514(D_86204594) == 0) && (D_86204594->unk_040.unk_08 < 0x340000)) {
+            continue;
+        }
+
+        func_8001BD04(D_86204594, 5);
+        D_86204594->unk_040.unk_08 = 0x270000;
     }
 }
-#else
-void func_86202C7C(void);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/8/fragment8/func_86202C7C.s")
-#endif
 
 void func_86202D5C(void) {
     s32 i;
