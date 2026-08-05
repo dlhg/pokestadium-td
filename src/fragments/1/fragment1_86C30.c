@@ -1,6 +1,5 @@
 #include "global.h"
 
-#ifdef NON_MATCHING
 s32 osGbSetNextBuffer(void* bufPtr, u32 size) {
   static u8 hdwrBugFlag = FALSE;
   char* bptr;
@@ -50,6 +49,3 @@ s32 osGbSetNextBuffer(void* bufPtr, u32 size) {
   IO_WRITE(AI_LEN_REG, size);
   return 0;
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86C30/osGbSetNextBuffer.s")
-#endif

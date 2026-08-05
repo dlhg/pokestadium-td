@@ -605,6 +605,8 @@
     - [0x86CB0,  c,      fragments/1/fragment1_86CB0]
     - [0x89020,  hasm,   fragments/1/fragment1_code_asm]
     - [0x8D1A0,  data,   fragments/1/fragment1_data_8D1A0]
+    - [0x8E3D0, .data,   fragments/1/fragment1_86C30]
+    - [0x8E3E0,  data,   fragments/1/fragment1_data_8E3E0]
     - [0xA8020,  data,   fragments/1/fragment1_data_A8020]
     - [0xA80F0,  data,   fragments/1/fragment1_data_asm]
     - [0xA8E80,  rodata, fragments/1/fragment1_rodata_A8E80]
