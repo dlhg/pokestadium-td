@@ -520,7 +520,7 @@ void func_80035248(ModelSegment*, MtxF*, ModelVertex*);
 #pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_80035248.s")
 #endif
 
-void func_80035434(Vec3f* a, Vec3f* b, Vec3f* scale) {
+f32 func_80035434(Vec3f* a, Vec3f* b, Vec3f* scale) {
     f32 dx;
     f32 dy;
     f32 dz;
@@ -538,7 +538,7 @@ void func_80035434(Vec3f* a, Vec3f* b, Vec3f* scale) {
     if (func_8003342C(dz) < D_8007C5D8) {
         dz = 0.0f;
     }
-    sqrtf((dx * dx) + (dy * dy) + (dz * dz));
+    return sqrtf((dx * dx) + (dy * dy) + (dz * dz));
 }
 
 void func_80035538(Vec3s* a, Vec3s* b) {
@@ -552,31 +552,29 @@ void func_80035538(Vec3s* a, Vec3s* b) {
     sqrtf((dx * dx) + (dy * dy) + (dz * dz));
 }
 
-#ifdef NON_MATCHING
-void func_800355A8(Vec3f* from, Vec3f* to, f32 currentTime, f32 deltaTime) {
-    f32 sp14;
-    f32 temp_ft4;
-    f32 temp_fv1;
-    f32 scale;
+void func_800355A8(Vec3f* from, Vec3f* to, f32 currentTime, f32 deltaTime, f32 scale) {
+    s32 pad;
+    f32 temp_fv0;
+    f32 temp_fa1;
+    f32 temp_ft5;
 
     if (deltaTime < D_8007C5DC) {
         return;
     }
-    temp_ft4 = to->y;
-    temp_fv1 = to->x;
-    sp14 = to->z;
-    scale = ((currentTime - deltaTime) / deltaTime);
+
+    temp_fv0 = to->x - from->x;
+    temp_fa1 = to->y - from->y;
+    temp_ft5 = to->z - from->z;
+
+    scale *= (currentTime - deltaTime) / deltaTime;
     if (deltaTime < currentTime) {
-        scale *= 0.5f;
+        scale /= 2.0f;
     }
-    to->x = (f32) (temp_fv1 + ((temp_fv1 - from->x) * scale));
-    to->y = (f32) (temp_ft4 + ((temp_ft4 - from->y) * scale));
-    to->z = (f32) (sp14 + ((sp14 - from->z) * scale));
+
+    to->x += temp_fv0 * scale;
+    to->y += temp_fa1 * scale;
+    to->z += temp_ft5 * scale;
 }
-#else
-void func_800355A8(Vec3f*, Vec3f*, f32, f32);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_800355A8.s")
-#endif
 
 #ifdef NON_MATCHING
 void func_80035660(PosBlend* src, PosBlend* dst, f32 totalTime, f32 elapsed, f32 stiffness) {
@@ -634,50 +632,53 @@ void func_80035660(PosBlend*, PosBlend*, f32, f32, f32);
 void func_800357F4(StadiumModel*);
 #pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_800357F4.s")
 
-#ifdef NON_MATCHING
 void func_800359FC(ModelSegment* segment, ModelVertex* vertices, StadiumModel* model, f32 deltaTime) {
     f32 temp_fs0;
+    f32 temp_fv0;
     s16 temp_v1;
     s16 var_a0;
+    s16 var_a1;
     s16 var_a2;
+    ModelTransformCmd* temp_v0;
     ModelVertex* temp_a3;
     Vec3f* temp_s0;
     Vec3f* temp_s1;
-    ModelTransformCmd* temp_v0;
     ModelVertex* temp_v0_2;
     ModelVertex* var_s2;
 
     Memmap_GetSegmentVaddr(segment->remapSegment);
     var_s2 = vertices;
-    while(1) {
-        temp_v0 = (ModelTransformCmd*)var_s2 + 8;
-        temp_v1 = var_s2->cmd.targetIndex;
+
+    while (1) {
+        temp_v0 = &var_s2->cmd;
         var_s2++;
+        temp_v1 = temp_v0->targetIndex;
         if (temp_v1 == -1) {
             break;
         }
+    
+        var_a1 = temp_v0->sourceIndex;
         var_a2 = temp_v0->enableFrom;
         var_a0 = temp_v0->enableTo;
         temp_fs0 = temp_v0->blendWeight;
         temp_a3 = &vertices[temp_v1];
+    
         if (temp_a3->disabled != 0) {
             var_a2 = 0;
         }
-        temp_v0_2 = &vertices[temp_v0->sourceIndex];
+    
+        temp_v0_2 = &vertices[var_a1];
         if (temp_v0_2->disabled != 0) {
             var_a0 = 0;
         }
+    
         if ((var_a0 != 0) || (var_a2 != 0)) {
-            temp_s0 = &temp_a3->position.base;
-            temp_s1 = &temp_v0_2->position.base;
-            func_80035434(temp_s0, temp_s1, &model->position);
-            func_800355A8(temp_s0, temp_s1, temp_fs0, deltaTime);
+            temp_fv0 = func_80035434(&temp_a3->position.base, &temp_v0_2->position.base, &model->position);
+            func_800355A8(&temp_a3->position.base, &temp_v0_2->position.base, temp_fs0, temp_fv0, deltaTime);
         }
+        
     }
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_800359FC.s")
-#endif
 
 void func_80035B20(ModelSegment*, ModelVertex*, StadiumModel*, f32);
 #pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_80035B20.s")
