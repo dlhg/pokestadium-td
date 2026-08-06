@@ -159,7 +159,7 @@ s32 func_88802F10(unk_func_888044BC_04C_02C* arg0, s32 arg1, s32 arg2);
 void func_8880316C(unk_func_888044BC_04C* arg0, s32 arg1, s32 arg2, MemoryPool* arg3);
 void func_888031FC(unk_func_888044BC* arg0, s32 arg1, s32 arg2, u8* arg3, MemoryPool* arg4);
 s32 func_88803614(void);
-u8 func_888038E0(void);
+s32 func_888038E0(void);
 void func_88803BCC(u8* arg0, s32 arg1);
 s32 func_88803C74(void);
 s32 func_88803ECC(void);
