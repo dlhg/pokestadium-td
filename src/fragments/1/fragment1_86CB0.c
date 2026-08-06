@@ -645,11 +645,3 @@ void func_81209368(s32 arg0) {
 
 void func_81209688(UNUSED s32 arg0) {
 }
-
-// Decrypting this function causes issues
-#ifdef NON_MATCHING
-void func_81209690(UNUSED s32 arg0) {
-}
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/1/fragment1_86CB0/func_81209690.s")
-#endif
