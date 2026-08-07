@@ -206,9 +206,9 @@ extern s32 maxRSPCmds;
 extern s32 D_800FCAD4;
 extern s32 D_800FCAD8;
 extern OSMesgQueue audDMAMessageQ;
-extern AMDMABuffer (*dmaBuffs)[NUM_DMA_BUFFERS];
-extern OSIoMesg (*audDMAIOMesgBuf)[NUM_DMA_BUFFERS];
-extern OSMesg (*audDMAMessageBuf)[NUM_DMA_BUFFERS];
+extern AMDMABuffer* dmaBuffs;
+extern OSIoMesg* audDMAIOMesgBuf;
+extern OSMesg* audDMAMessageBuf;
 extern u32 dmaBufferLen;
 extern OSPiHandle* D_800FCB08;
 extern u32 curAcmdList;
@@ -242,7 +242,6 @@ extern u8 D_800FCCAD;
 
 ALDMAproc __amDmaNew(AMDMAState** state);
 
-#ifdef NON_MATCHING
 void amCreateAudioMgr(ALSynConfig* c, amConfig* amc, u32 num_dma_buffers, s32 arg3, s32 arg4) {
     u32 i;
     f32 fsize;
@@ -255,9 +254,11 @@ void amCreateAudioMgr(ALSynConfig* c, amConfig* amc, u32 num_dma_buffers, s32 ar
     c->dmaproc = __amDmaNew;
     c->outputRate = amc->outputRate;
 
+    i = num_dma_buffers;
+    i <<= 1;
     dmaBuffs = alHeapAlloc(c->heap, 1, num_dma_buffers * sizeof(AMDMABuffer));
-    audDMAIOMesgBuf = alHeapAlloc(c->heap, 1, (num_dma_buffers << 1) * sizeof(OSIoMesg));
-    audDMAMessageBuf = alHeapAlloc(c->heap, 1, (num_dma_buffers << 1) * sizeof(OSMesg));
+    audDMAIOMesgBuf = alHeapAlloc(c->heap, 1, i * sizeof(OSIoMesg));
+    audDMAMessageBuf = alHeapAlloc(c->heap, 1, i * sizeof(OSMesg));
 
     fsize = (f32)amc->framesPerField * c->outputRate / arg4;
     frameSize = (s32)fsize;
@@ -271,23 +272,23 @@ void amCreateAudioMgr(ALSynConfig* c, amConfig* amc, u32 num_dma_buffers, s32 ar
 
     alInit(&__am.g, c);
 
-    (*dmaBuffs)[0].node.prev = NULL;
-    (*dmaBuffs)[0].node.next = NULL;
+    dmaBuffs[0].node.prev = NULL;
+    dmaBuffs[0].node.next = NULL;
 
     for (i = 0; i < num_dma_buffers - 1; i++) {
-        alLink(&(*dmaBuffs)[i + 1].node, &(*dmaBuffs)[i].node);
-        (*dmaBuffs)[i].ptr = alHeapAlloc(c->heap, 1, arg3);
+        alLink(&dmaBuffs[i + 1].node, &dmaBuffs[i].node);
+        dmaBuffs[i].ptr = alHeapAlloc(c->heap, 1, arg3);
     }
 
-    (*dmaBuffs)[i].ptr = alHeapAlloc(c->heap, 1, arg3);
+    dmaBuffs[i].ptr = alHeapAlloc(c->heap, 1, arg3);
 
     for (i = 0; i < 2; i++) {
-        __am.ACMDList[i] = alHeapAlloc(c->heap, 1, amc->maxACMDSize * 8);
+        __am.ACMDList[i] = alHeapAlloc(c->heap, 1, amc->maxACMDSize * sizeof(Acmd));
     }
 
     maxRSPCmds = amc->maxACMDSize;
 
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < 3; i++) {
         __am.audioInfo[i] = alHeapAlloc(c->heap, 1, sizeof(AudioInfo));
         __am.audioInfo[i]->msg.done.type = 0;
         __am.audioInfo[i]->msg.done.info = __am.audioInfo[i];
@@ -302,9 +303,6 @@ void amCreateAudioMgr(ALSynConfig* c, amConfig* amc, u32 num_dma_buffers, s32 ar
 
     func_80044B20(c->heap, minFrameSize, maxFrameSize);
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/3D140/amCreateAudioMgr.s")
-#endif
 
 s32 __amDMA(s32 addr, s32 len, void* state) {
     void* foundBuffer;
@@ -369,7 +367,7 @@ s32 __amDMA(s32 addr, s32 len, void* state) {
     dmaPtr->startAddr = addr;
     dmaPtr->lastFrame = audFrameCt;
 
-    ioMesg = (*audDMAIOMesgBuf) + nextDMA++;
+    ioMesg = audDMAIOMesgBuf + nextDMA++;
     ioMesg->hdr.pri = OS_MESG_PRI_HIGH;
     ioMesg->hdr.retQueue = &audDMAMessageQ;
     ioMesg->devAddr = addr;
