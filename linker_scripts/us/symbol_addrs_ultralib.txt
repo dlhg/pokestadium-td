@@ -316,6 +316,7 @@ __osEnqueueThread = 0x80057DEC; // defined:true
 __osCurrentHandle = 0x8007A880; // defined:true
 osViModeNtscLpn1 = 0x8007A890; // defined:true
 osViModeMpalLpn1 = 0x8007A8E0; // defined:true
+osViModeTable = 0x800796E0; // defined:true
 __osTimerList = 0x8007A9B0; // defined:true
 __osBaseTimer = 0x80103890; // defined:true
 __osCurrentTime = 0x801038B0; // defined:true

@@ -393,7 +393,7 @@
     - [0x7A290, lib, libultra, siacs,          .data]
     - [0x7A2A0, lib, libultra, initialize,     .data]
     - [0x7A2C0, lib, libultra, reverb,         .data]
-    - [0x7A2E0, data, rom_data_7A2E0]
+    - [0x7A2E0, lib, libultra, vitbl,          .data]
     - [0x7B460, lib, libultra, pimgr,          .data]
     - [0x7B490, lib, libultra, vimodentsclpn1, .data]
     - [0x7B4E0, lib, libultra, vimodempallpn1, .data]
