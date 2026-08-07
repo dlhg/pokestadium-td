@@ -235,7 +235,6 @@ s16 func_800338B8(s16* arg0, s32 arg1) {
     return temp_a2;
 }
 
-#ifdef NON_MATCHING
 void func_800338D8(StadiumModel* model, MtxF* mtx) {
     ModelSegment* segment;
     ModelVertex* base;
@@ -245,51 +244,58 @@ void func_800338D8(StadiumModel* model, MtxF* mtx) {
     s16 temp_t0;
     s16 temp_v0_2;
     s16 var_a1;
-    s16 var_s0;
     s16* temp_s2;
     s32 i;
     s32 var_a0;
     s32 var_s3;
+    UNUSED s32 pad[8];
 
     segment = Memmap_GetSegmentVaddr(model->modelSegment);
     base = &model->mvtx;
     mvtx = base;
     vtx = Memmap_GetSegmentVaddr(segment->vertexSegment);
-    for(var_a0 = 0; var_a0 < segment->vertexCount;) {
-        var_a0++;
-        mvtx++;
 
-        mvtx->position.base.x = (f32) vtx->v.ob[0];
-        mvtx->position.base.y = (f32) vtx->v.ob[1];
-        mvtx->position.base.z = (f32) vtx->v.ob[2];
-        mvtx->colorR = (f32) vtx->v.cn[0];
-        mvtx->colorG = (f32) vtx->v.cn[1];
-        mvtx->colorB = (f32) vtx->v.cn[2];
-        mvtx->texS = (s16) vtx->v.tc[0];
-        mvtx->texT = (s16) vtx->v.tc[1];
+    for (var_a0 = 0; var_a0 < segment->vertexCount; var_a0++) {
+
+        mvtx->position.base.x = (f32)vtx->v.ob[0];
+        mvtx->position.base.y = (f32)vtx->v.ob[1];
+        mvtx->position.base.z = (f32)vtx->v.ob[2];
+        mvtx->colorR = (s8)vtx->v.cn[0];
+        mvtx->colorG = (s8)vtx->v.cn[1];
+        mvtx->colorB = (s8)vtx->v.cn[2];
+        mvtx->texS = vtx->v.tc[0];
+        mvtx->texT = vtx->v.tc[1];
+        mvtx->alpha = vtx->v.cn[3];
         mvtx->position.offset.x = 0.0f;
         mvtx->position.offset.y = 0.0f;
         mvtx->position.offset.z = 0.0f;
         mvtx->disabled = 0;
         mvtx->drawGroup = 0;
-        mvtx->alpha = vtx->v.cn[3];
+        mvtx++;
         vtx++;
     }
+
     mvtx = base;
     func_800350E4(segment, mtx, base);
-    for(var_s3 = 0; var_s3 < 0x10; var_s3++) {
+
+    var_s3 = 0;
+    i = 0;
+    while (var_s3 < 0x10) {
         temp_s2 = Memmap_GetSegmentVaddr(segment->tableSegment);
-        for(var_s0 = 0; var_s0 < segment->vertexCount; var_s0++) {
-            if (var_s3 == (func_80033810(temp_s2, var_s0) & 0xFFFF)) {
-                mvtx->jointIndex = var_s0;
+        for (i = 0; i < segment->vertexCount; i++) {
+            u16 temp_v0 = func_80033810(temp_s2, i);
+            if (var_s3 == temp_v0) {
+                mvtx->jointIndex = i;
                 mvtx++;
             }
         }
+        var_s3++;
     }
+
     mvtx = base;
     var_a1 = 0;
     indexTable = Memmap_GetSegmentVaddr(segment->unk_0C);
-    for(i = 0; i < segment->vertexCount; i++) {
+    for (i = 0; i < segment->vertexCount; i++) {
         mvtx->childIndex = var_a1;
         do {
             temp_v0_2 = *indexTable++;
@@ -297,21 +303,21 @@ void func_800338D8(StadiumModel* model, MtxF* mtx) {
         } while (temp_v0_2 != -1);
         mvtx++;
     }
+
     mvtx = base;
-    for(i = 0; i < segment->vertexCount; i++) {
-        temp_t0 = mvtx->jointIndex;
-        mvtx->parentIndex = (s16) base[temp_t0].childIndex;
+    for (i = 0; i < segment->vertexCount; i++) {
+        ModelVertex* temp_v0 = &base[mvtx->jointIndex];
+        mvtx->parentIndex = temp_v0->childIndex;
         mvtx++;
     }
 }
-#else
-void func_800338D8(StadiumModel*, MtxF* mtx);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_800338D8.s")
-#endif
 
 #pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_80033B2C.s")
 
-#pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_80033D1C.s")
+void func_80033D1C(StadiumModel* model, MtxF* mtx) {
+    func_800338D8(model, mtx);
+    func_800357F4(model);
+}
 
 #pragma GLOBAL_ASM("asm/us/nonmatchings/33FE0/func_80033D44.s")
 
