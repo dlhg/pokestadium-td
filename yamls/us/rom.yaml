@@ -603,6 +603,7 @@
     - [0x86920,  c,      fragments/1/fragment1_86920]
     - [0x86C30,  c,      fragments/1/fragment1_86C30]
     - [0x86CB0,  c,      fragments/1/fragment1_86CB0]
+    - [0x89010,  c,      fragments/1/fragment1_89010]
     - [0x89020,  hasm,   fragments/1/fragment1_code_asm]
     - [0x8D1A0,  data,   fragments/1/fragment1_data_8D1A0]
     - [0x8E3D0, .data,   fragments/1/fragment1_86C30]
