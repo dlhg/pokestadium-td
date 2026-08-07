@@ -1,6 +1,5 @@
 #include "global.h"
 #include <PR/os_internal_reg.h>
-#include "global.h"
 #include "dp_intro.h"
 #include "5580.h"
 #include "6BC0.h"
@@ -28,8 +27,6 @@ extern u64 D_80084C68[0x1];
 extern s32 osTvType;
 extern char D_80068B74[];
 extern f32 D_8007AF10;
-
-extern OSViMode D_800796E0[]; // osViModeTable
 
 extern void func_8000183C(void*);
 
@@ -83,7 +80,7 @@ void func_80001474(s8 arg0, s8 arg1) {
         var_v0 = (arg0 * 2) + arg1 + 4;
     }
 
-    osViSetMode(&D_800796E0[(s32)D_80068B74[var_v0]]);
+    osViSetMode(&osViModeTable[(s32)D_80068B74[var_v0]]);
     osViSetSpecialFeatures(0x40U);
     osViSetSpecialFeatures(2U);
     osViSetSpecialFeatures(0x10U);
