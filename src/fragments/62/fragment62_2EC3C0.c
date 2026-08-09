@@ -92,6 +92,12 @@ u8 D_843845F4 = 0x16;
 u8 D_843845F8 = 0x53;
 u8 D_843845FC[] = { 0x55, 0x54 };
 
+char** D_843900B0;
+char** D_843900B4;
+char** D_843900B8;
+char** D_843900BC;
+char** D_843900C0;
+
 void func_84301B00(void) {
     s32 i;
 
