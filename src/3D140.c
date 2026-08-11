@@ -1505,11 +1505,8 @@ found_value:
     }
 }
 
-#ifdef NON_MATCHING
-// Matches but issues with rodata
 void func_8003F1AC(u32 arg0) {
     u8 sp1F;
-    const f64 D_8007C808 = 0.299999999999999999f;
 
     if (arg0 == 0 || arg0 >= 5) {
         return;
@@ -1549,7 +1546,7 @@ void func_8003F1AC(u32 arg0) {
         func_80041C70(0xC4);
         D_800783D0 = 0;
     } else if ((D_800FCCA4 >= 0x64U) && (D_800FCCB2 == 0) && (D_800783EC == 0)) {
-        if (((f32)D_800FCB18[sp1F]->unk_26 * D_8007C808) < ((f32)D_800FCB18[sp1F ^ 1]->unk_26 - D_800FCB18[sp1F]->unk_26)) {
+        if (((f32)D_800FCB18[sp1F]->unk_26 * (3.0/10.0)) < ((f32)D_800FCB18[sp1F ^ 1]->unk_26 - D_800FCB18[sp1F]->unk_26)) {
             func_800420C0(D_80077FC0);
         } else {
             func_800420C0(D_80077FD0);
@@ -1565,9 +1562,6 @@ void func_8003F1AC(u32 arg0) {
         func_800420C0(D_80077FB4);
     }
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/3D140/func_8003F1AC.s")
-#endif
 
 void func_8003F4C0(u32 arg0) {
     u8 temp_v0;
