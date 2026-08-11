@@ -229,9 +229,6 @@ extern u8 D_80078568[];
 // const f64 D_8007C7E8 = 0.599999999999999978f;
 // const f64 D_8007C7F0 = 0.400000000000000022f;
 // const f64 D_8007C7F8 = 0.299999999999999989f;
-// const f32 D_8007C800 = 0.3f;
-// const f32 D_8007C804 = 0.2f;
-// const f64 D_8007C808 = 0.3f;
 
 // const f32 D_8007CB80 = 1.100000024f;
 // const f32 D_8007CB84 = 1.100000024f;
@@ -243,9 +240,6 @@ extern f64 D_8007C7E0;
 extern f64 D_8007C7E8;
 extern f64 D_8007C7F0;
 extern f64 D_8007C7F8;
-extern f32 D_8007C800;
-extern f32 D_8007C804;
-extern f64 D_8007C808;
 
 extern f32 D_8007CB80;
 extern f32 D_8007CB84;
@@ -1332,9 +1326,8 @@ void func_8003EB40(s32 arg0, unk_D_800FCB18* arg1) {
     u8 value;
     u8 side;
     u8 changed = 0;
-    const f32 D_8007C800 = 0.3f;
     u32 i;
-    const f32 D_8007C804 = 0.2f;
+    u8 pad2;
 
     D_800FCCB1 = 0;
     D_800783F0 = 0;
@@ -1405,13 +1398,13 @@ void func_8003EB40(s32 arg0, unk_D_800FCB18* arg1) {
             return;
         }
 
-        if (((f32)(D_800FCB18[side])->unk_26 * D_8007C800) < ((f32)D_800FCB18[side ^ 1]->unk_26 - (f32)(D_800FCB18[side])->unk_26)) {
+        if (((f32)(D_800FCB18[side])->unk_26 * 0.3f) < ((f32)D_800FCB18[side ^ 1]->unk_26 - (f32)(D_800FCB18[side])->unk_26)) {
             D_800FCCB1 = 1;
             D_800FCCBA[side] = 0;
             return;
         }
 
-        if (((f32)D_800FCB18[side ^ 1]->unk_26 * D_8007C800) < ((f32)(D_800FCB18[side])->unk_26 - (f32)D_800FCB18[side ^ 1]->unk_26)) {
+        if (((f32)D_800FCB18[side ^ 1]->unk_26 * 0.3f) < ((f32)(D_800FCB18[side])->unk_26 - (f32)D_800FCB18[side ^ 1]->unk_26)) {
             D_800FCCB1 = 1;
             if ((D_800FCCD6[side] != 0) && (D_800FCCBA[side] != 0)) {
                 if (changed == 0) {
@@ -1500,11 +1493,10 @@ found_value:
         return;
     }
 
-    if ((((f32)(D_800FCB18[side])->unk_0C / (f32)(D_800FCB18[side])->unk_28) < D_8007C804) && ((D_800FCB18[side])->unk_0C < D_800FCB18[side ^ 1]->unk_0C)) {
+    if ((((f32)(D_800FCB18[side])->unk_0C / (f32)(D_800FCB18[side])->unk_28) < 0.2f) && ((D_800FCB18[side])->unk_0C < D_800FCB18[side ^ 1]->unk_0C)) {
         func_800420C0(D_8007800C);
     }
 }
-
 void func_8003F1AC(u32 arg0) {
     u8 sp1F;
 
@@ -1546,7 +1538,7 @@ void func_8003F1AC(u32 arg0) {
         func_80041C70(0xC4);
         D_800783D0 = 0;
     } else if ((D_800FCCA4 >= 0x64U) && (D_800FCCB2 == 0) && (D_800783EC == 0)) {
-        if (((f32)D_800FCB18[sp1F]->unk_26 * (3.0/10.0)) < ((f32)D_800FCB18[sp1F ^ 1]->unk_26 - D_800FCB18[sp1F]->unk_26)) {
+        if (((f32)D_800FCB18[sp1F]->unk_26 * (3.0 / 10.0)) < ((f32)D_800FCB18[sp1F ^ 1]->unk_26 - D_800FCB18[sp1F]->unk_26)) {
             func_800420C0(D_80077FC0);
         } else {
             func_800420C0(D_80077FD0);
