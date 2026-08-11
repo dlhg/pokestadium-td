@@ -189,7 +189,7 @@ extern u8 D_8007838C[4];
 extern u8 D_80078390[2];
 extern u8 D_80078394[4];
 extern u8 D_80078398[4];
-extern s8 D_8007839C[];
+extern u8 D_8007839C[];
 extern u8 D_800783A0;
 extern u32 D_800783A4[4];
 extern u32 D_800783B4;
@@ -203,7 +203,7 @@ extern u8 D_800783D0;
 extern u8 D_800783D4;
 extern u8 D_800783D8;
 extern u8 D_800783DC;
-extern s8 D_800783E0;
+extern u8 D_800783E0;
 extern u8 D_800783E4;
 extern u8 D_800783E8;
 extern u8 D_800783EC;
@@ -1327,15 +1327,14 @@ void func_8003DB84(s32 arg0) {
 #pragma GLOBAL_ASM("asm/us/nonmatchings/3D140/func_8003DB84.s")
 #endif
 
-#ifdef NON_MATCHING
-// Matches but issues with .rodata
 void func_8003EB40(s32 arg0, unk_D_800FCB18* arg1) {
     u8 pad;
     u8 value;
     u8 side;
     u8 changed = 0;
+    const f32 D_8007C800 = 0.3f;
     u32 i;
-    s32 pad2;
+    const f32 D_8007C804 = 0.2f;
 
     D_800FCCB1 = 0;
     D_800783F0 = 0;
@@ -1505,14 +1504,12 @@ found_value:
         func_800420C0(D_8007800C);
     }
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/3D140/func_8003EB40.s")
-#endif
 
 #ifdef NON_MATCHING
 // Matches but issues with rodata
 void func_8003F1AC(u32 arg0) {
     u8 sp1F;
+    const f64 D_8007C808 = 0.299999999999999999f;
 
     if (arg0 == 0 || arg0 >= 5) {
         return;
@@ -2193,8 +2190,6 @@ void func_8003F660(s32 arg0) {
 #pragma GLOBAL_ASM("asm/us/nonmatchings/3D140/func_8003F660.s")
 #endif
 
-#ifdef NON_MATCHING
-// Matches but issues with .rodata
 void func_80040A70(unk_D_800FCB18* arg0, s32 arg1, s32 arg2, s32 arg3) {
     s32 i;
     s32 sp40;
@@ -2230,7 +2225,8 @@ void func_80040A70(unk_D_800FCB18* arg0, s32 arg1, s32 arg2, s32 arg3) {
 
             if (D_800FCB18[sp40]->unk_0C != 0) {
                 for (i = 0; i < 5; i++) {
-                    if ((u32)arg2); // FAKE
+                    // FAKE
+                    if (arg2) {}
                     if (arg1 == D_80078548[i].unk_00) {
                         if (D_800FCB18[sp40]->unk_0C < D_800FCB48[sp40].unk_00[D_800FCB48[sp40].unk_24 & 0xF]) {
                             tmp = (D_800FCB48[sp40].unk_00[D_800FCB48[sp40].unk_24 & 0xF] - D_800FCB18[sp40]->unk_0C);
@@ -2454,9 +2450,6 @@ void func_80040A70(unk_D_800FCB18* arg0, s32 arg1, s32 arg2, s32 arg3) {
             break;
     }
 }
-#else
-#pragma GLOBAL_ASM("asm/us/nonmatchings/3D140/func_80040A70.s")
-#endif
 
 void func_800414B8(s32 arg0) {
     u8 temp_v0;
