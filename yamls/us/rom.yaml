@@ -538,7 +538,7 @@
     - {vram: 0x800FC820, type: .bss, name: 3D140}
     - {vram: 0x800FCD40, type: .bss, name: 435D0}
     - {vram: 0x800FCED0, type: .bss, name: 45720}
-    - {vram: 0x800FCF60, type:  bss, name: unk_bss_15} # 4A3E0
+    - {vram: 0x800FCF60, type: .bss, name: 4A3E0}
     - {vram: 0x800FF990, type: .bss, name: 4B940}
     - {vram: 0x800FF9B0, type: .bss, name: 4BDC0}
     - {vram: 0x800FF9C0, type: .bss, name: 50A00}
