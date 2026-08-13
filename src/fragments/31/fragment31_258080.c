@@ -9,19 +9,19 @@
 typedef struct {
     /* 0x00 */ u8 rgb0[3];      // start color
     /* 0x03 */ u8 frameStart;   // frame where this keyframe begins
-    /* 0x04 */ u8 rgb1[3];      // end color
-    /* 0x07 */ u8 frameEnd;     // frame where keyframe ends
-} Keyframe;  // size = 0x08
+} Keyframe;  // size = 0x04
 
-extern Keyframe* D_8100419C[];
-extern s32 D_810041D0[20];
-extern char D_810047D0[3];
-extern s32 D_81004B70;
-extern s32 D_81004B80;
-extern s32 D_81004B90;
-extern s32 D_81004BA0;
-extern s32 D_81004BB0;
-extern char D_81004BB8[0x28];
+// .bss
+static s32 D_81004B70;
+static u8 pad_D_81004B78[0x8];
+static s32 D_81004B80;
+static u8 pad_D_81004B88[0x8];
+static s32 D_81004B90;
+static u8 pad_D_81004B98[0x8];
+static s32 D_81004BA0;
+static u8 pad_D_81004BA8[0x8];
+static s32 D_81004BB0;
+static char D_81004BB8[0x28];
 
 void func_81002DC0(Gfx* gfx, u16* arg1, u8* arg2) {
     gDPPipeSync(gfx++);
@@ -131,8 +131,6 @@ void func_81003538(s32 arg0, DisplayListState* state) {
     }
 }
 
-#ifdef NON_MATCHING
-// Matching, needs more data
 void func_810035C0(s32 arg0, DisplayListState* state) {
     static u8 D_81004190 = 0;
     s32 temp_a1;
@@ -150,70 +148,54 @@ void func_810035C0(s32 arg0, DisplayListState* state) {
         D_81004190 &= 0x7F;
     }
 }
-#else
-void func_810035C0(s32, DisplayListState*);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/31/fragment31_258080/func_810035C0.s")
-#endif
 
-#ifdef NON_MATCHING
 void func_81003678(s32 arg0, DisplayListState* state) {
     static u8 D_81004194 = 0;
     static u8 D_81004198 = 0;
+    static Keyframe D_8100419C[6] = {
+        { { 0xFF, 0x32, 0x32 }, 0  },
+        { { 0xC8, 0xC8, 0x00 }, 10 },
+        { { 0x64, 0xFF, 0x00 }, 20 },
+        { { 0x00, 0xC8, 0xFF }, 30 },
+        { { 0x96, 0x32, 0xC8 }, 40 },
+        { { 0xFF, 0x32, 0x32 }, 50 },
+    };
+    u8 i;
+    u8 c;
     Keyframe* kf;
     Gfx* gfx;
-    u8 rgbInterp[3];
-    f32 var_ft2;
-    s32 temp_a3_2;
-    s32 temp_t1_2;
-    s32 i;
-    s32 c;
-    u8 start;
-    u8 span;
-    u8 delta;
-    u8 t;
+    u8 sp48[3];
     
     if (arg0 == 2) {
-        gfx = func_80005F5C(0x20);
+        gfx = func_80005F5C(sizeof(Gfx) * 4);
         state->gfx = gfx;
         for (i = 0; i < 5; i++) {
-            kf = D_8100419C[i];
-            if (D_81004198 == kf->frameStart) {
+            if (D_81004198 == D_8100419C[i].frameStart) {
                 for(c = 0; c < 3; c++) {
-                    rgbInterp[c] = kf->rgb0[c];
+                    sp48[c] = D_8100419C[i].rgb0[c];
                 }
-            } else if (kf->frameStart < D_81004198 && D_81004198 < kf->frameEnd) {
-                span = (kf->frameEnd - kf->frameStart);
-                t = D_81004198 - kf->frameStart;
+                break;
+            }
+            if (D_8100419C[i].frameStart < D_81004198 && D_81004198 < D_8100419C[i + 1].frameStart) {
                 for(c = 0; c < 3; c++) {
-                    start = kf->rgb0[c];
-                    var_ft2 = (f32) start;
-                    if ((s32) start < 0) {
-                        var_ft2 += 4294967296.0f;
-                    }
-                    delta = (kf->rgb1[c] - start);
-                    rgbInterp[c] = (var_ft2 + ((f32) (delta * t) / (f32) span) + 0.5f);
+                    sp48[c] = (s32) (((f32) ((D_8100419C[i + 1].rgb0[c] - D_8100419C[i].rgb0[c]) * (D_81004198 - D_8100419C[i].frameStart)) / (f32) (D_8100419C[i + 1].frameStart - D_8100419C[i].frameStart)) + D_8100419C[i].rgb0[c] + 0.5f);
                 }
+                break;
             }
         }
-        temp_a3_2 = D_81004194 * -2;
-        temp_t1_2 = D_81004194 * 2;
-        // set prim color?
-        {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xFA000080;    _gfx->words.w1 = ((rgbInterp[2] << 8) | (rgbInterp[1] << 0x18) | (rgbInterp[0] << 0x10) | 0xB4);    }
-        {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = (((temp_a3_2 & 0xFFF) << 0xC) | 0xF2000000);    _gfx->words.w1 = ((((0x13F << (temp_a3_2 + 2)) & 0xFFF) << 0xC) | 0xFC);    }
-        {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = (((temp_t1_2 & 0xFFF) << 0xC) | 0xF2000000);    _gfx->words.w1 = ((((0x13F << (temp_t1_2 + 2)) & 0xFFF) << 0xC) | 0x01000000 | 0xFC);    }
+        gDPSetPrimColor(gfx++, 0, 0x80, sp48[0], sp48[1], sp48[2], 180);
+        gDPSetTileSize(gfx++, 0, -2 * D_81004194, 0, (320 - 1) << ((-2 * D_81004194) + 2), (64 - 1) << 2);
+        gDPSetTileSize(gfx++, 1, 2 * D_81004194, 0, (320 - 1) << ((2 * D_81004194) + 2), (64 - 1) << 2);
         gSPEndDisplayList(gfx++);
         D_81004194++;
         D_81004194 &= 0x7F;
         D_81004198++;
+        D_81004198 &= 0xFF;
         if ((s32) D_81004198 >= 0x32) {
             D_81004198 = 0;
         }
     }
 }
-#else
-void func_81003678(s32, DisplayListState*);
-#pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/31/fragment31_258080/func_81003678.s")
-#endif
 
 void func_810038D0(Gfx* gfx) {
     s32 temp_a3;
@@ -251,44 +233,42 @@ s32 func_81003A24(s8* arg0) {
 
 #ifdef NON_MATCHING
 void func_81003A54(Gfx* gfx) {
+    u16 temp_v1;
     u8 sp4D;
+    s32 pad[3];
+    u8 var_v0 = D_8006F09C->unk_0A6 % 5;
+    u32 temp_t0;
     char* sp34;
     Mtx* sp30;
     s32 sp2C;
-    u8 temp_t0;
-    u8 var_v1;
 
-    temp_t0 = D_800AF770[(D_8006F09C->unk_0A6 % 5) & 0xFF];
+    temp_t0 = D_800AF770[var_v0];
     switch (D_81004BB0) {
     case 0:
-        var_v1 = (((s32) (temp_t0 + 1) / 100) + 0x10) & 0xFF;
+        sp4D = (((s32) (temp_t0 + 1) / 100) + 0x10) & 0xFF;
         break;
     case 1:
-        var_v1 = (((s32) ((s32) (temp_t0 + 1) % 100) / 10) + 0x10) & 0xFF;
+        sp4D = (((s32) ((s32) (temp_t0 + 1) % 100) / 10) + 0x10) & 0xFF;
         break;
     case 2:
-        var_v1 = (((s32) (temp_t0 + 1) % 10) + 0x10) & 0xFF;
+        sp4D = (((s32) (temp_t0 + 1) % 10) + 0x10) & 0xFF;
         break;
     default:
-        sp34 = func_8002D7C0(0, 0, D_8267E760, temp_t0);;
-        sprintf(D_81004BB8, D_810047D0, sp34);
-        sp4D = func_8001E730((u8) D_81004BB8[(D_81004BB0 - 3) & 0xFFFF]);
+        {
+        sp34 = func_8002D7C0(0, 0, D_8267E760, (u32)(u64)(u32)(u64)(u32)(u64)(u32)temp_t0);
+        sprintf(D_81004BB8, "%s     ", sp34);
+        temp_v1 = D_81004BB0 - 3;
+        sp4D = func_8001E730((u8) D_81004BB8[temp_v1]);
         sp2C = 0xA - func_81003A24((s8*)sp34);
-        sp30 = func_80005F5C(0x40);;
+        sp30 = func_80005F5C(sizeof(Mtx));
         guTranslate(sp30, (f32) sp2C * 32.0f, 0.0f, 0.0f);
-        var_v1 = sp4D;
-        {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xDA380001;    _gfx->words.w1 = sp30;    }
+        gSPMatrix(gfx++, sp30, G_MTX_NOPUSH | G_MTX_MUL | G_MTX_MODELVIEW);
         break;
+        }
     }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xFD6800FF;    _gfx->words.w1 = Util_ConvertAddrToVirtAddr(D_3000000[((var_v1 & 0xF) * 0x10) + (((s32) (var_v1 & 0xF0) >> 4) << 0xC)]);    }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xF5680600;    _gfx->words.w1 = 0x07094250;    }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xE6000000;    _gfx->words.w1 = 0;    }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xF4000000;    _gfx->words.w1 = 0x07040040;    }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xE7000000;    _gfx->words.w1 = 0;    }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xF5680600;    _gfx->words.w1 = 0x94250;    }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xF2000000;    _gfx->words.w1 = 0x40040;    }
-    {    Gfx *_gfx = (Gfx *)(gfx++);    _gfx->words.w0 = 0xDF000000;    _gfx->words.w1 = 0;    }
-    D_81004BB0 += 1;
+    gDPLoadTextureTile(gfx++, Util_ConvertAddrToVirtAddr(D_3000000 + (((sp4D & 0xF) << 4)) + (((((sp4D & 0xF0) & 0xFF) >> 4) << 0xC))), G_IM_FMT_IA, G_IM_SIZ_8b, 256, 17, 0, 0, 16, 16, 0, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, 5, 5, G_TX_NOLOD, G_TX_NOLOD);
+    gSPEndDisplayList(gfx++);
+    D_81004BB0++;
 }
 #else
 #pragma GLOBAL_ASM("asm/us/nonmatchings/fragments/31/fragment31_258080/func_81003A54.s")
