@@ -555,7 +555,7 @@
     - {vram: 0x801010D0, type: .bss, name: libleo/cjcreateleomanager}
 
     # padding
-    - {vram: 0x801010E0, type:  bss, name: bss_pad}
+    - {vram: 0x801010E0, type: .bss, name: bss_pad}
 
     # ultralib
     - {type: lib, vram: 0x801020D0, name: libultra, object: leointerrupt, section: .bss}
