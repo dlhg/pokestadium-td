@@ -9,7 +9,8 @@ typedef struct unk_D_800FD008 {
     /* 0x2A */ u8 unk_2A;
     /* 0x2B */ char unk2B[1];
     /* 0x2C */ u8 unk_2C;
-} unk_D_800FD008; // size >= 0x2D
+    /* 0x2D */ char unk2D[0x13]
+} unk_D_800FD008; // size = 0x40
 
 typedef struct unk_D_800FD068 {
     /* 0x00 */ u8* unk_00;
@@ -30,19 +31,29 @@ typedef struct unk_D_800FCFD8 {
     /* 0x04 */ u32 unk_20;
     /* 0x04 */ u32 unk_24;
     /* 0x04 */ u8 unk_28;
-} unk_D_800FCFD8; // size = 0x29
+} unk_D_800FCFD8; // size = 0x2C
 
 typedef struct unk_D_800FCF90 {
     /* 0x00 */ u32 unk_00;
-    /* 0x04 */ u8 unk04[0x20];
+    /* 0x00 */ s16 unk_04;
+    /* 0x00 */ s16 unk_06;
+    /* 0x00 */ u32 unk_08;
+    /* 0x00 */ u32 unk_0C;
+    /* 0x00 */ s16 unk_10;
+    /* 0x00 */ s16 unk_12;
+    /* 0x00 */ s16 unk_14;
+    /* 0x00 */ u8 unk_16;
+    /* 0x00 */ u32 unk_18;
+    /* 0x00 */ u32 unk_1C;
+    /* 0x00 */ u32 unk_20;
     /* 0x24 */ u8 unk_24;
-} unk_D_800FCF90; // size = 0x25
+} unk_D_800FCF90; // size = 0x28
 
 typedef struct unk_D_800FCFB8 {
     /* 0x00 */ u32 unk_00;
     /* 0x04 */ u8 unk04[0x18];
     /* 0x1C */ u8 unk_1C;
-} unk_D_800FCFB8; // size = 0x1D
+} unk_D_800FCFB8; // size = 0x20
 
 typedef struct unk_D_800FCF60 {
     /* 0x00 */ u32 unk_00;
@@ -60,33 +71,35 @@ typedef struct unk_D_800FCF60 {
     /* 0x24 */ u32 unk_24;
     /* 0x28 */ u32 unk_28;
     /* 0x2C */ u8 unk_2C;
-} unk_D_800FCF60; // size = 0x2D
+} unk_D_800FCF60; // size = 0x30
 
-extern unk_D_800FCF60 D_800FCF60;
-extern unk_D_800FCF90 D_800FCF90;
-extern unk_D_800FCFB8 D_800FCFB8;
-extern unk_D_800FCFD8 D_800FCFD8;
-extern unk_D_800FD008 D_800FD008;
-extern unk_D_800FD068 D_800FD068[199];
-extern u32 D_800FD004;
-extern u8 D_800FD048[16];
-extern s16 D_800FD06E;
-extern u8 D_800FD6A0[8];
-extern u32 D_800FD6A8;
-extern u32 D_800FD6AC;
-extern u8 D_800FD6E0;
-extern u8 D_800FD6E1;
-extern f32 D_800FD6E4;
-extern s32 D_800FD6E8;
-extern u32 D_800FD6F0;
-extern u32 D_800FD6F4;
-extern s16 D_800FD6F8[0x1140];
-extern u32 D_800FF978;
-extern u8 D_800FF97C;
-extern s32 D_800FF980;
+// .bss
+unk_D_800FCF60 D_800FCF60;
+unk_D_800FCF90 D_800FCF90;
+unk_D_800FCFB8 D_800FCFB8;
+unk_D_800FCFD8 D_800FCFD8;
+u32 D_800FD004;
+unk_D_800FD008 D_800FD008;
+u8 D_800FD048[32];
+unk_D_800FD068 D_800FD068[199];
+u8 D_800FD6A0[8];
+u32 D_800FD6A8;
+u32 D_800FD6AC;
+static u8 D_800FD6B0[0x30]; // pad
+u8 D_800FD6E0;
+u8 D_800FD6E1;
+f32 D_800FD6E4;
+s32 D_800FD6E8;
+static u8 D_800FD6EC[0x4]; // pad
+u32 D_800FD6F0;
+u32 D_800FD6F4;
+s16 D_800FD6F8[0x1140];
+u32 D_800FF978;
+u8 D_800FF97C;
+s32 D_800FF980;
 
 void func_80049A60(u32);
-void func_8004AC9C();                                  /* extern */
+void func_8004AC9C();
 void func_8004ACD0();
 
 void func_800497E0(s16* arg0, s32 arg1, u32 arg2, f32 arg3) {
@@ -108,6 +121,7 @@ u8 func_80049890(u16 arg0) {
 }
 
 void func_800498A8(u32 arg0, u8 arg1, u32 arg2) {
+    u32 temp_t3;
     u8* p;
     s32 i;
     D_800FD004 = arg0 >> 1;
@@ -145,7 +159,7 @@ void func_800498A8(u32 arg0, u8 arg1, u32 arg2) {
         p[i * 2] = 0;
     }
     D_800FD6AC = 0;
-    D_800FD06E = 0;
+    D_800FD068[0].unk_06 = 0;
     D_800FD6A8 = 0;
     D_800FCF60.unk_00 = 0;
     D_800FCF60.unk_2C = 0;
