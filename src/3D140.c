@@ -1440,7 +1440,7 @@ found_value:
     if (D_800FCB30[side] == 0) {
         if (D_800783DC == 0) {
             if (D_80078390[side] < 2) {
-                if (__ull_rem(osGetTime(), 2ULL) == 0) {
+                if ((osGetTime() % 2) == 0) {
                     func_80041C70(2);
                 } else {
                     func_80041C70(1);
@@ -1497,6 +1497,7 @@ found_value:
         func_800420C0(D_8007800C);
     }
 }
+
 void func_8003F1AC(u32 arg0) {
     u8 sp1F;
 
@@ -2687,7 +2688,7 @@ u32 func_80041EF4(u16* arg0) {
     }
 
     for (i = 0; i < temp_v0 << 1; i++) {
-        func_80041D50(D_800FCD18, D_800FCD18 + __ull_rem(osGetTime(), (s32)temp_v0));
+        func_80041D50(D_800FCD18, D_800FCD18 + (osGetTime() % (s32)temp_v0));
     }
 
     for (i = 0; i < temp_v0; i++) {
