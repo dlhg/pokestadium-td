@@ -1419,13 +1419,16 @@
     - [0x259030, c,      fragments/31/fragment31_259030]
     - [0x2590C0, c,      fragments/31/fragment31_2590C0]
     - [0x259290, .data,  fragments/31/fragment31_2554C0]
-    - [0x2592A0, data,  fragments/31/fragment31_data]
-    - [0x259480, rodata, fragments/31/fragment31_rodata_259480]
-    - [0x259490, rodata, fragments/31/fragment31_rodata_259490]
+    - [0x2592A0, .data,  fragments/31/fragment31_2558B0]
+    - [0x259430, .data,  fragments/31/fragment31_2577F0]
+    - [0x259450, .data,  fragments/31/fragment31_258080]
+    - [0x259480, .rodata, fragments/31/fragment31_2554C0]
     - [0x2594E0, .rodata, fragments/31/fragment31_2558B0]
-    - [0x259A90, rodata, fragments/31/fragment31_rodata_259A90]
+    - [0x259A90, .rodata, fragments/31/fragment31_258080]
 
-    - {vram: 0x810047E0, type:  bss, name: fragments/31/fragment31_bss}
+    - {vram: 0x810047E0, type: .bss, name: fragments/31/fragment31_2558B0}
+    - {vram: 0x81004B60, type: .bss, name: fragments/31/fragment31_2577F0}
+    - {vram: 0x81004B70, type: .bss, name: fragments/31/fragment31_258080}
 
   - name: fragment31_relocs
     type: code
@@ -1525,7 +1528,7 @@
     - [0x271260, textbin,   fragments/35/fragment35_header]
     - [0x271280, c,      fragments/35/fragment35]
 
-    - {vram: 0x82000560, type:  bss, name: fragments/35/fragment35_bss}
+    - {vram: 0x82000560, type: .bss, name: fragments/35/fragment35}
 
   - name: fragment35_relocs
     type: code

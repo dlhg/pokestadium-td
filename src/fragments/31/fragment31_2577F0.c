@@ -3,8 +3,16 @@
 #include "12D80.h"
 #include "6A40.h"
 
-extern s32 D_81004170;
-extern s16 D_81004B60;
+// .data
+static Gfx D_81004170[] = {
+    gsDPPipeSync(),
+    gsDPSetCombineLERP(TEXEL1, TEXEL0, ENV_ALPHA, TEXEL0, TEXEL1, TEXEL0, ENVIRONMENT, TEXEL0, COMBINED, 0, SHADE, 0, COMBINED, 0, PRIM_LOD_FRAC, 0),
+    gsDPSetEnvColor(0xFF, 0xFF, 0xFF, 0x64),
+    gsSPEndDisplayList(),
+};
+
+// .bss
+static s16 D_81004B60;
 
 #ifdef NON_MATCHING
 void func_81002530(Gfx* gfx, DisplayListAddresses* addresses) {
