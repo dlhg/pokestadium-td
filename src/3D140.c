@@ -1004,7 +1004,7 @@ void func_8003DB84(s32 arg0) {
                           D_800FCB18[var_t2]->unk_26) >= 0x15) &&
                         (((D_800FCB18[var_t2]->unk_0C * 0x64u) / D_800FCB18[var_t2]->unk_28) < 0x28) &&
                         (((D_800FCB18[var_t4]->unk_0C * 0x64u) / D_800FCB18[var_t4]->unk_28) >= 0x51)) {
-                        if (__ull_rem(osGetTime(), 3) == 0) {
+                        if ((osGetTime() % 3) == 0) {
                             var_a0 = 0x256;
                             goto block_53;
                         }
@@ -1052,7 +1052,7 @@ void func_8003DB84(s32 arg0) {
                         if (D_800783E4 != 0) {
                             D_800783E4 = 0;
                         } else {
-                            if (__ull_rem(osGetTime(), 2) != 0) {
+                            if ((osGetTime() % 2) != 0) {
                                 var_a0 = 0x254;
                             } else {
                                 var_a0 = 0x26B;
@@ -1129,7 +1129,7 @@ void func_8003DB84(s32 arg0) {
                     }
 
                     if (D_800FCCB1 != 0) {
-                        if (__ull_rem(osGetTime(), 2) != 0) {
+                        if ((osGetTime() % 2) != 0) {
                             D_800FCCB0 = 0;
                             func_800420C0(D_80077E10);
                             return;
@@ -1311,7 +1311,7 @@ void func_8003DB84(s32 arg0) {
 
         if ((D_800FCB18[0] != NULL) && (D_800FCB18[1] != NULL) && (D_8007840C != 0) && (D_800FCB18[0]->unk_0C != 0) &&
             (D_800FCB18[1]->unk_0C != 0) && (func_80044E54(1) == 0)) {
-            if (__ull_rem(osGetTime(), 2) == 0) {
+            if ((osGetTime() % 2) == 0) {
                 func_800420C0(D_800780A8);
             }
         }
