@@ -81,7 +81,7 @@ extern f32 D_80077DDC;
 extern f32 D_80077DE0;
 extern u8 D_80077DE4;
 
-extern unk_D_800FCB18* D_800FCB18[2];
+extern unk_D_800FCB18* D_800FCB18[4];
 
 void amCreateAudioMgr(ALSynConfig*, amConfig*, u32, s32, s32);
 OSTask* func_8003CADC(OSTask*);

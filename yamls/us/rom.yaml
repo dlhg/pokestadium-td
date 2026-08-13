@@ -443,8 +443,7 @@
     - [0x7D1B0, rodata, rom_rodata_7D1B0] # 33FE0
     - [0x7D230, .rodata, 373A0]
     - [0x7D340, .rodata, 38BB0]
-    - [0x7D3C0, rodata, rom_rodata_7D3C0]
-    - [0x7D3E0, .rodata, 3D140]
+    - [0x7D3C0, .rodata, 3D140]
     - [0x7D800, .rodata, 435D0]
     - [0x7D860, .rodata, 45720]
     - [0x7D880, .rodata, libnaudio/n_env]
@@ -536,7 +535,7 @@
     - {vram: 0x800B2F50, type:  bss, name: unk_bss_9} # 33FE0
     - {vram: 0x800B32A0, type: .bss, name: 373A0}
     - {vram: 0x800FC7A0, type: .bss, name: 38BB0}
-    - {vram: 0x800FC820, type:  bss, name: unk_bss_12} # 3D140
+    - {vram: 0x800FC820, type: .bss, name: 3D140}
     - {vram: 0x800FCD40, type: .bss, name: 435D0}
     - {vram: 0x800FCED0, type: .bss, name: 45720}
     - {vram: 0x800FCF60, type:  bss, name: unk_bss_15} # 4A3E0
