@@ -1,15 +1,17 @@
 #include "global.h"
 #include "6A40.h"
 
-struct UnkStruct800A7428 {
+typedef struct UnkStruct800A7428 {
     u32* unk0;
     u32* unk4;
     u32 unk8;
     s32 unkC;
     s16 unk10;
-};
+} UnkStruct800A7428; // size = 0x12
 
-extern struct UnkStruct800A7428 D_800A7428;
+Gfx* gDisplayListHead;
+UnkStruct800A7428 D_800A7428;
+unk_D_800A7440 D_800A7440;
 
 void func_80005EDC(void);
 

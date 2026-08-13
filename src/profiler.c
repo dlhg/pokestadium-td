@@ -2,8 +2,6 @@
 #include "profiler.h"
 #include "5580.h"
 
-extern Gfx* gDisplayListHead;
-
 struct Profiler gProfiler;
 
 /*
