@@ -7,41 +7,41 @@
 #include "profiler.h"
 #include "memory.h"
 
+extern u64 F3DEX2_data_bin[]; // F3DEX2_data.bin
+
+// .data
+s32 D_80068B70 = 0;
+char D_80068B74[] = {
+    0x0E, 0x10, 0x17, 0x19, 0x00, 0x02, 0x09, 0x0B,
+    0x1C, 0x1E, 0x25, 0x27, 0x2A, 0x2C, 0x33, 0x35,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+};
+
+// .rodata
+const f32 D_8007AF10[4] = {
+    0.8333333135f,
+    0.0f,
+    0.0f,
+    0.0f,
+};
+
+// .bss
 extern struct UnkStruct80083CA0_2 D_80083CA0;
-
+extern u32 D_80084680[];
+extern OSMesg D_80084684;
+extern OSMesg D_80084688;
+extern OSMesgQueue D_8008468C;
+extern OSMesgQueue D_800846A4;
 extern UnkStruct80001380 D_800846C0;
-
 extern struct UnkArray4 D_8008472C;
 extern struct UnkArray4 D_8008473C;
 extern struct UnkArray4 D_8008474C;
-
-extern s32 D_80068B70;
-
-extern u64 F3DEX2_data_bin[]; // F3DEX2_data.bin
-extern u64 D_80084860[0x1];
-extern u64 D_80085870[0x1];
-extern u64 D_80084C68[0x1];
-
-#define ALIGN16(val) (((val) + 0xF) & ~0xF)
-
-extern s32 osTvType;
-extern char D_80068B74[];
-extern f32 D_8007AF10;
-
-extern void func_8000183C(void*);
-
-extern u32 D_80084680[];
-
-extern OSMesgQueue D_8008468C;
-extern OSMesgQueue D_800846A4;
-
-extern OSMesg D_80084684;
-extern OSMesg D_80084688;
-
 extern s32 D_80084758;
-
-// .bss?
 extern u64 D_80084760[0x100 / sizeof(u64)];
+extern u64 D_80084860[0x1];
+extern u64 D_80084C68[0x1];
+extern u64 D_80085870[0x1];
 
 // function prototypes
 void func_80001AD4(u16 color);
@@ -85,7 +85,7 @@ void func_80001474(s8 arg0, s8 arg1) {
     osViSetSpecialFeatures(2U);
     osViSetSpecialFeatures(0x10U);
     if (osTvType == 0) {
-        osViSetYScale(D_8007AF10);
+        osViSetYScale(D_8007AF10[0]);
     }
 }
 

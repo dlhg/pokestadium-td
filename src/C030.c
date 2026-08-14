@@ -1,7 +1,7 @@
 #include "global.h"
 #include "controller.h"
 
-extern s32 D_800697E0;
+s32 D_800697E0[] = { 0, 0, 0, 0 };
 
 static u8 D_800A82B0[31];
 static u8 D_800A82CF;
@@ -29,7 +29,7 @@ s32 func_8000B4C4(void) {
     s32 ret;
     u8 sp2F; // sp2F
 
-    if (D_800697E0 == 0) {
+    if (D_800697E0[0] == 0) {
         u8* buffer;
         osPfsIsPlug(&gSIEventMesgQueue, &sp2F);
         // is controller 4 plugged in? (why?)
@@ -60,7 +60,7 @@ s32 func_8000B4C4(void) {
             }
             if ((__osContRamRead(&gSIEventMesgQueue, 3, 0x400, buffer) == 0) && (D_800A82CF == 0x85)) {
                 Cont_NoBlockEepromQueue();
-                D_800697E0 = 1;
+                D_800697E0[0] = 1;
                 return 1;
             }
             Cont_NoBlockEepromQueue();

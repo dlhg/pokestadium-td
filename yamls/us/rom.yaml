@@ -332,7 +332,7 @@
     - [0x68C80, data, unk_F3DEX2_68C80]
     
     # .data
-    - [0x69770, data, rom_data_69770] # dp_intro
+    - [0x69770, .data, dp_intro]
     - [0x69790, .data, util]
     - [0x697A0, .data, controller]
     - [0x697B0, .data, 6BC0]
@@ -340,19 +340,18 @@
     - [0x6A1B0, .data, crash_screen]
     - [0x6A3B0, .data, profiler]
     - [0x6A3D0, .data, gb_tower]
-    - [0x6A3E0, data, rom_data_6A3E0]
+    - [0x6A3E0, .data, C030]
     - [0x6A3F0, .data, math_util]
     - [0x6FC00, .data, E890]
-    - [0x6FC10, data, rom_data_6FC10]
-    - [0x6FC50, .data, F420]
+    - [0x6FC10, .data, F420]
     - [0x6FC80, .data, 12D80]
     - [0x6FEB0, .data, geo_layout]
     - [0x6FF50, .data, 1AB70]
     - [0x70070, .data, 20470]
     - [0x703E0, data, rom_data_703E0]
+    - [0x71BA0, data, rom_data_71BA1] #22630
     - [0x74250, .data, 26820]
-    - [0x74260, data, rom_data_74260]
-    - [0x76260, .data, 29BA0]
+    - [0x74260, .data, 29BA0]
     - [0x76280, .data, 2C1C0]
     - [0x76290, .data, 2D340]
     - [0x764A0, .data, 2E460]
@@ -366,10 +365,10 @@
     - [0x79190, .data, 435D0]
     - [0x791F0, .data, 45720]
     - [0x79200, .data, libnaudio/n_env]
-    - [0x79300, data, rom_data_79300]
-    - [0x79610, data, rom_data_79610]
+    - [0x79300, .data, 485C0]
+    - [0x79610, .data, 48C60]
     - [0x79630, .data, 49790]
-    - [0x79660, data, rom_data_79660]
+    - [0x79660, data, 4A3E0]
     - [0x79AE0, .data, 4CBC0]
     - [0x79C70, .data, 4F410]
     - [0x79F70, .data, libnaudio/n_drvrNew]
@@ -417,7 +416,7 @@
     
     # Start of .rodata
     - [0x7BAC0, .rodata, rsp]
-    - [0x7BB10, rodata]
+    - [0x7BB10, .rodata, dp_intro]
     - [0x7BB20, .rodata, util]
     - [0x7BB50, .rodata, 3FB0]
     - [0x7BBC0, .rodata, 5580]
@@ -530,9 +529,9 @@
     - {vram: 0x800AE520, type: .bss, name: 29BA0}
     - {vram: 0x800AF740, type: .bss, name: 2E110}
     - {vram: 0x800AF750, type: .bss, name: 2E460}
-    - {vram: 0x800AF770, type:  bss, name: unk_bss_7} # 32D10
+    - {vram: 0x800AF770, type: .bss, name: 32D10}
     - {vram: 0x800AF7C0, type: .bss, name: 334D0}
-    - {vram: 0x800B2F50, type:  bss, name: unk_bss_9} # 33FE0
+    - {vram: 0x800B2F50, type: .bss, name: 33FE0}
     - {vram: 0x800B32A0, type: .bss, name: 373A0}
     - {vram: 0x800FC7A0, type: .bss, name: 38BB0}
     - {vram: 0x800FC820, type: .bss, name: 3D140}

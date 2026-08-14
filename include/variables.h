@@ -843,8 +843,6 @@ extern u8 D_86C00000;
 extern u8 D_87A00000;
 extern u8 D_87000000[];
 
-extern u8 D_800AF770[];
-
 typedef struct unk_D_800A7440 {
 	/* 0x00 */ s16 x1;
 	/* 0x02 */ s16 y1;

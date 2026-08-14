@@ -124,6 +124,7 @@ typedef struct unk_D_800AE540 {
     /* 0x11F6 */ u16 unk_11F6;
 } unk_D_800AE540; // size = 0x11F8
 
+extern u16 D_80073660[16][256];
 extern s32 gCurrentGameState;
 extern unk_D_800AE520 D_800AE520;
 extern unk_D_800AE540 D_800AE540;
