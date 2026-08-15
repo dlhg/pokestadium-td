@@ -26,9 +26,11 @@ extern f32 D_8007C5E0;
 extern f32 D_8007C5E4;
 extern f32 D_8007C5E8;
 extern f32 D_8007C5EC;
-extern Vec3fCounter* D_800B2F50;
-extern SomeStruct* D_800B2F58[0x10];
-extern Mtx D_800B3258;
+
+// .bss
+Vec3fCounter* D_800B2F50;
+SomeStruct D_800B2F58[0x10];
+Mtx D_800B3258;
 
 s32 func_800333E0(s32 arg0) {
     u8 stack[4];
@@ -508,11 +510,11 @@ void func_80035248(ModelSegment* segment, MtxF* mtx, ModelVertex* mvtx) {
                 break;
             case 2:
                 func_80034F68(mtx, &position->base, &var_s2->vec);
-                func_80035208((SomeStruct*)&position->base, D_800B2F58[func_80033850(temp_s5, i)]);
+                func_80035208((SomeStruct*)&position->base, &D_800B2F58[func_80033850(temp_s5, i)]);
                 break;
             case 3:
                 func_80034F68(mtx, &position->base, &var_s2->vec);
-                func_80035208((SomeStruct*)&position->base, D_800B2F58[func_80033870(temp_s5, i)]);
+                func_80035208((SomeStruct*)&position->base, &D_800B2F58[func_80033870(temp_s5, i)]);
                 break;
             }
         }
