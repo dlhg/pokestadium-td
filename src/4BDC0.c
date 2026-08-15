@@ -1,5 +1,5 @@
 #include "4BDC0.h"
-#include "src/38BB0.h"
+#include "src/libnumus/player.h"
 #include "src/4BA90.h"
 #include "src/4CBC0.h"
 #include "src/4B940.h"
@@ -35,19 +35,19 @@ s32 func_8004B1CC(s32 arg0) {
     sp20 = arg0;
     sp1C = 0x80;
     func_80044E80(1);
-    func_800398F0(1);
+    MusSetVoicePriority(1);
     D_800FF9B4 = arg0;
     if (arg0 == 0x50) {
         D_80078E78 = 0;
         D_80078E7C = 0;
         if (D_80078ED0 == 1) {
-            func_80039B88(D_80078ECC, 0, 0x80, 0x50);
+            MusSetupVolumeFade(D_80078ECC, 0, 0x80, 0x50);
             D_80078ED0 = 2;
             return 0;
         }
-        func_80039940();
+        MusStopAllSongs();
         D_80078E70 = 0;
-        func_800392A8(D_80078ECC, 1);
+        MusSetDurationScale(D_80078ECC, 1);
         D_80078ED0 = 0;
         D_80078ECC = func_8004DDA4(0x01000003, 0, 0);
         arg0 = 0x28;
@@ -55,21 +55,21 @@ s32 func_8004B1CC(s32 arg0) {
     } else if (arg0 == 0x28) {
         D_80078E78 = 0;
         if (D_80078ED0 == 2) {
-            func_80039B88(D_80078ECC, 0x80, 0, 0x50);
+            MusSetupVolumeFade(D_80078ECC, 0x80, 0, 0x50);
             D_80078ED0 = 1;
             return 0;
         }
-        func_80039940();
+        MusStopAllSongs();
         D_80078E70 = 0;
-        func_800392A8(D_80078ECC, 1);
+        MusSetDurationScale(D_80078ECC, 1);
         D_80078ED0 = 0;
         D_80078ECC = func_8004DDA4(0x01000003, 0, 0);
-        func_800393DC(D_80078ECC, 0);
+        MusSetVolumeScale(D_80078ECC, 0);
         D_80078ED0 = 1;
     } else {
-        func_80039940();
+        MusStopAllSongs();
         D_80078E70 = 0;
-        func_800392A8(D_80078ECC, 1);
+        MusSetDurationScale(D_80078ECC, 1);
         D_80078ED0 = 0;
     }
 
@@ -451,16 +451,16 @@ s32 func_8004B1CC(s32 arg0) {
     func_80050B40(D_800FC6DC, D_800FC680, 0x98D8);
 
     if (D_80078EC8 <= 0) {
-        D_80078E70 = func_80038F30(D_800FC684, D_800FC680);
+        D_80078E70 = MusLoadSong(D_800FC684, D_800FC680);
     } else {
-        D_80078E70 = func_80039A7C(D_800FC684, D_800FC680, D_80078EC8 ^ 0);
+        D_80078E70 = MusLoadSongWithFade(D_800FC684, D_800FC680, D_80078EC8 ^ 0);
     }
 
     D_80078EC8 = -1;
-    func_800393DC(D_80078E70, sp20);
+    MusSetVolumeScale(D_80078E70, sp20);
 
     if (sp1C != 0x80) {
-        func_800395FC(D_80078E70, sp1C);
+        MusSetTempoScale(D_80078E70, sp1C);
     }
 
     if (arg0 == 0x1D) {
@@ -477,12 +477,12 @@ void func_8004B9C4(s32 arg0) {
         arg0 = 1;
     }
 
-    func_800392A8(D_80078E70, arg0);
+    MusSetDurationScale(D_80078E70, arg0);
     D_80078EC8 = -1;
-    func_800392A8(D_80078ECC, arg0);
+    MusSetDurationScale(D_80078ECC, arg0);
     D_80078ED0 = 0;
     D_8007840C = 0;
-    func_800392A8(D_80078FA8, arg0);
+    MusSetDurationScale(D_80078FA8, arg0);
     func_80044E80(0);
     func_8003DB84(0);
 
@@ -588,7 +588,7 @@ s32 func_8004BC84(s32 arg0, u32 arg1) {
                     return 0;
 
                 case 3:
-                    if (func_80039354(D_80078EDC) == 0) {
+                    if (MusHandleAsk(D_80078EDC) == 0) {
                         D_80078ED4 = 1;
                         if (arg1 == 0) {
                             return func_8004B1CC(0x1E);
@@ -662,7 +662,7 @@ s32 func_8004BC84(s32 arg0, u32 arg1) {
                     return 0;
 
                 case 2:
-                    if (func_80039354(D_80078ED8) == 0) {
+                    if (MusHandleAsk(D_80078ED8) == 0) {
                         if (arg1 == 0) {
                             D_80078ED4 = 3;
                             D_80078EDC = 0;

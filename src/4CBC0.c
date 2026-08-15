@@ -1,5 +1,5 @@
 #include "4CBC0.h"
-#include "src/38BB0.h"
+#include "src/libnumus/player.h"
 #include "src/49790.h"
 #include "src/4B940.h"
 #include "src/4BDC0.h"
@@ -71,8 +71,8 @@ s32 func_8004BFC0(s32 arg0, s32 arg1, s32 arg2) {
             break;
     }
 
-    sp34 = func_80039024(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, 0x80, var_v0, -1);
-    func_80039534(sp34, var_fv0);
+    sp34 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, 0x80, var_v0, -1);
+    MusSetFrequencyOffset(sp34, var_fv0);
 
     return sp34;
 }
@@ -95,7 +95,7 @@ s32 func_8004C17C(s32 arg0, s32 arg1, s32 arg2) {
         case 0x30003:
             sp38 = 0x50;
             if (arg2 >= 0) {
-                if (func_80039354(D_80078F00[arg1]) == 0) {
+                if (MusHandleAsk(D_80078F00[arg1]) == 0) {
                     var_fv0 += D_80078EF0[arg1];
                     var_v0 += D_80078EE0[arg1];
                     break;
@@ -105,7 +105,7 @@ s32 func_8004C17C(s32 arg0, s32 arg1, s32 arg2) {
                     var_fv0 += D_80078EF0[arg1];
                     var_fv0 += 0.5f * arg2;
 
-                    func_80039534(D_80078F00[arg1], var_fv0);
+                    MusSetFrequencyOffset(D_80078F00[arg1], var_fv0);
                     return 0;
                 }
 
@@ -113,21 +113,21 @@ s32 func_8004C17C(s32 arg0, s32 arg1, s32 arg2) {
                     var_fv0 += D_80078EF0[arg1];
                     var_fv0 += (0, 0.5f) * 22.5;
 
-                    func_80039534(D_80078F00[arg1], var_fv0);
+                    MusSetFrequencyOffset(D_80078F00[arg1], var_fv0);
                     return 0;
                 }
-            } else if (func_80039354(D_80078F00[arg1]) == 0) {
+            } else if (MusHandleAsk(D_80078F00[arg1]) == 0) {
                 return 0;
             } else {
-                func_800392A8(D_80078F00[arg1], 0xA);
+                MusSetDurationScale(D_80078F00[arg1], 0xA);
                 return 0;
             }
 
         case 0x30004:
-            func_800392A8(D_80078F00[0], 0x14);
-            func_800392A8(D_80078F00[1], 0x14);
-            func_800392A8(D_80078F00[2], 0x14);
-            func_800392A8(D_80078F00[3], 0x14);
+            MusSetDurationScale(D_80078F00[0], 0x14);
+            MusSetDurationScale(D_80078F00[1], 0x14);
+            MusSetDurationScale(D_80078F00[2], 0x14);
+            MusSetDurationScale(D_80078F00[3], 0x14);
             var_v0 += D_80078EE0[arg1];
             break;
 
@@ -139,8 +139,8 @@ s32 func_8004C17C(s32 arg0, s32 arg1, s32 arg2) {
             return 0;
     }
 
-    sp44 = func_80039024(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, sp38, var_v0, -1);
-    func_80039534(sp44, var_fv0);
+    sp44 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, sp38, var_v0, -1);
+    MusSetFrequencyOffset(sp44, var_fv0);
     if (arg0 == 0x30003) {
         D_80078F00[arg1] = sp44;
     }
@@ -195,7 +195,7 @@ s32 func_8004C4FC(s32 arg0, s32 arg1, s32 arg2) {
                 var_a3 = 0x80;
                 arg1 = 1;
             }
-            func_800392A8(D_80078F00[arg1 + 3], 0x14);
+            MusSetDurationScale(D_80078F00[arg1 + 3], 0x14);
             var_v1 = func_8004C454(arg1, arg2);
             var_fv0 = (4 - arg1) * 0.5f;
             break;
@@ -231,8 +231,8 @@ s32 func_8004C4FC(s32 arg0, s32 arg1, s32 arg2) {
             return 0;
     }
 
-    sp3C = func_80039024(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, var_a3, var_v1, -1);
-    func_80039534(sp3C, var_fv0);
+    sp3C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, var_a3, var_v1, -1);
+    MusSetFrequencyOffset(sp3C, var_fv0);
 
     if (arg0 == 0x40004) {
         D_80078F00[arg1 + 3] = sp3C;
@@ -277,7 +277,7 @@ s32 func_8004C6DC(s32 arg0, s32 arg1, s32 arg2) {
             break;
 
         case 0x5000B:
-            func_800392A8(D_80078F20, 1);
+            MusSetDurationScale(D_80078F20, 1);
             var_v0 = 0x80;
             var_a3 = 0x80;
             var_fv0 = 0.0f;
@@ -291,8 +291,8 @@ s32 func_8004C6DC(s32 arg0, s32 arg1, s32 arg2) {
             return 0;
     }
 
-    sp34 = func_80039024(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, var_a3, var_v0, -1);
-    func_80039534(sp34, var_fv0);
+    sp34 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, var_a3, var_v0, -1);
+    MusSetFrequencyOffset(sp34, var_fv0);
     D_80078F20 = sp34;
     return sp34;
 }
@@ -350,18 +350,18 @@ s32 func_8004C8B4(s32 arg0, s32 arg1, UNUSED s32 arg2) {
             break;
 
         case 0x60005:
-            if (func_80039354(D_80078F48) != 0) {
+            if (MusHandleAsk(D_80078F48) != 0) {
                 return 0;
             }
             var_v1 = 0x7F;
-            if (func_80039354(D_80078F44) != 0) {
+            if (MusHandleAsk(D_80078F44) != 0) {
                 return 0;
             }
             break;
 
         case 0x60007:
             var_v1 = 0x7F;
-            if (func_80039354(D_80078F48) != 0) {
+            if (MusHandleAsk(D_80078F48) != 0) {
                 arg0 = 0x60008;
             }
             break;
@@ -370,14 +370,14 @@ s32 func_8004C8B4(s32 arg0, s32 arg1, UNUSED s32 arg2) {
             return 0;
     }
 
-    sp34 = func_80039024(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, sp28, var_v1, -1);
+    sp34 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, sp28, var_v1, -1);
     if (arg0 == 0x60005) {
-        if (func_80039354(D_80078F44) == 0) {
+        if (MusHandleAsk(D_80078F44) == 0) {
             D_80078F44 = sp34;
         }
     }
     D_80078F48 = sp34;
-    func_80039534(sp34, sp20);
+    MusSetFrequencyOffset(sp34, sp20);
     return sp34;
 }
 
@@ -461,8 +461,8 @@ s32 func_8004CA7C(s32 arg0, s32 arg1, UNUSED s32 arg2) {
             return 0;
     }
 
-    sp44 = func_80039024(D_800FC6A4, D_800FC6A8, var_a2, var_a3, var_t0, var_v0);
-    func_80039534(sp44, var_fv0);
+    sp44 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, var_a2, var_a3, var_t0, var_v0);
+    MusSetFrequencyOffset(sp44, var_fv0);
     return sp44;
 }
 
@@ -561,22 +561,22 @@ s32 func_8004CCD8(s32 arg0, s32 arg1, s32 arg2) {
 
                 case 2:
                     var_fv1 += 0.5;
-                    func_80039534(D_80078F74[arg1], var_fv1);
+                    MusSetFrequencyOffset(D_80078F74[arg1], var_fv1);
                     return 0;
 
                 case 3:
                     var_fv1 += 1.0;
-                    func_80039534(D_80078F74[arg1], var_fv1);
+                    MusSetFrequencyOffset(D_80078F74[arg1], var_fv1);
                     return 0;
 
                 case 4:
                     var_fv1 += 2.0;
-                    func_80039534(D_80078F74[arg1], var_fv1);
-                    func_800393DC(D_80078F74[arg1], 0x58);
+                    MusSetFrequencyOffset(D_80078F74[arg1], var_fv1);
+                    MusSetVolumeScale(D_80078F74[arg1], 0x58);
                     return 0;
 
                 case 5:
-                    func_800392A8(D_80078F74[arg1], 3);
+                    MusSetDurationScale(D_80078F74[arg1], 3);
 
                 default:
                     return 0;
@@ -584,7 +584,7 @@ s32 func_8004CCD8(s32 arg0, s32 arg1, s32 arg2) {
             break;
 
         case 0x80002:
-            if (func_80039354(D_80078F8C[arg1]) != 0) {
+            if (MusHandleAsk(D_80078F8C[arg1]) != 0) {
                 return 0;
             }
 
@@ -619,7 +619,7 @@ s32 func_8004CCD8(s32 arg0, s32 arg1, s32 arg2) {
             break;
 
         case 0x80003:
-            if (func_80039354(D_80078F84) != 0) {
+            if (MusHandleAsk(D_80078F84) != 0) {
                 return 0;
             }
             func_8004FC60(1, 1);
@@ -650,7 +650,7 @@ s32 func_8004CCD8(s32 arg0, s32 arg1, s32 arg2) {
             return 0;
     }
 
-    sp44 = func_80039024(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, sp38, sp3C, -1);
+    sp44 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, arg0 & 0xFFFF, sp38, sp3C, -1);
 
     switch (arg0) {
         case 0x80001:
@@ -669,13 +669,13 @@ s32 func_8004CCD8(s32 arg0, s32 arg1, s32 arg2) {
             break;
     }
 
-    func_80039534(sp44, var_fv1);
+    MusSetFrequencyOffset(sp44, var_fv1);
     return sp44;
 }
 
 void func_8004D16C(s32 arg0, s32 arg1, UNUSED s32 arg2) {
     if (arg0 == 0x80001) {
-        func_800392A8(D_80078F74[arg1], 0xA);
+        MusSetDurationScale(D_80078F74[arg1], 0xA);
     }
 }
 
@@ -750,8 +750,8 @@ s32 func_8004D1B0(s32 arg0, UNUSED s32 arg1, UNUSED s32 arg2) {
             return 0;
     }
 
-    sp3C = func_80039024(D_800FC6A4, D_800FC6A8, sp38, sp30, 0x7F, -1);
-    func_80039534(sp3C, var_fv1);
+    sp3C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, sp38, sp30, 0x7F, -1);
+    MusSetFrequencyOffset(sp3C, var_fv1);
 
     switch (arg0) {
         case 0x9000D:
@@ -944,8 +944,8 @@ s32 func_8004D3B0(s32 arg0, s32 arg1, s32 arg2) {
         var_t0 = 0xFF;
     }
 
-    sp34 = func_80039024(D_800FC6A4, D_800FC6A8, sp30, var_a3, var_t0, -1);
-    func_80039534(sp34, var_fv0);
+    sp34 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, sp30, var_a3, var_t0, -1);
+    MusSetFrequencyOffset(sp34, var_fv0);
     return sp34;
 }
 
@@ -961,7 +961,7 @@ s32 func_8004D858(s32 arg0, u32 arg1) {
 
     switch (arg0) {
         case 19:
-            func_800392A8(D_80079008, 1);
+            MusSetDurationScale(D_80079008, 1);
             break;
 
         case 18:
@@ -971,13 +971,13 @@ s32 func_8004D858(s32 arg0, u32 arg1) {
         case 21:
             switch (arg1) {
                 case 0:
-                    if (func_80039354(D_80079010) != 0) {
+                    if (MusHandleAsk(D_80079010) != 0) {
                         return 0;
                     }
                     break;
 
                 case 1:
-                    func_800392A8(D_8007900C, 0x19);
+                    MusSetDurationScale(D_8007900C, 0x19);
                     break;
             }
             break;
@@ -987,10 +987,10 @@ s32 func_8004D858(s32 arg0, u32 arg1) {
     }
 
     if (arg0 == 0x15) {
-        func_800392A8(D_80079010, 0xA);
+        MusSetDurationScale(D_80079010, 0xA);
     }
 
-    temp_v0 = func_80039024(D_800FC68C, D_800FC688, arg0, 0x80, 0x80, -1);
+    temp_v0 = MusStartSoundEffect(D_800FC68C, D_800FC688, arg0, 0x80, 0x80, -1);
     switch (arg0) {
         case 18:
             D_80079008 = temp_v0;
@@ -1042,10 +1042,10 @@ s32 func_8004D9B0(s32 arg0, s32 arg1, s32 arg2) {
         func_80037360((u32)D_800FC798, sp24, 3);
         func_8004ADB0(D_800FC798[0], D_800FC6DC, D_800FC798[1] - D_800FC798[0]);
         func_80050B40(D_800FC6DC, D_800FC6A8, 0xBB8);
-        func_800397BC(D_800FC6A8);
+        RemapBankPointers(D_800FC6A8);
         func_8004ADB0(D_800FC798[1], D_800FC6DC, D_800FC798[2] - D_800FC798[1]);
         func_80050B40(D_800FC6DC, D_800FC6A4, 0x1388);
-        func_8003979C(D_800FC6A4, D_800FC798[2]);
+        MusBankInitialize(D_800FC6A4, D_800FC798[2]);
     }
 
     D_80079014 = temp_v1;
@@ -1152,26 +1152,26 @@ s32 func_8004DDA4(s32 arg0, UNUSED s32 arg1, UNUSED s32 arg2) {
         sp34 = D_800FC798[1] - D_800FC798[0];
         func_8004ADB0(D_800FC798[0], D_800FC6DC, sp34);
         func_80050B40(D_800FC6DC, D_800FC6A8, 0xBB8);
-        func_800397BC(D_800FC6A8);
+        RemapBankPointers(D_800FC6A8);
         sp34 = D_800FC798[2] - D_800FC798[1];
         func_8004ADB0(D_800FC798[1], D_800FC6DC, sp34);
         func_80050B40(D_800FC6DC, D_800FC6A4, 0x1388);
-        func_8003979C(D_800FC6A4, D_800FC798[2]);
+        MusBankInitialize(D_800FC6A4, D_800FC798[2]);
     }
 
     D_80079014 = sp28;
 
     switch (arg0) {
         case 0x1000001:
-            var_v0 = func_80039024(D_800FC6A4, D_800FC6A8, sp2C, 0x80, 0x80, -1);
+            var_v0 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, sp2C, 0x80, 0x80, -1);
             break;
 
         case 0x1000002:
-            var_v0 = func_80039024(D_800FC6A4, D_800FC6A8, sp2C, 0xA0, 0x80, -1);
+            var_v0 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, sp2C, 0xA0, 0x80, -1);
             break;
 
         case 0x1000003:
-            var_v0 = func_80039024(D_800FC684, D_800FC6A8, sp2C, 0xA0, 0x80, -1);
+            var_v0 = MusStartSoundEffect(D_800FC684, D_800FC6A8, sp2C, 0xA0, 0x80, -1);
             break;
 
         default:
@@ -1216,10 +1216,10 @@ s32 func_8004DF94(s32 arg0, s32 arg1, s32 arg2) {
         func_80037360((u32)D_800FC798, sp2C, 3);
         func_8004ADB0(D_800FC798[0], D_800FC6DC, D_800FC798[1] - D_800FC798[0]);
         func_80050B40(D_800FC6DC, D_800FC6A8, 0xBB8);
-        func_800397BC(D_800FC6A8);
+        RemapBankPointers(D_800FC6A8);
         func_8004ADB0(D_800FC798[1], D_800FC6DC, D_800FC798[2] - D_800FC798[1]);
         func_80050B40(D_800FC6DC, D_800FC6A4, 0x1388);
-        func_8003979C(D_800FC6A4, D_800FC798[2]);
+        MusBankInitialize(D_800FC6A4, D_800FC798[2]);
     }
 
     D_80079014 = sp20;
@@ -1258,12 +1258,12 @@ s32 func_8004DF94(s32 arg0, s32 arg1, s32 arg2) {
             break;
 
         case 0x1100004:
-            func_800392A8(D_8007901C, 5);
+            MusSetDurationScale(D_8007901C, 5);
             break;
 
         case 0x1100008:
-            func_800392A8(D_80079020, 5);
-            func_800392A8(D_80079024, 5);
+            MusSetDurationScale(D_80079020, 5);
+            MusSetDurationScale(D_80079024, 5);
             break;
 
         case 0x110000B:
@@ -1278,7 +1278,7 @@ s32 func_8004DF94(s32 arg0, s32 arg1, s32 arg2) {
                 }
                 sp38 = D_80079034[arg1 - 1];
             }
-            func_800392A8(D_80079028, 0xA);
+            MusSetDurationScale(D_80079028, 0xA);
             break;
 
         case 0x1100014:
@@ -1301,7 +1301,7 @@ s32 func_8004DF94(s32 arg0, s32 arg1, s32 arg2) {
             return 0;
     }
 
-    temp_v0_2 = func_80039024(D_800FC6A4, D_800FC6A8, sp40, sp34, sp38, -1);
+    temp_v0_2 = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, sp40, sp34, sp38, -1);
     switch (arg0) {
         case 0x1100003:
             D_8007901C = temp_v0_2;
@@ -1346,67 +1346,67 @@ s32 func_8004E304(s32 arg0, UNUSED s32 arg1, UNUSED s32 arg2) {
         func_80037360((u32)D_800FC798, sp3C, 3);
         func_8004ADB0(D_800FC798[0], D_800FC6DC, D_800FC798[1] - D_800FC798[0]);
         func_80050B40(D_800FC6DC, D_800FC6A8, 0xBB8);
-        func_800397BC(D_800FC6A8);
+        RemapBankPointers(D_800FC6A8);
         func_8004ADB0(D_800FC798[1], D_800FC6DC, D_800FC798[2] - D_800FC798[1]);
         func_80050B40(D_800FC6DC, D_800FC6A4, 0x1388);
-        func_8003979C(D_800FC6A4, D_800FC798[2]);
+        MusBankInitialize(D_800FC6A4, D_800FC798[2]);
     }
 
     D_80079014 = sp24;
 
     switch (arg0) {
         case 0x1200001:
-            func_800392A8(D_8007904C, 1);
+            MusSetDurationScale(D_8007904C, 1);
             var_fv1 = __ull_to_f(__ull_rem(osGetTime(), 8)) - 4.0f;
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 7, 0x80, 0x80, -1);
-            func_80039534(sp4C, var_fv1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 7, 0x80, 0x80, -1);
+            MusSetFrequencyOffset(sp4C, var_fv1);
             D_8007904C = sp4C;
             break;
 
         case 0x1200002:
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 1, 0x80, 0x80, -1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 1, 0x80, 0x80, -1);
             D_80079050 = sp4C;
             D_80079064 = 0;
             break;
 
         case 0x1200003:
-            func_800392A8(D_80079050, 0x3C);
-            func_800392A8(D_80079054, 0x3C);
+            MusSetDurationScale(D_80079050, 0x3C);
+            MusSetDurationScale(D_80079054, 0x3C);
             D_80079060 = 0;
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 3, 0x80, 0x80, -1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 3, 0x80, 0x80, -1);
             break;
 
         case 0x1200004:
             if (D_80079060 == 0) {
-                sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 2, 0x80, 0x80, -1);
+                sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 2, 0x80, 0x80, -1);
                 D_80079054 = sp4C;
                 var_fv1 = 2.0f;
                 D_80079060 = 1;
             } else {
                 var_fv1 = 4.0f;
             }
-            func_80039534(D_80079054, var_fv1);
+            MusSetFrequencyOffset(D_80079054, var_fv1);
             break;
 
         case 0x1200005:
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 4, 0x80, 0x80, -1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 4, 0x80, 0x80, -1);
             D_80079058 = sp4C;
             break;
 
         case 0x1200006:
-            func_800392A8(D_80079054, 0x5A);
-            func_800392A8(D_80079058, 1);
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 5, 0x80, 0x80, -1);
+            MusSetDurationScale(D_80079054, 0x5A);
+            MusSetDurationScale(D_80079058, 1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 5, 0x80, 0x80, -1);
             break;
 
         case 0x1200007:
-            D_8007905C = sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 6, 0x80, 0x80, -1);
+            D_8007905C = sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 6, 0x80, 0x80, -1);
             func_8004B9C4(0x78);
             D_80079064 = 1;
             break;
 
         case 0x1200008:
-            func_800392A8(D_8007905C, 6);
+            MusSetDurationScale(D_8007905C, 6);
             func_8004B1CC(0x13);
             D_80079064 = 1;
             break;
@@ -1420,17 +1420,17 @@ s32 func_8004E304(s32 arg0, UNUSED s32 arg1, UNUSED s32 arg2) {
             break;
 
         case 0x120000C:
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 8, 0x80, 0x80, -1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 8, 0x80, 0x80, -1);
             break;
 
         case 0x120000D:
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 9, 0x80, 0x80, -1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 9, 0x80, 0x80, -1);
             break;
 
         case 0x120000E:
-            func_800392A8(D_8007904C, 1);
-            sp4C = func_80039024(D_800FC6A4, D_800FC6A8, 7, 0x80, 0x80, -1);
-            func_80039534(sp4C, -5.0f);
+            MusSetDurationScale(D_8007904C, 1);
+            sp4C = MusStartSoundEffect(D_800FC6A4, D_800FC6A8, 7, 0x80, 0x80, -1);
+            MusSetFrequencyOffset(sp4C, -5.0f);
             D_8007904C = sp4C;
             break;
 
