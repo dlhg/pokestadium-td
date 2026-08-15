@@ -71,15 +71,15 @@ typedef struct amConfig {
     /* 0x08 */ u32 maxACMDSize;
 } amConfig; // size = 0xC
 
-extern s32 D_80077DC4;
-extern f32 D_80077DC8;
-extern u8 D_80077DCC;
-extern f32 D_80077DD0;
+extern s32 mus_active_fade_handle;
+extern f32 mus_fade_start_volume;
+extern u8 mus_fade_target_volume;
+extern f32 mus_fade_step_rate;
 extern f32 D_80077DD4;
 extern f32 D_80077DD8;
 extern f32 D_80077DDC;
 extern f32 D_80077DE0;
-extern u8 D_80077DE4;
+extern u8 mus_sound_effect_blocked;
 
 extern unk_D_800FCB18* D_800FCB18[4];
 

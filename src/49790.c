@@ -1,5 +1,5 @@
 #include "49790.h"
-#include "src/38BB0.h"
+#include "src/libnumus/player.h"
 #include "src/49790.h"
 #include "src/4CBC0.h"
 #include "src/373A0.h"
@@ -36,8 +36,8 @@ s32 func_80048B90(u32 arg0) {
         if (!(D_800FC820 & 0x80000000)) {
             return 0;
         }
-        D_80078A30 = func_80039024(D_800FF9C0, D_800FC688, 0xF, 0x70, 0x80, -1);
-        func_800392A8(D_80078E70, 0x28);
+        D_80078A30 = MusStartSoundEffect(D_800FF9C0, D_800FC688, 0xF, 0x70, 0x80, -1);
+        MusSetDurationScale(D_80078E70, 0x28);
         return D_80078A30;
     }
 
@@ -62,7 +62,7 @@ s32 func_80048B90(u32 arg0) {
 
     switch (arg0) {
         case 0x1:
-            func_800392A8(D_80078A34, 1);
+            MusSetDurationScale(D_80078A34, 1);
             break;
 
         case 0x5:
@@ -101,32 +101,32 @@ s32 func_80048B90(u32 arg0) {
             break;
 
         case 0x2:
-            func_800392A8(D_80078A3C, 1);
+            MusSetDurationScale(D_80078A3C, 1);
             break;
 
         case 0x3:
-            func_800392A8(D_80078A38, 1);
+            MusSetDurationScale(D_80078A38, 1);
             break;
 
         case 0x4:
-            func_800392A8(D_80078A40, 0x14);
+            MusSetDurationScale(D_80078A40, 0x14);
             break;
 
         case 0x8:
-            func_800392A8(D_80078A44, 2);
+            MusSetDurationScale(D_80078A44, 2);
             break;
 
         case 0x2C:
-            func_800392A8(D_80078A48, 2);
+            MusSetDurationScale(D_80078A48, 2);
             sp28 = 0xA0;
             break;
 
         case 0x2D:
-            func_800392A8(D_80078A48, 2);
+            MusSetDurationScale(D_80078A48, 2);
             break;
 
         case 0x2E:
-            func_800392A8(D_80078A4C, 2);
+            MusSetDurationScale(D_80078A4C, 2);
             break;
 
         case 0xA:
@@ -159,9 +159,9 @@ s32 func_80048B90(u32 arg0) {
             return 0;
     }
 
-    D_80078A30 = func_80039024(D_800FC68C, D_800FC688, arg0, sp28, 0x80, -1);
+    D_80078A30 = MusStartSoundEffect(D_800FC68C, D_800FC688, arg0, sp28, 0x80, -1);
     if (sp24 != 0.0f) {
-        func_80039534(D_80078A30, sp24);
+        MusSetFrequencyOffset(D_80078A30, sp24);
     }
 
     switch (arg0) {

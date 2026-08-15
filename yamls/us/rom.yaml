@@ -84,7 +84,7 @@
     - [0x33FE0, c]
     - [0x37370, c]
     - [0x373A0, c]  # battle code
-    - [0x38BB0, c]  #
+    - [0x38BB0, c, libnumus/player]
     - [0x3D140, c]  # music code
     
     # libnaudiosc. Why are there so many gaps?
@@ -359,7 +359,7 @@
     - [0x76EF0, .data, 33E30]
     - [0x76FB0, data, rom_data_76FB0] # 33FE0
     - [0x78570, .data, 373A0]
-    - [0x78890, .data, 38BB0]
+    - [0x78890, .data, libnumus/player]
     - [0x78990, data, rom_data_78990]
     - [0x79180, .data, libnaudio/n_sl]
     - [0x79190, .data, 435D0]
@@ -441,7 +441,7 @@
     - [0x7D110, rodata, rom_rodata_7D110]
     - [0x7D1B0, rodata, rom_rodata_7D1B0] # 33FE0
     - [0x7D230, .rodata, 373A0]
-    - [0x7D340, .rodata, 38BB0]
+    - [0x7D340, .rodata, libnumus/player]
     - [0x7D3C0, .rodata, 3D140]
     - [0x7D800, .rodata, 435D0]
     - [0x7D860, .rodata, 45720]
@@ -533,7 +533,7 @@
     - {vram: 0x800AF7C0, type: .bss, name: 334D0}
     - {vram: 0x800B2F50, type: .bss, name: 33FE0}
     - {vram: 0x800B32A0, type: .bss, name: 373A0}
-    - {vram: 0x800FC7A0, type: .bss, name: 38BB0}
+    - {vram: 0x800FC7A0, type: .bss, name: libnumus/player}
     - {vram: 0x800FC820, type: .bss, name: 3D140}
     - {vram: 0x800FCD40, type: .bss, name: 435D0}
     - {vram: 0x800FCED0, type: .bss, name: 45720}

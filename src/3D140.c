@@ -1,7 +1,7 @@
 #include "3D140.h"
 #include "lib/ultralib/include/PR/leo.h"
 #include "src/373A0.h"
-#include "src/38BB0.h"
+#include "src/libnumus/player.h"
 #include "src/3D140.h"
 #include "src/435D0.h"
 #include "src/libnaudio/n_libaudio_sc.h"
@@ -92,15 +92,15 @@ extern u32 curAcmdList;
 extern AudioInfo* lastInfo;
 extern s32 min_only_one;
 // global
-extern s32 D_80077DC4;
-extern f32 D_80077DC8;
-extern u8 D_80077DCC;
-extern f32 D_80077DD0;
+extern s32 mus_active_fade_handle;
+extern f32 mus_fade_start_volume;
+extern u8 mus_fade_target_volume;
+extern f32 mus_fade_step_rate;
 extern f32 D_80077DD4;
 extern f32 D_80077DD8;
 extern f32 D_80077DDC;
 extern f32 D_80077DE0;
-extern u8 D_80077DE4;
+extern u8 mus_sound_effect_blocked;
 
 extern u16 D_80077DF0[];
 extern u16 D_80077E00[];
@@ -525,22 +525,22 @@ OSTask* func_8003CADC(OSTask* arg0) {
 
     func_800416BC();
 
-    if (D_80077DC4 != 0) {
-        D_80077DC8 += D_80077DD0;
-        if (D_80077DD0 > 0.0f) {
-            if (D_80077DCC <= D_80077DC8) {
-                D_80077DC8 = D_80077DCC;
+    if (mus_active_fade_handle != 0) {
+        mus_fade_start_volume += mus_fade_step_rate;
+        if (mus_fade_step_rate > 0.0f) {
+            if (mus_fade_target_volume <= mus_fade_start_volume) {
+                mus_fade_start_volume = mus_fade_target_volume;
             }
         } else {
-            if (D_80077DC8 <= D_80077DCC) {
-                D_80077DC8 = D_80077DCC;
+            if (mus_fade_start_volume <= mus_fade_target_volume) {
+                mus_fade_start_volume = mus_fade_target_volume;
             }
         }
 
-        func_800393DC(D_80077DC4, (u32)D_80077DC8 & 0xFF);
+        MusSetVolumeScale(mus_active_fade_handle, (u32)mus_fade_start_volume & 0xFF);
 
-        if (D_80077DC8 == D_80077DCC) {
-            D_80077DC4 = 0;
+        if (mus_fade_start_volume == mus_fade_target_volume) {
+            mus_active_fade_handle = 0;
         }
     }
 
@@ -548,18 +548,18 @@ OSTask* func_8003CADC(OSTask* arg0) {
         D_80077DD4 -= D_80077DD8;
         if (D_80077DD4 <= 0) {
             D_80077DD4 = 0.0f;
-            func_8003916C(2, 1);
+            MusSetAllChannelsDuration(2, 1);
         }
-        func_80038E98(2, D_80077DD4);
+        MusSetMasterVolume(2, D_80077DD4);
     }
 
     if (D_80077DDC != 0.0f) {
         D_80077DDC -= D_80077DE0;
         if (D_80077DDC <= 0) {
             D_80077DDC = 0.0f;
-            func_8003916C(1, 1);
+            MusSetAllChannelsDuration(1, 1);
         }
-        func_80038E98(1, D_80077DDC);
+        MusSetMasterVolume(1, D_80077DDC);
     }
 
     if (D_80077DA8 != 0) {
@@ -650,7 +650,7 @@ void func_8003D2B8(s32 arg0) {
 void func_8003D32C(void) {
     switch (D_80077D9C[0]) {
         case 1:
-            func_80039B88(D_80078E70, 0x50, 0x18, 3);
+            MusSetupVolumeFade(D_80078E70, 0x50, 0x18, 3);
             func_80042AB0(D_80077DA0);
             D_80077D9C[0]++;
             D_80077DA4 = 0;
@@ -674,7 +674,7 @@ void func_8003D32C(void) {
 
         case 4:
             if (D_80077DA4 == 0) {
-                func_80039B88(D_80078E70, 0x18, 0x50, 0x14);
+                MusSetupVolumeFade(D_80078E70, 0x18, 0x50, 0x14);
             }
 
             if (D_80077DA4 >= 0x1F) {
@@ -701,7 +701,7 @@ s32 func_8003D494(void) {
 
 s32 func_8003D4A0(s32 arg0) {
     if (arg0 == 0) {
-        if (D_800FC818 != D_800FCAD8) {
+        if (mus_free_voices_count != D_800FCAD8) {
             return 0;
         }
         D_80077DA8 = 1;

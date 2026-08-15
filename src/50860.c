@@ -1,6 +1,6 @@
 #include "50860.h"
 #include "45720.h"
-#include "38BB0.h"
+#include "libnumus/player.h"
 #include "3D140.h"
 
 void func_8004FC60(s32 arg0, u32 arg1) {
@@ -12,7 +12,7 @@ void func_8004FC60(s32 arg0, u32 arg1) {
         }
         arg0 &= ~4;
     }
-    func_8003916C(arg0, arg1);
+    MusSetAllChannelsDuration(arg0, arg1);
 }
 
 void func_8004FCD8(s32 arg0) {

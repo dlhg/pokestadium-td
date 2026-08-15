@@ -1,15 +1,15 @@
 #include "490A0.h"
-#include "src/38BB0.h"
+#include "src/libnumus/player.h"
 #include "src/45720.h"
 #include "src/3D140.h"
 #include "src/373A0.h"
 
 void func_800484A0(s32 arg0) {
-    func_80039354(arg0);
+    MusHandleAsk(arg0);
 }
 
 s32 func_800484C0(s32 arg0) {
-    return func_80039204(arg0);
+    return MusAsk(arg0);
 }
 
 s32 func_800484E0(void) {
@@ -18,8 +18,8 @@ s32 func_800484E0(void) {
     s32 var_s1;
 
     var_s1 = 0;
-    if (D_800FC818 != D_800FC814) {
-        var_s1 = D_800FC814 - D_800FC818;
+    if (mus_free_voices_count != mus_num_vvoices) {
+        var_s1 = mus_num_vvoices - mus_free_voices_count;
     }
 
     for (i = 0; i < 2; i++) {
@@ -37,9 +37,9 @@ s32 func_800484E0(void) {
 }
 
 s32 func_80048574(void) {
-    return D_800FC818;
+    return mus_free_voices_count;
 }
 
 s32 func_80048580(void) {
-    return D_800FC81C;
+    return mus_releasing_voices_count;
 }
