@@ -439,7 +439,7 @@
     - [0x7D090, .rodata, 2FEA0]
     - [0x7D0F0, .rodata, 30640]
     - [0x7D110, rodata, rom_rodata_7D110]
-    - [0x7D1B0, rodata, rom_rodata_7D1B0] # 33FE0
+    - [0x7D1B0, .rodata, 33FE0]
     - [0x7D230, .rodata, 373A0]
     - [0x7D340, .rodata, libnumus/player]
     - [0x7D3C0, .rodata, 3D140]
