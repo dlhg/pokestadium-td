@@ -49,6 +49,10 @@ export class GLTFModelLoader {
     return roles;
   }
 
+  private static moveKey(name: string): string {
+    return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
   public static async loadPokemonModel(name: string, targetHeight = 2.2): Promise<AnimatedPokemon | null> {
     const manifest = await this.loadManifest();
     const entry = manifest?.pokemon.find((pokemon) => pokemon.name.toLowerCase() === name.toLowerCase());
@@ -92,12 +96,15 @@ export class GLTFModelLoader {
       rootGroup.add(clonedScene);
       const mixer = new THREE.AnimationMixer(clonedScene);
       const actions: Record<string, THREE.AnimationAction> = {};
+      const moveActions = new Map<string, THREE.AnimationAction>();
       for (const metadata of entry.animations) {
         const clip = cached.animations[metadata.index];
         if (!clip) continue;
+        const action = mixer.clipAction(clip);
         for (const role of this.rolesFor(metadata)) {
-          if (!actions[role]) actions[role] = mixer.clipAction(clip);
+          if (!actions[role]) actions[role] = action;
         }
+        for (const moveName of metadata.moves || []) moveActions.set(this.moveKey(moveName), action);
       }
       const firstMove = entry.animations.find((animation) => animation.moves?.length);
       if (!actions.attack && firstMove && cached.animations[firstMove.index]) {
@@ -109,6 +116,7 @@ export class GLTFModelLoader {
 
       let currentState: PokemonAnimationState = 'idle';
       let currentAction = actions.idle || null;
+      let requestedAttack = actions.attack || null;
       currentAction?.setLoop(THREE.LoopRepeat, Infinity).play();
       const parts: Record<string, THREE.Object3D> = {};
       clonedScene.traverse((node) => { if (node.name) parts[node.name] = node; });
@@ -118,11 +126,14 @@ export class GLTFModelLoader {
         parts,
         mixer,
         actions,
+        playMove(moveName: string) {
+          requestedAttack = moveActions.get(GLTFModelLoader.moveKey(moveName)) || actions.attack || null;
+        },
         update(_time: number, dt: number, state: PokemonAnimationState) {
           mixer.update(dt);
           if (state === currentState) return;
           currentState = state;
-          const next = actions[state] || actions.idle;
+          const next = (state === 'attack' ? requestedAttack : actions[state]) || actions.idle;
           if (!next || next === currentAction) return;
           currentAction?.fadeOut(0.12);
           next.reset().fadeIn(0.12);

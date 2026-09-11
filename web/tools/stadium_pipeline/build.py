@@ -187,6 +187,7 @@ def main(argv):
     want_js = '--no-js' not in args
     want_glb = '--no-glb' not in args
     want_fx = '--no-effects' not in args
+    pokemon_only = '--pokemon-only' in args
     only = {int(x) for x in args['--only'].split(',')} if '--only' in args else None
 
     if not rom_path or not os.path.exists(rom_path):
@@ -219,6 +220,8 @@ def main(argv):
     move_rows, anim_names, index, fx_count = {}, {}, [], 0
 
     for fileno, blob in enumerate(blobs):
+        if pokemon_only and fileno >= N_POKEMON:
+            continue
         if only is not None and fileno not in only:
             continue
         try:

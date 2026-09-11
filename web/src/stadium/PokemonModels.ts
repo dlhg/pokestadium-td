@@ -16,6 +16,7 @@ export interface AnimatedPokemon {
   parts: Record<string, THREE.Object3D>;
   mixer?: THREE.AnimationMixer;
   actions?: Record<string, THREE.AnimationAction>;
+  playMove?(moveName: string): void;
   update(t: number, dt: number, state: PokemonAnimationState): void;
 }
 

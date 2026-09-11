@@ -163,6 +163,14 @@ export function getEffectiveness(attackType: PokemonType, defenderType: PokemonT
   return mult !== undefined ? mult : 1.0;
 }
 
+/** Gen 1 multiplies both defending types (for example Fire -> Grass/Poison is 2x * 1x). */
+export function getCombinedEffectiveness(attackType: PokemonType, defenderTypes: readonly PokemonType[]): number {
+  return defenderTypes.reduce(
+    (multiplier, defenderType) => multiplier * getEffectiveness(attackType, defenderType),
+    1.0,
+  );
+}
+
 export function getEffectivenessLabel(mult: number): { label: string; color: string } {
   if (mult >= 2.0) return { label: "SUPER EFFECTIVE!", color: "#48FF48" };
   if (mult === 0.0) return { label: "NO EFFECT!", color: "#A0A0A0" };

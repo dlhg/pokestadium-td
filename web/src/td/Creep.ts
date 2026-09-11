@@ -14,11 +14,13 @@ export interface CreepConfig {
   id: string;
   name: string;
   type: PokemonType;
+  secondaryType?: PokemonType;
   maxHp: number;
   speed: number;
   reward: number;
   isBoss?: boolean;
   modelType: 'rattata' | 'zubat' | 'geodude' | 'dragonair' | 'boss_titan';
+  modelName?: string;
   titanType?: 'Onix' | 'Gyarados';
 }
 
@@ -26,6 +28,7 @@ export class Creep {
   public id: string;
   public name: string;
   public type: PokemonType;
+  public types: PokemonType[];
   public maxHp: number;
   public hp: number;
   public baseSpeed: number;
@@ -34,6 +37,7 @@ export class Creep {
   public isBoss: boolean;
   public alive: boolean = true;
   public reachedEnd: boolean = false;
+  public removalReady: boolean = false;
 
   public position: THREE.Vector3 = new THREE.Vector3();
   public group: THREE.Group = new THREE.Group();
@@ -48,6 +52,9 @@ export class Creep {
   public status: StatusEffectType = 'none';
   public statusTimer: number = 0;
   private burnTickTimer: number = 0;
+  private entranceTimer = 0.75;
+  private hitAnimationTimer = 0;
+  private faintAnimationTimer = 0;
 
   // 3D Billboard HP Bar
   private hpCanvas: HTMLCanvasElement;
@@ -59,6 +66,7 @@ export class Creep {
     this.id = `creep_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     this.name = config.name;
     this.type = config.type;
+    this.types = config.secondaryType ? [config.type, config.secondaryType] : [config.type];
     this.maxHp = config.maxHp;
     this.hp = config.maxHp;
     this.baseSpeed = config.speed;
@@ -91,8 +99,8 @@ export class Creep {
     this.group.add(this.animPokemon.mesh);
 
     // Asynchronously load authentic GLB model & animations
-    let modelName = config.name.toLowerCase().replace('titan ', '').replace('boss ', '').trim();
-    if (modelName === 'graveler') modelName = 'geodude';
+    const modelName = (config.modelName || config.name).toLowerCase()
+      .replace('titan ', '').replace('boss ', '').trim();
     const targetHeight = config.isBoss ? 4.5 : 1.6;
     PokemonModelFactory.loadAuthenticModel(modelName, targetHeight, () => this.animPokemon).then((loaded) => {
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
@@ -132,11 +140,14 @@ export class Creep {
   public takeDamage(amount: number): boolean {
     if (!this.alive) return false;
     this.hp -= amount;
+    this.hitAnimationTimer = 0.28;
     this.updateHpBar();
 
     if (this.hp <= 0) {
       this.hp = 0;
       this.alive = false;
+      this.faintAnimationTimer = this.isBoss ? 1.4 : 0.85;
+      this.hpSprite.visible = false;
       return true; // Just died
     }
     return false;
@@ -182,14 +193,26 @@ export class Creep {
     ctx.beginPath();
     ctx.arc(8, h / 2, 4, 0, Math.PI * 2);
     ctx.fill();
+    if (this.types.length > 1) {
+      ctx.fillStyle = TYPE_COLORS[this.types[1]]?.hex || '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(18, h / 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     this.hpTexture.needsUpdate = true;
   }
 
   public update(dt: number, onDeath: (creep: Creep) => void): void {
-    if (!this.alive) return;
-
     const time = performance.now() * 0.001;
+    if (!this.alive) {
+      if (!this.reachedEnd) {
+        this.animPokemon.update(time, dt, 'faint');
+        this.faintAnimationTimer -= dt;
+        this.removalReady = this.faintAnimationTimer <= 0;
+      }
+      return;
+    }
 
     // Handle Status Effects
     this.speed = this.baseSpeed;
@@ -251,8 +274,13 @@ export class Creep {
       this.group.position.copy(this.position);
     }
 
-    // Animate 3D Model
-    this.animPokemon.update(time, dt, 'walk');
+    // Rendering follows combat state without changing movement or damage timing.
+    this.entranceTimer -= dt;
+    this.hitAnimationTimer -= dt;
+    const animation = this.entranceTimer > 0
+      ? 'entrance'
+      : this.hitAnimationTimer > 0 ? 'hit' : 'walk';
+    this.animPokemon.update(time, dt, animation);
   }
 
   public destroy(scene: THREE.Scene): void {

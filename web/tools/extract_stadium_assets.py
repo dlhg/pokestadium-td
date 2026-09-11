@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build private web assets from a verified Pokemon Stadium USA Rev 2 ROM.
 
-The default is the vertical slice: Pikachu plus Brock's Gym Leader Castle room.
-Pass --all-pokemon after that slice is working. Generated files are written
-under web/public/generated/stadium/, which is intentionally gitignored.
+The default exports all 151 Pokémon plus Brock's Gym Leader Castle room.
+Use --only-pikachu for a quick extraction smoke test. Generated files are
+written under web/public/generated/stadium/, which is intentionally gitignored.
 """
 from __future__ import annotations
 
@@ -102,7 +102,8 @@ def main() -> int:
     parser.add_argument('--rom', type=Path, default=DEFAULT_ROM)
     parser.add_argument('--out', type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument('--venue', choices=sorted(arena.VENUE_MEMBERS), default='brock')
-    parser.add_argument('--all-pokemon', action='store_true')
+    parser.add_argument('--all-pokemon', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--only-pikachu', action='store_true')
     parser.add_argument('--validate-only', action='store_true')
     args = parser.parse_args()
 
@@ -112,8 +113,8 @@ def main() -> int:
     if args.validate_only:
         return 0
 
-    model_args = [f'--rom={args.rom}', f'--out={args.out}', '--no-js', '--no-effects']
-    if not args.all_pokemon:
+    model_args = [f'--rom={args.rom}', f'--out={args.out}', '--no-js', '--no-effects', '--pokemon-only']
+    if args.only_pikachu:
         model_args.append('--only=24')
     build.main(model_args)
 

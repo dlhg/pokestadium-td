@@ -18,6 +18,7 @@ import { Tower, TowerTemplate } from './Tower';
 import { Creep } from './Creep';
 import { Projectile } from './Projectile';
 import { WaveManager } from './WaveManager';
+import { getCombinedEffectiveness } from '../stadium/TypeMatrix';
 
 export class StadiumTDGame {
   public renderer!: StadiumRenderer;
@@ -248,8 +249,11 @@ export class StadiumTDGame {
           const end = target.position.clone().add(new THREE.Vector3(0, 1.0, 0));
           this.particles.emitBeam(start, end, 0xffffff, 0.6, 0.35);
           this.camera.triggerActionCam(target.position, 1.6);
-          target.takeDamage(t.currentMove.basePower * 2.0);
-          this.audio.playHit(true);
+          const multiplier = getCombinedEffectiveness(t.currentMove.type, target.types);
+          const died = target.takeDamage(Math.floor(t.currentMove.basePower * multiplier));
+          if (died) this.handleCreepDefeat(target);
+          this.audio.playHit(multiplier >= 2);
+          if (multiplier >= 2) this.announcer.trigger('super_effective');
         } else {
           // Projectile attack
           const proj = new Projectile(t.currentMove, t.position, target, this.renderer.scene);
@@ -295,7 +299,7 @@ export class StadiumTDGame {
           this.gameOver = true;
           this.announcer.trigger('game_over');
         }
-      } else if (!c.alive) {
+      } else if (!c.alive && c.removalReady) {
         c.destroy(this.renderer.scene);
         this.creeps.splice(i, 1);
       }

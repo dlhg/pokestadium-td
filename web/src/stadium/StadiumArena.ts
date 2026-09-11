@@ -174,21 +174,29 @@ export class StadiumArena {
     this.buildJumbotrons();
   }
 
+  private createPathCurve(): THREE.CatmullRomCurve3 {
+    // A perimeter route keeps the native battle floor readable and leaves a
+    // coherent central build zone. The ends sit outside opposite arena gates.
+    return new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-27, 0.5, -18),
+      new THREE.Vector3(-20, 0.5, -18),
+      new THREE.Vector3(-16, 0.5, -10),
+      new THREE.Vector3(-20, 0.5, 0),
+      new THREE.Vector3(-16, 0.5, 10),
+      new THREE.Vector3(-8, 0.5, 17),
+      new THREE.Vector3(0, 0.5, 20),
+      new THREE.Vector3(8, 0.5, 17),
+      new THREE.Vector3(16, 0.5, 10),
+      new THREE.Vector3(20, 0.5, 0),
+      new THREE.Vector3(16, 0.5, -10),
+      new THREE.Vector3(20, 0.5, -18),
+      new THREE.Vector3(27, 0.5, -18),
+    ], false, 'centripetal');
+  }
+
   private buildTrackPath(): void {
     // Generate curved path ribbon around the waypoints
-    const points = [
-      new THREE.Vector3(0, 0.04, -26),
-      new THREE.Vector3(-14, 0.04, -18),
-      new THREE.Vector3(-16, 0.04, 0),
-      new THREE.Vector3(-8, 0.04, 14),
-      new THREE.Vector3(8, 0.04, 14),
-      new THREE.Vector3(16, 0.04, 2),
-      new THREE.Vector3(14, 0.04, -14),
-      new THREE.Vector3(0, 0.04, -4),
-      new THREE.Vector3(0, 0.04, 26),
-    ];
-
-    const curve = new THREE.CatmullRomCurve3(points);
+    const curve = this.createPathCurve();
     const curvePoints = curve.getPoints(100);
 
     // Build ribbon strip
@@ -384,39 +392,32 @@ export class StadiumArena {
   }
 
   private initWaypoints(): void {
-    // 3D Path that creeps follow through the arena
-    const pts = [
-      new THREE.Vector3(0, 0.5, -26),
-      new THREE.Vector3(-14, 0.5, -18),
-      new THREE.Vector3(-16, 0.5, 0),
-      new THREE.Vector3(-8, 0.5, 14),
-      new THREE.Vector3(8, 0.5, 14),
-      new THREE.Vector3(16, 0.5, 2),
-      new THREE.Vector3(14, 0.5, -14),
-      new THREE.Vector3(0, 0.5, -4),
-      new THREE.Vector3(0, 0.5, 26),
-    ];
-
-    const curve = new THREE.CatmullRomCurve3(pts);
-    this.waypoints = curve.getPoints(45);
+    this.waypoints = this.createPathCurve().getPoints(72);
   }
 
   private initPedestals(): void {
-    // Tower placement spots placed strategically around the winding path
-    const pedestalPositions = [
-      new THREE.Vector3(-8, 0, -10),
-      new THREE.Vector3(-8, 0, 4),
-      new THREE.Vector3(0, 0, 6),
-      new THREE.Vector3(8, 0, -4),
-      new THREE.Vector3(8, 0, 6),
-      new THREE.Vector3(-18, 0, -9),
-      new THREE.Vector3(18, 0, -6),
-      new THREE.Vector3(-16, 0, 10),
-      new THREE.Vector3(16, 0, 12),
-      new THREE.Vector3(0, 0, -14),
-      new THREE.Vector3(-4, 0, 20),
-      new THREE.Vector3(4, 0, 20),
-    ];
+    // Select deterministic slots with guaranteed clearance from both the lane
+    // and each other. This prevents tower footprints from intersecting creeps.
+    const pathSamples = this.createPathCurve().getPoints(180);
+    const candidates: THREE.Vector3[] = [];
+    for (const radius of [5.5, 10.5, 14.5, 24]) {
+      const count = radius < 8 ? 8 : radius < 13 ? 12 : 16;
+      for (let index = 0; index < count; index++) {
+        const angle = index / count * Math.PI * 2 + (radius % 2) * 0.17;
+        candidates.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+      }
+    }
+    const laneClearance = 4.7;
+    const slotSpacing = 5.4;
+    const pedestalPositions: THREE.Vector3[] = [];
+    for (const candidate of candidates) {
+      const clearsLane = pathSamples.every((point) =>
+        Math.hypot(candidate.x - point.x, candidate.z - point.z) >= laneClearance);
+      const clearsSlots = pedestalPositions.every((other) => candidate.distanceTo(other) >= slotSpacing);
+      if (clearsLane && clearsSlots) pedestalPositions.push(candidate);
+      if (pedestalPositions.length === 12) break;
+    }
+    if (pedestalPositions.length < 12) throw new Error('could not place 12 path-safe tower pedestals');
 
     pedestalPositions.forEach((pos, idx) => {
       const pedGeo = new THREE.CylinderGeometry(1.8, 2.1, 0.8, 16);
