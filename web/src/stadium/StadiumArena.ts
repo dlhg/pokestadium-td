@@ -10,7 +10,6 @@
  */
 
 import * as THREE from 'three';
-import { StadiumArenaLoader } from '../engine/StadiumArenaLoader';
 
 export interface PedestalSlot {
   id: number;
@@ -25,7 +24,6 @@ export class StadiumArena {
   public waypoints: THREE.Vector3[] = [];
   public pedestals: PedestalSlot[] = [];
   public pedestalMeshes: THREE.Mesh[] = [];
-  public authenticArenaLoaded = false;
   private environmentGroup = new THREE.Group();
   private gameplayGroup = new THREE.Group();
 
@@ -47,27 +45,6 @@ export class StadiumArena {
     this.initArena();
     this.initWaypoints();
     this.initPedestals();
-    void this.loadAuthenticArena();
-  }
-
-  private async loadAuthenticArena(): Promise<void> {
-    try {
-      const nativeArena = await StadiumArenaLoader.load('/generated/stadium/member_07_brock.sna');
-      for (const child of [...this.environmentGroup.children]) {
-        child.traverse((node) => {
-          const mesh = node as THREE.Mesh;
-          mesh.geometry?.dispose();
-          const materials = mesh.material ? (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) : [];
-          materials.forEach((material) => material.dispose());
-        });
-      }
-      this.environmentGroup.clear();
-      this.environmentGroup.add(nativeArena);
-      this.authenticArenaLoaded = true;
-      console.info('[StadiumArena] Loaded extracted Brock Gym Leader Castle room');
-    } catch {
-      console.info('[StadiumArena] Extracted arena unavailable; using procedural fallback');
-    }
   }
 
   private initArena(): void {
