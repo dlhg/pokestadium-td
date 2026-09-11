@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 import { MoveDefinition } from '../stadium/MoveDatabase';
-import { TYPE_COLORS, getEffectiveness } from '../stadium/TypeMatrix';
+import { TYPE_COLORS, getCombinedEffectiveness } from '../stadium/TypeMatrix';
 import { Creep } from './Creep';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { StadiumAudio } from '../engine/StadiumAudio';
@@ -133,7 +133,7 @@ export class Projectile {
     let hasSuperEffective = false;
 
     for (const victim of hitList) {
-      const mult = getEffectiveness(this.move.type, victim.type);
+      const mult = this.move.ignoresType ? 1 : getCombinedEffectiveness(this.move.type, victim.types);
       if (mult >= 2.0) hasSuperEffective = true;
 
       const damage = Math.floor(this.move.basePower * mult);

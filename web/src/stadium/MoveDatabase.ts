@@ -35,9 +35,35 @@ export interface MoveDefinition {
   statusDuration: number; // In seconds
   fxType: ParticleFXType;
   description: string;
+  ignoresType?: boolean;
 }
 
 export const MOVES: Record<string, MoveDefinition> = {
+  lick: {
+    id: 'lick', name: 'Lick', type: 'Ghost', basePower: 18, attackSpeed: 1.7,
+    range: 9, projectileSpeed: 26, splashRadius: 0,
+    statusEffect: 'paralyze', statusChance: 0.3, statusDuration: 2.0,
+    fxType: 'shadow_ball', description: 'A close ghost strike that may paralyze its target.',
+  },
+  night_shade: {
+    id: 'night_shade', name: 'Night Shade', type: 'Ghost', basePower: 48, attackSpeed: 1.25,
+    range: 15, projectileSpeed: 25, splashRadius: 2.5,
+    statusEffect: 'none', statusChance: 0, statusDuration: 0,
+    fxType: 'shadow_ball', ignoresType: true,
+    description: 'Fixed spectral damage that ignores elemental effectiveness.',
+  },
+  confusion: {
+    id: 'confusion', name: 'Confusion', type: 'Psychic', basePower: 22, attackSpeed: 1.5,
+    range: 14, projectileSpeed: 30, splashRadius: 0,
+    statusEffect: 'stun', statusChance: 0.15, statusDuration: 0.8,
+    fxType: 'psychic_wave', description: 'A psychic pulse that can briefly disorient its target.',
+  },
+  psybeam: {
+    id: 'psybeam', name: 'Psybeam', type: 'Psychic', basePower: 49, attackSpeed: 1.3,
+    range: 18, projectileSpeed: 36, splashRadius: 3.0,
+    statusEffect: 'stun', statusChance: 0.25, statusDuration: 1.3,
+    fxType: 'psychic_wave', description: 'A focused psychic ray that strikes a clustered lane.',
+  },
   thundershock: {
     id: 'thundershock',
     name: 'ThunderShock',

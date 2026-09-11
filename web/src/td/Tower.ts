@@ -23,6 +23,7 @@ export interface TowerTemplate {
   upgradeCost: number;
   evolveMoveId: string;
   evolveCost: number;
+  midName: string;
   evolvedName: string;
   createModel: () => AnimatedPokemon;
   description: string;
@@ -39,6 +40,7 @@ export const TOWER_TEMPLATES: Record<string, TowerTemplate> = {
     upgradeCost: 120,
     evolveMoveId: 'thunder',
     evolveCost: 220,
+    midName: 'Pikachu',
     evolvedName: 'Raichu',
     createModel: () => PokemonModelFactory.createPikachu(),
     description: 'Rapid electric attacker. Upgrades to high-voltage chain lightning.',
@@ -53,6 +55,7 @@ export const TOWER_TEMPLATES: Record<string, TowerTemplate> = {
     upgradeCost: 160,
     evolveMoveId: 'fire_blast',
     evolveCost: 260,
+    midName: 'Charmeleon',
     evolvedName: 'Charizard',
     createModel: () => PokemonModelFactory.createCharizard(),
     description: 'Searing fire attacker inflicting burn damage on enemy clusters.',
@@ -67,6 +70,7 @@ export const TOWER_TEMPLATES: Record<string, TowerTemplate> = {
     upgradeCost: 150,
     evolveMoveId: 'hydro_pump',
     evolveCost: 240,
+    midName: 'Wartortle',
     evolvedName: 'Blastoise',
     createModel: () => PokemonModelFactory.createBlastoise(),
     description: 'Heavy water artillery that slows down fast invading runners.',
@@ -81,6 +85,7 @@ export const TOWER_TEMPLATES: Record<string, TowerTemplate> = {
     upgradeCost: 140,
     evolveMoveId: 'solar_beam',
     evolveCost: 250,
+    midName: 'Ivysaur',
     evolvedName: 'Venusaur',
     createModel: () => PokemonModelFactory.createVenusaur(),
     description: 'Critical slicing leaves and massive long-range SolarBeam laser.',
@@ -90,11 +95,12 @@ export const TOWER_TEMPLATES: Record<string, TowerTemplate> = {
     name: 'Gastly',
     type: 'Ghost',
     cost: 140,
-    initialMoveId: 'shadow_ball',
-    upgradeMoveId: 'shadow_ball',
+    initialMoveId: 'lick',
+    upgradeMoveId: 'night_shade',
     upgradeCost: 170,
-    evolveMoveId: 'shadow_ball',
+    evolveMoveId: 'psychic',
     evolveCost: 270,
+    midName: 'Haunter',
     evolvedName: 'Gengar',
     createModel: () => PokemonModelFactory.createGengar(),
     description: 'Ghostly entity that bypasses defense and stuns targets.',
@@ -104,14 +110,15 @@ export const TOWER_TEMPLATES: Record<string, TowerTemplate> = {
     name: 'Abra',
     type: 'Psychic',
     cost: 150,
-    initialMoveId: 'psychic',
-    upgradeMoveId: 'psychic',
+    initialMoveId: 'confusion',
+    upgradeMoveId: 'psybeam',
     upgradeCost: 180,
-    evolveMoveId: 'hyper_beam',
+    evolveMoveId: 'psychic',
     evolveCost: 300,
+    midName: 'Kadabra',
     evolvedName: 'Alakazam',
     createModel: () => PokemonModelFactory.createAlakazam(),
-    description: 'Supreme psychic range and devastating Hyper Beam finishing power.',
+    description: 'Long-range psychic control that grows from Confusion into Psychic.',
   },
 };
 
@@ -133,6 +140,7 @@ export class Tower {
   private attackCooldown: number = 0;
   private isAttackingAnim: boolean = false;
   private attackAnimTimer: number = 0;
+  private modelLoadGeneration = 0;
   public currentTarget: Creep | null = null;
 
   constructor(template: TowerTemplate, pedestalId: number, pos: THREE.Vector3) {
@@ -169,6 +177,7 @@ export class Tower {
   }
 
   private loadAuthenticModel(): void {
+    const generation = ++this.modelLoadGeneration;
     let modelName = this.template.name.toLowerCase();
     let targetHeight = 1.9;
 
@@ -176,19 +185,12 @@ export class Tower {
       modelName = this.template.evolvedName.toLowerCase();
       targetHeight = 2.6;
     } else if (this.level === 2) {
-      const midEvolutions: Record<string, string> = {
-        charmander: 'charmeleon',
-        squirtle: 'wartortle',
-        bulbasaur: 'ivysaur',
-        gastly: 'haunter',
-        abra: 'kadabra',
-        pikachu: 'pikachu',
-      };
-      modelName = midEvolutions[this.template.name.toLowerCase()] || this.template.name.toLowerCase();
+      modelName = this.template.midName.toLowerCase();
       targetHeight = 2.2;
     }
 
     PokemonModelFactory.loadAuthenticModel(modelName, targetHeight, () => this.template.createModel()).then((loaded) => {
+      if (generation !== this.modelLoadGeneration) return;
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
         this.group.remove(this.animPokemon.mesh);
         this.animPokemon = loaded;
@@ -209,11 +211,11 @@ export class Tower {
   public upgrade(): boolean {
     if (this.level === 1) {
       this.level = 2;
+      this.name = this.template.midName;
       this.currentMove = MOVES[this.template.upgradeMoveId];
       this.totalInvested += this.template.upgradeCost;
       this.updateRangeRing();
-      // Increase model scale slightly
-      this.animPokemon.mesh.scale.multiplyScalar(1.15);
+      this.loadAuthenticModel();
       return true;
     } else if (this.level === 2) {
       this.level = 3;
@@ -267,6 +269,7 @@ export class Tower {
         this.attackCooldown = 1.0 / this.currentMove.attackSpeed;
         this.isAttackingAnim = true;
         this.attackAnimTimer = 0.35;
+        this.animPokemon.playMove?.(this.currentMove.name);
         onFire(this, this.currentTarget);
       }
     }

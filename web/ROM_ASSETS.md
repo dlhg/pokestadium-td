@@ -24,10 +24,10 @@ From `web/`, run:
 npm run extract:stadium
 ```
 
-This validates all three Rev 2 archives, exports Pikachu as a textured,
-skinned GLB with the original 30 fps skeletal clips, writes a data-derived
-animation-role manifest, and converts member 7 of `stadium_models` (Brock's
-Gym Leader Castle room) to the compact `SNA2` browser cache.
+This validates all three Rev 2 archives, exports all 151 Pokémon as textured,
+skinned GLBs with the original 30 fps skeletal clips, writes a data-derived
+animation-role and move manifest, and converts member 7 of `stadium_models`
+(Brock's Gym Leader Castle room) to the compact `SNA2` browser cache.
 
 Output lives under `web/public/generated/stadium/` and is gitignored. The game
 loads it lazily. If the manifest, a species, or the arena cache is absent, the
@@ -35,10 +35,10 @@ existing procedural art remains the explicit fallback. The older files under
 `web/public/models/` came from a third-party model service; they are not
 Pokémon Stadium assets and the authentic loader no longer reads them.
 
-To export every Pokémon after verifying the slice:
+For a quick Pikachu-only extraction smoke test:
 
 ```sh
-python3 tools/extract_stadium_assets.py --all-pokemon
+python3 tools/extract_stadium_assets.py --only-pikachu
 ```
 
 Use `--validate-only` to inspect archive counts, bounds, compression wrappers,
@@ -63,15 +63,21 @@ converts the mapped Brock stage as a relocatable `FRAGMENT`.
 
 - Pokémon texture flipbook animation (blinks, dizzy eyes, and similar state)
   is preserved in source metadata but is not yet driven by Three.js.
-- Tower attacks select Stadium's data-mapped default attack role. Wiring each
-  tower-defense move ID to its species-specific manifest row is the next model
-  integration step.
+- Tower attacks resolve their move name through the extracted per-species move
+  table and play that Stadium skeletal clip. Idle, entrance, hit, and faint
+  roles come from the extracted context slots rather than clip-name guesses.
 - The arena uses original room geometry, textures, UVs, material grouping, and
   vertex-light approximation. The creep path and tower pedestals remain
   authored tower-defense overlays on the native floor.
 - Audio and move-effect extraction are intentionally deferred until this model
   and arena slice is stable. StadiumBattleFX documents the 823-clip announcer
   archive and the multi-layer move presentation needed for that phase.
+
+The tower-defense layer uses a separately authored perimeter route over the
+native room. Build pads are selected deterministically with at least 4.7 arena
+units of lane clearance and 5.4 units between pad centers. Enemy definitions
+support both Gen 1 defending types; their multipliers are combined for 0×,
+0.25×, 0.5×, 1×, 2×, and 4× matchups.
 
 ## Attribution and research sources
 

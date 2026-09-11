@@ -10,7 +10,7 @@
  */
 
 import { Tower, TOWER_TEMPLATES, TowerTemplate } from './Tower';
-import { TYPE_COLORS } from '../stadium/TypeMatrix';
+import { TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 
@@ -359,6 +359,7 @@ export class StadiumUI {
         <div class="radial-center" id="radial-center-content">
           <span style="font-family: Impact; font-size: 16px; color: #fff;" id="rad-name">PIKACHU</span>
           <span style="font-size: 11px; color: #ffd700;" id="rad-lvl">LV. 1</span>
+          <span style="font-size: 9px; color: #fff;" id="rad-matchup">ELECTRIC</span>
         </div>
         <button class="stadium-panel radial-btn top" id="rad-upgrade">
           <span style="color: #ffd700;">UPGRADE</span>
@@ -535,6 +536,18 @@ export class StadiumUI {
       document.getElementById('rad-name')!.innerText = t.name;
       document.getElementById('rad-lvl')!.innerText = `LV. ${t.level} (${t.currentMove.name})`;
       document.getElementById('rad-target-mode')!.innerText = t.targetPriority.toUpperCase();
+      const matchup = document.getElementById('rad-matchup')!;
+      if (t.currentTarget) {
+        const multiplier = t.currentMove.ignoresType
+          ? 1
+          : getCombinedEffectiveness(t.currentMove.type, t.currentTarget.types);
+        const effectiveness = getEffectivenessLabel(multiplier);
+        matchup.innerText = `${t.currentMove.type.toUpperCase()} → ${t.currentTarget.types.join('/').toUpperCase()} ${multiplier}×`;
+        matchup.style.color = effectiveness.color;
+      } else {
+        matchup.innerText = `${t.currentMove.type.toUpperCase()} · ${t.currentMove.basePower} POWER`;
+        matchup.style.color = TYPE_COLORS[t.currentMove.type].light;
+      }
 
       // Upgrade / Evolve costs
       const upBtn = document.getElementById('rad-upgrade')!;
