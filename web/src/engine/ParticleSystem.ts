@@ -184,10 +184,9 @@ export class ParticleSystem {
       this.sizes[i] = p.size * alpha;
     }
 
-    // Reset remaining slots
-    for (let i = count; i < this.maxParticles; i++) {
-      this.sizes[i] = 0;
-    }
+    // Only draw live particles; stale slots past `count` would otherwise
+    // render at their last position forever (PointsMaterial ignores `size`).
+    this.geometry.setDrawRange(0, count);
 
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.color.needsUpdate = true;
