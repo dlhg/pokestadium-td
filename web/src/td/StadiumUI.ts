@@ -3,7 +3,7 @@
  *
  * Implements:
  * - Iconic metallic tournament top bar (Cup, Round, Prize Money, Poké Balls)
- * - Tower deployment card deck at bottom
+ * - Vertical tower roster for selecting and deploying Pokémon
  * - Stadium Circular Radial Command Wheel for tower inspection/upgrades
  * - Dynamic Stadium Announcer popup banners
  * - Speed & camera controls
@@ -167,40 +167,91 @@ export class StadiumUI {
           font-weight: 800;
         }
 
-        /* Tower Card Deck (Bottom) */
+        /* Tower Roster (Right Rail) */
         #card-deck {
           position: absolute;
-          bottom: 16px;
-          left: 50%;
-          transform: translateX(-50%);
+          top: 82px;
+          right: 14px;
+          bottom: 14px;
+          width: 150px;
           display: flex;
-          gap: 12px;
+          flex-direction: column;
+          gap: 8px;
+          padding: 9px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          box-sizing: border-box;
           z-index: 30;
+          scrollbar-width: thin;
+          scrollbar-color: #5280b8 #071326;
+        }
+
+        .tower-rail-header {
+          flex: 0 0 auto;
+          padding: 2px 3px 7px;
+          border-bottom: 1px solid rgba(82, 128, 184, 0.65);
+          text-align: left;
+        }
+
+        .tower-rail-title {
+          display: block;
+          color: #ffd700;
+          font-family: 'Impact', sans-serif;
+          font-size: 16px;
+          letter-spacing: 1.2px;
+        }
+
+        #placement-hint {
+          display: block;
+          min-height: 22px;
+          margin-top: 2px;
+          color: #8faecf;
+          font-size: 9px;
+          font-weight: 700;
+          line-height: 1.15;
+          letter-spacing: 0.65px;
+          text-transform: uppercase;
         }
 
         .tower-card {
-          width: 96px;
-          height: 120px;
-          display: flex;
-          flex-direction: column;
+          width: 100%;
+          min-height: 70px;
+          flex: 0 0 70px;
+          display: grid;
+          grid-template-columns: 1fr auto;
+          grid-template-rows: auto 1fr;
           align-items: center;
-          justify-content: space-between;
-          padding: 8px 6px;
+          gap: 3px 5px;
+          padding: 7px 8px;
+          box-sizing: border-box;
           cursor: pointer;
           transition: transform 0.15s, border-color 0.15s;
           position: relative;
+          text-align: left;
         }
 
         .tower-card:hover {
-          transform: translateY(-6px);
+          transform: translateX(-6px);
           border-color: #ffd700;
-          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.8), 0 0 15px rgba(255, 215, 0, 0.3);
+          box-shadow: 7px 4px 20px rgba(0, 0, 0, 0.8), 0 0 15px rgba(255, 215, 0, 0.3);
         }
 
         .tower-card.selected {
           border-color: #00f0ff;
           box-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
-          transform: translateY(-8px);
+          transform: translateX(-8px);
+        }
+
+        .tower-card.selected::before {
+          content: '';
+          position: absolute;
+          top: 8px;
+          bottom: 8px;
+          left: -4px;
+          width: 3px;
+          border-radius: 2px;
+          background: #00f0ff;
+          box-shadow: 0 0 8px #00f0ff;
         }
 
         .tower-card.disabled {
@@ -210,6 +261,8 @@ export class StadiumUI {
         }
 
         .card-type-tag {
+          grid-column: 1 / -1;
+          justify-self: start;
           font-size: 10px;
           font-weight: 800;
           padding: 2px 6px;
@@ -221,9 +274,10 @@ export class StadiumUI {
 
         .card-name {
           font-family: 'Impact', sans-serif;
-          font-size: 15px;
+          font-size: 14px;
           letter-spacing: 0.5px;
           color: #fff;
+          white-space: nowrap;
         }
 
         .card-cost {
@@ -231,6 +285,13 @@ export class StadiumUI {
           font-size: 16px;
           font-weight: 800;
           color: #ffd700;
+        }
+
+        @media (max-height: 650px) {
+          .tower-card {
+            min-height: 62px;
+            flex-basis: 62px;
+          }
         }
 
         /* Announcer Banner */
@@ -351,8 +412,8 @@ export class StadiumUI {
         <div class="banner-inner" id="announcer-text">WHAT A BATTLE!</div>
       </div>
 
-      <!-- Tower Card Deck -->
-      <div id="card-deck" class="interactive"></div>
+      <!-- Tower Purchase Roster -->
+      <div id="card-deck" class="stadium-panel interactive"></div>
 
       <!-- Radial Command Wheel -->
       <div id="radial-menu" class="interactive">
@@ -392,7 +453,12 @@ export class StadiumUI {
 
   private renderCardDeck(): void {
     const templates = Object.values(TOWER_TEMPLATES);
-    this.cardDeckEl.innerHTML = '';
+    this.cardDeckEl.innerHTML = `
+      <div class="tower-rail-header">
+        <span class="tower-rail-title">TOWER ROSTER</span>
+        <span id="placement-hint">SELECT A POKÉMON</span>
+      </div>
+    `;
 
     templates.forEach(tmpl => {
       const card = document.createElement('div');
@@ -509,6 +575,12 @@ export class StadiumUI {
     }
 
     // Card Deck affordability & selection highlight
+    const placementHint = document.getElementById('placement-hint')!;
+    placementHint.innerText = state.selectedTemplate
+      ? `PLACE ${state.selectedTemplate.name.toUpperCase()} · ESC TO CANCEL`
+      : 'SELECT A POKÉMON';
+    placementHint.style.color = state.selectedTemplate ? '#00f0ff' : '#8faecf';
+
     const templates = Object.values(TOWER_TEMPLATES);
     templates.forEach(tmpl => {
       const el = document.getElementById(`card-${tmpl.id}`);

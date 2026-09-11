@@ -17,6 +17,7 @@ export class Input {
   public mouseScreen: THREE.Vector2 = new THREE.Vector2(0, 0);
   public isMouseDown: boolean = false;
   public clicked: boolean = false;
+  public clickedOnUI: boolean = false;
   public rightClicked: boolean = false;
   private raycaster: THREE.Raycaster = new THREE.Raycaster();
   private canvas: HTMLCanvasElement;
@@ -41,6 +42,7 @@ export class Input {
       if (e.button === 0) {
         this.isMouseDown = true;
         this.clicked = true;
+        this.clickedOnUI = e.target instanceof Element && e.target.closest('.interactive') !== null;
       } else if (e.button === 2) {
         this.rightClicked = true;
       }
@@ -65,6 +67,7 @@ export class Input {
         this.mouseNDC.x = (touch.clientX / window.innerWidth) * 2 - 1;
         this.mouseNDC.y = -(touch.clientY / window.innerHeight) * 2 + 1;
         this.clicked = true;
+        this.clickedOnUI = touch.target instanceof Element && touch.target.closest('.interactive') !== null;
       }
     }, { passive: false });
 
@@ -99,6 +102,7 @@ export class Input {
 
   public update(): void {
     this.clicked = false;
+    this.clickedOnUI = false;
     this.rightClicked = false;
     this.keysJustPressed.clear();
   }
