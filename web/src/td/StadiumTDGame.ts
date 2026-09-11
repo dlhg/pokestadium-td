@@ -19,6 +19,7 @@ import { Creep } from './Creep';
 import { Projectile } from './Projectile';
 import { WaveManager } from './WaveManager';
 import { getCombinedEffectiveness } from '../stadium/TypeMatrix';
+import { MOVES } from '../stadium/MoveDatabase';
 
 export class StadiumTDGame {
   public renderer!: StadiumRenderer;
@@ -47,6 +48,8 @@ export class StadiumTDGame {
   public selectedTemplate: TowerTemplate | null = null;
   public selectedTower: Tower | null = null;
   private hoveredPedestal: PedestalSlot | null = null;
+  private placementPreview: THREE.Group = new THREE.Group();
+  private placementPreviewTemplateId: string | null = null;
 
   public init(canvas: HTMLCanvasElement, uiContainer: HTMLElement): void {
     this.renderer = new StadiumRenderer(canvas);
@@ -58,6 +61,8 @@ export class StadiumTDGame {
 
     this.renderer.scene.add(this.arena.group);
     this.renderer.scene.add(this.particles.group);
+    this.placementPreview.visible = false;
+    this.renderer.scene.add(this.placementPreview);
 
     this.waveManager = new WaveManager(this.arena.waypoints, this.announcer);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera);
@@ -77,6 +82,8 @@ export class StadiumTDGame {
         this.selectedTower = null;
       }
       this.selectedTemplate = template;
+      this.placementPreviewTemplateId = null;
+      this.placementPreview.visible = false;
       this.audio.playSelect();
     };
 
@@ -146,12 +153,13 @@ export class StadiumTDGame {
     if (input.isKeyJustPressed('Digit2')) this.camera.setMode('stadium');
     if (input.isKeyJustPressed('Digit3')) this.camera.setMode('action');
     if (input.isKeyJustPressed('Space')) this.isPaused = !this.isPaused;
-    if (input.isKeyJustPressed('Escape')) {
+    if (input.isKeyJustPressed('Escape') || input.rightClicked) {
       if (this.selectedTower) {
         this.selectedTower.setSelected(false);
         this.selectedTower = null;
       }
       this.selectedTemplate = null;
+      this.placementPreview.visible = false;
     }
 
     // Raycast pedestals for placement & selection
@@ -175,9 +183,10 @@ export class StadiumTDGame {
       const canAfford = this.selectedTemplate ? this.money >= this.selectedTemplate.cost : true;
       const color = !currentPed.occupied ? (canAfford ? 0x00f0ff : 0xd90429) : 0xffd700;
       this.arena.setPedestalHighlight(currentPed.id, true, color);
+      this.updatePlacementPreview(currentPed);
 
       // Handle Click on Pedestal
-      if (input.clicked) {
+      if (input.clicked && !input.clickedOnUI) {
         if (!currentPed.occupied && this.selectedTemplate) {
           // Place Tower!
           if (this.money >= this.selectedTemplate.cost) {
@@ -198,6 +207,7 @@ export class StadiumTDGame {
             tower.setSelected(true);
 
             this.selectedTemplate = null;
+            this.placementPreview.visible = false;
           }
         } else if (currentPed.occupied && currentPed.towerId) {
           // Select existing tower
@@ -207,17 +217,90 @@ export class StadiumTDGame {
             this.selectedTower = existing;
             existing.setSelected(true);
             this.selectedTemplate = null;
+            this.placementPreview.visible = false;
             this.audio.playSelect();
           }
         }
       }
-    } else if (input.clicked && !input.mouseScreen.y) {
+    } else {
+      this.placementPreview.visible = false;
+    }
+
+    if (!currentPed && input.clicked && !input.clickedOnUI) {
       // Clicked on empty space
       if (this.selectedTower) {
         this.selectedTower.setSelected(false);
         this.selectedTower = null;
       }
     }
+  }
+
+  private updatePlacementPreview(pedestal: PedestalSlot): void {
+    const template = this.selectedTemplate;
+    if (!template || pedestal.occupied) {
+      this.placementPreview.visible = false;
+      return;
+    }
+
+    const canAfford = this.money >= template.cost;
+    const color = canAfford ? 0x00f0ff : 0xd90429;
+    if (this.placementPreviewTemplateId !== template.id) {
+      this.placementPreview.clear();
+      const range = MOVES[template.initialMoveId].range;
+
+      const rangeFill = new THREE.Mesh(
+        new THREE.CircleGeometry(range, 64),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.075,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+      );
+      rangeFill.rotation.x = -Math.PI / 2;
+      rangeFill.renderOrder = 4;
+      this.placementPreview.add(rangeFill);
+
+      const rangeRing = new THREE.Mesh(
+        new THREE.RingGeometry(Math.max(0, range - 0.22), range, 64),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.72,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+      );
+      rangeRing.rotation.x = -Math.PI / 2;
+      rangeRing.position.y = 0.015;
+      rangeRing.renderOrder = 5;
+      this.placementPreview.add(rangeRing);
+
+      const footprint = new THREE.Mesh(
+        new THREE.RingGeometry(1.35, 1.65, 32),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.9,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+      );
+      footprint.rotation.x = -Math.PI / 2;
+      footprint.position.y = 0.03;
+      footprint.renderOrder = 6;
+      this.placementPreview.add(footprint);
+      this.placementPreviewTemplateId = template.id;
+    }
+
+    this.placementPreview.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshBasicMaterial) {
+        object.material.color.setHex(color);
+      }
+    });
+    this.placementPreview.position.set(pedestal.position.x, 0.84, pedestal.position.z);
+    this.placementPreview.visible = true;
   }
 
   public update(realDt: number, input: Input): void {

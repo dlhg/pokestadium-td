@@ -60,9 +60,20 @@ window.addEventListener('DOMContentLoaded', () => {
       ped3.occupied = true;
       ped3.towerId = t3.id;
 
-      // Select Pikachu to showcase the Stadium Radial Command Wheel!
-      game.selectedTower = t0;
-      t0.setSelected(true);
+      if (shot === 'placement_preview') {
+        // Hover an open platform with Bulbasaur armed for placement so visual
+        // verification captures both the side roster and its exact range.
+        game.selectedTemplate = TOWER_TEMPLATES.venusaur;
+        const previewPedestal = game.arena.pedestals[2];
+        game.arena.group.updateMatrixWorld(true);
+        game.camera.camera.updateMatrixWorld(true);
+        const projected = previewPedestal.position.clone().project(game.camera.camera);
+        input.mouseNDC.set(projected.x, projected.y);
+      } else {
+        // Select Pikachu to showcase the Stadium Radial Command Wheel.
+        game.selectedTower = t0;
+        t0.setSelected(true);
+      }
 
       // Spawn creeps along the track
       const c1 = new Creep({
