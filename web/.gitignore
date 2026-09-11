@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.local
+screenshot_*.png
+# Private output generated from the player's ROM. Never commit or redistribute.
+public/generated/stadium/
+__pycache__/
