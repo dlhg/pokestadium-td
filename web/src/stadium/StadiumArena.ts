@@ -298,8 +298,13 @@ export class StadiumArena {
           gl_FragColor = vec4(sprite.rgb * vTint, sprite.a);
         }
       `,
-      transparent: true,
-      depthWrite: false,
+      // These are alpha-cutout cards, not blended transparent planes. Visible
+      // pixels must write depth so nearer spectators correctly occlude rows
+      // behind them even though every tier is rendered as one instanced draw.
+      transparent: false,
+      depthWrite: true,
+      depthTest: true,
+      alphaToCoverage: true,
       side: THREE.FrontSide,
     });
     return this.crowdMaterial;
