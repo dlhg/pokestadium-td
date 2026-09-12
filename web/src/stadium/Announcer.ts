@@ -16,6 +16,13 @@ export class StadiumAnnouncer {
   private speechSynth: SpeechSynthesis | null = null;
   private selectedVoice: SpeechSynthesisVoice | null = null;
   private lastSpeakTime: number = 0;
+  private static readonly speechPolicy: Partial<Record<string, { cooldown: number; chance: number }>> = {
+    battle_start: { cooldown: 0, chance: 1 },
+    boss_spawn: { cooldown: 0, chance: 1 }, boss_defeat: { cooldown: 0, chance: 1 },
+    elite_spawn: { cooldown: 12_000, chance: 1 }, elite_defeat: { cooldown: 12_000, chance: 0.7 },
+    victory: { cooldown: 0, chance: 1 }, game_over: { cooldown: 0, chance: 1 },
+    tower_evolve: { cooldown: 15_000, chance: 0.6 }, wave_cleared: { cooldown: 22_000, chance: 0.2 },
+  };
   private static readonly originalVoiceClips: Partial<Record<string, number[]>> = {
     battle_start: [222],
     super_effective: [261, 262, 267],
@@ -60,7 +67,10 @@ export class StadiumAnnouncer {
       intensity: chosen.intensity
     };
 
-    this.speak(chosen.text, chosen.intensity, event);
+    const policy = StadiumAnnouncer.speechPolicy[event];
+    if (policy && Math.random() <= policy.chance) {
+      this.speak(chosen.text, chosen.intensity, event, policy.cooldown);
+    }
   }
 
   private getQuotesForEvent(event: string, detail?: string): AnnouncerQuote[] {
@@ -105,6 +115,10 @@ export class StadiumAnnouncer {
           { text: "THE BOSS HAS BEEN TOPPLED! WHAT AN INCREDIBLE DEFENSE!", intensity: 'epic' },
           { text: "DOWN GOES THE TITAN!", intensity: 'epic' }
         ];
+      case 'elite_spawn':
+        return [{ text: `AN ELITE ${detail || 'CHALLENGER'} JOINS THE ASSAULT!`, intensity: 'high' }];
+      case 'elite_defeat':
+        return [{ text: `THE ELITE ${detail || 'CHALLENGER'} HAS BEEN STOPPED!`, intensity: 'high' }];
       case 'wave_cleared':
         return [
           { text: "A SPECTACULAR PERFORMANCE! THE WAVE IS CLEARED!", intensity: 'high' },
@@ -133,12 +147,12 @@ export class StadiumAnnouncer {
     }
   }
 
-  private speak(text: string, intensity: string, event: string): void {
+  private speak(text: string, intensity: string, event: string, cooldown: number): void {
     if (!this.voiceEnabled) return;
 
     // Throttle speech so it doesn't overlap excessively
     const now = performance.now();
-    if (now - this.lastSpeakTime < 2200 && intensity !== 'epic') return;
+    if (now - this.lastSpeakTime < cooldown) return;
     this.lastSpeakTime = now;
 
     const clips = StadiumAnnouncer.originalVoiceClips[event];

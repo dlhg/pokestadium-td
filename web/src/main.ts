@@ -111,6 +111,7 @@ window.addEventListener('DOMContentLoaded', () => {
         speed: 2.2,
         reward: 250,
         isBoss: true,
+        threat: 'titan',
         modelType: 'boss_titan',
         titanType: 'Onix'
       }, game.arena.waypoints);
@@ -118,6 +119,15 @@ window.addEventListener('DOMContentLoaded', () => {
       c3.group.position.copy(c3.position);
       game.renderer.scene.add(c3.group);
       game.creeps.push(c3);
+
+      const c4 = new Creep({
+        id: 'demo_elite', name: 'Granite Captain', type: 'Rock', secondaryType: 'Ground',
+        maxHp: 720, speed: 2.4, reward: 100, threat: 'elite', modelType: 'geodude'
+      }, game.arena.waypoints);
+      c4.position.copy(game.arena.waypoints[16]);
+      c4.group.position.copy(c4.position);
+      game.renderer.scene.add(c4.group);
+      game.creeps.push(c4);
 
       if (shot === 'stadium_overview') {
         game.camera.setMode('stadium');
