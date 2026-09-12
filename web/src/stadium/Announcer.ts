@@ -16,6 +16,15 @@ export class StadiumAnnouncer {
   private speechSynth: SpeechSynthesis | null = null;
   private selectedVoice: SpeechSynthesisVoice | null = null;
   private lastSpeakTime: number = 0;
+  private static readonly originalVoiceClips: Partial<Record<string, number[]>> = {
+    battle_start: [222],
+    super_effective: [261, 262, 267],
+    critical_hit: [311, 312],
+    not_effective: [270, 317, 319],
+    creep_faint: [349, 351, 357, 358],
+    victory: [365, 366, 367],
+    wave_cleared: [367, 368],
+  };
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -51,7 +60,7 @@ export class StadiumAnnouncer {
       intensity: chosen.intensity
     };
 
-    this.speak(chosen.text, chosen.intensity);
+    this.speak(chosen.text, chosen.intensity, event);
   }
 
   private getQuotesForEvent(event: string, detail?: string): AnnouncerQuote[] {
@@ -124,14 +133,27 @@ export class StadiumAnnouncer {
     }
   }
 
-  private speak(text: string, intensity: string): void {
-    if (!this.voiceEnabled || !this.speechSynth) return;
+  private speak(text: string, intensity: string, event: string): void {
+    if (!this.voiceEnabled) return;
 
     // Throttle speech so it doesn't overlap excessively
     const now = performance.now();
     if (now - this.lastSpeakTime < 2200 && intensity !== 'epic') return;
     this.lastSpeakTime = now;
 
+    const clips = StadiumAnnouncer.originalVoiceClips[event];
+    if (clips?.length) {
+      const clip = clips[Math.floor(Math.random() * clips.length)];
+      const nativeVoice = new Audio(`/generated/stadium/audio/announcer/stadium_mort_${String(clip).padStart(3, '0')}.wav`);
+      nativeVoice.volume = 0.9;
+      nativeVoice.play().catch(() => this.speakWithBrowserVoice(text, intensity));
+      return;
+    }
+    this.speakWithBrowserVoice(text, intensity);
+  }
+
+  private speakWithBrowserVoice(text: string, intensity: string): void {
+    if (!this.speechSynth) return;
     try {
       this.speechSynth.cancel(); // Interrupt prior speech
       const utterance = new SpeechSynthesisUtterance(text);

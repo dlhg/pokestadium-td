@@ -158,6 +158,7 @@ export class StadiumTDGame {
       if (!this.waveManager.inWave) {
         this.waveManager.startNextWave();
         this.audio.playSelect();
+        this.audio.startMusic();
       }
     };
 

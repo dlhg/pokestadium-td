@@ -69,9 +69,17 @@ converts the mapped Brock stage as a relocatable `FRAGMENT`.
 - The arena uses original room geometry, textures, UVs, material grouping, and
   vertex-light approximation. The creep path and tower pedestals remain
   authored tower-defense overlays on the native floor.
-- Audio and move-effect extraction are intentionally deferred until this model
-  and arena slice is stable. StadiumBattleFX documents the 823-clip announcer
-  archive and the multi-layer move presentation needed for that phase.
+- `npm run dev`, `npm run build`, and `npm run extract:stadium` automatically
+  check for a locally generated announcer pack. If it is absent and the
+  supported ROM is present, they extract the original 823 MORT announcer clips
+  into `web/public/generated/stadium/audio/announcer/`. The first extraction
+  fetches and compiles a pinned, MIT-licensed MORT decoder into an ignored
+  local cache; it never downloads game data. A missing ROM or unavailable
+  decoder leaves the browser speech fallback in place instead of failing the
+  web build.
+
+  Original menu/move SFX and sequence music use a separate N64 bank renderer;
+  they remain procedural until that decoder and the cue map are implemented.
 
 The tower-defense layer uses a separately authored perimeter route over the
 native room. Build pads are selected deterministically with at least 4.7 arena

@@ -3,6 +3,8 @@ asm/
 bin/
 assets/
 build/
+web/public/generated/
+web/.cache/
 
 linker_scripts/*/auto/
 linker_scripts/*/pokestadium.ld
