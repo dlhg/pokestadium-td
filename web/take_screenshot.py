@@ -46,12 +46,20 @@ cmd = [
     f"http://127.0.0.1:{port}/?shot={shot_name}"
 ]
 
-print(f"Capturing screenshot: {output_file} from http://127.0.0.1:{port}...")
-subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+capture_started = time.time()
+print(f"Capturing screenshot: {output_file} from http://127.0.0.1:{port}...", flush=True)
+try:
+    # Chrome can linger on background requests after writing the image.
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=35)
+except subprocess.TimeoutExpired:
+    print('Headless browser reached its time limit; checking the captured image.')
 
-if os.path.exists(output_file):
+captured = os.path.exists(output_file) and os.path.getmtime(output_file) >= capture_started
+if captured:
     print(f"Successfully saved {output_file}")
 else:
     print(f"Failed to capture {output_file}")
 
-os._exit(0)
+server.shutdown()
+server.server_close()
+sys.exit(0 if captured else 1)

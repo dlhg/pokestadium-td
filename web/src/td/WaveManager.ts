@@ -20,11 +20,12 @@ export class WaveManager {
   public currentWaveIndex: number = 0;
   public inWave: boolean = false;
   public waveCompleted: boolean = false;
-  public intermissionTimer: number = 5.0; // Seconds before auto-start (or player can click Start)
+  public intermissionTimer: number = 0; // The first wave waits for the player's plan.
 
   private spawnQueue: { config: CreepConfig; delay: number }[] = [];
   private spawnTimer: number = 0;
-  private waypoints: THREE.Vector3[];
+  private routes: THREE.Vector3[][];
+  private nextRoute = 0;
   private announcer: StadiumAnnouncer;
 
   private waves: WaveDefinition[] = [
@@ -354,8 +355,9 @@ export class WaveManager {
     }
   ];
 
-  constructor(waypoints: THREE.Vector3[], announcer: StadiumAnnouncer) {
-    this.waypoints = waypoints;
+  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer) {
+    if (!routes.length || routes.some(route => route.length < 2)) throw new Error('A course needs a traversable route');
+    this.routes = routes;
     this.announcer = announcer;
   }
 
@@ -372,6 +374,8 @@ export class WaveManager {
     this.inWave = true;
     this.waveCompleted = false;
     this.spawnQueue = [];
+    this.spawnTimer = 0;
+    this.nextRoute = this.currentWaveIndex % this.routes.length;
 
     // Populate spawn queue
     wave.spawns.forEach(group => {
@@ -414,7 +418,8 @@ export class WaveManager {
       if (this.spawnTimer <= 0) {
         const next = this.spawnQueue.shift()!;
         this.spawnTimer = next.delay;
-        const creep = new Creep(next.config, this.waypoints);
+        const creep = new Creep(next.config, this.routes[this.nextRoute]);
+        this.nextRoute = (this.nextRoute + 1) % this.routes.length;
         onSpawn(creep);
         if (creep.threat === 'elite') this.announcer.trigger('elite_spawn', creep.name);
       }

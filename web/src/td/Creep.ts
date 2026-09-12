@@ -48,6 +48,8 @@ export class Creep {
   // Path following
   private waypoints: THREE.Vector3[];
   private currentWpIdx: number = 0;
+  private remainingAtWaypoint: number[];
+  /** Negative distance to the exit: comparable even on routes of different lengths. */
   public pathProgress: number = 0;
 
   // Status effects
@@ -78,6 +80,11 @@ export class Creep {
     this.threat = config.threat || (config.isBoss ? 'titan' : 'normal');
     this.isBoss = this.threat === 'titan' || !!config.isBoss;
     this.waypoints = waypoints;
+    this.remainingAtWaypoint = new Array(waypoints.length).fill(0);
+    for (let i = waypoints.length - 2; i >= 0; i--) {
+      this.remainingAtWaypoint[i] = this.remainingAtWaypoint[i + 1] + waypoints[i].distanceTo(waypoints[i + 1]);
+    }
+    this.pathProgress = -this.remainingAtWaypoint[0];
 
     // Instantiate Model
     switch (config.modelType) {
@@ -279,20 +286,22 @@ export class Creep {
       }
     }
 
-    // Path Navigation along waypoints
-    if (this.currentWpIdx < this.waypoints.length) {
+    // Spend the entire movement budget across sampled segments. Dense curves
+    // must not slow creeps down by discarding leftover distance at every point.
+    let step = this.speed * dt;
+    while (this.currentWpIdx < this.waypoints.length) {
       const targetWp = this.waypoints[this.currentWpIdx];
       const dist = this.position.distanceTo(targetWp);
-      const step = this.speed * dt;
 
       if (dist <= step) {
         this.position.copy(targetWp);
+        step -= dist;
         this.currentWpIdx++;
-        this.pathProgress = this.currentWpIdx;
 
         if (this.currentWpIdx >= this.waypoints.length) {
           this.reachedEnd = true;
           this.alive = false;
+          this.pathProgress = 0;
         }
       } else {
         const dir = new THREE.Vector3().subVectors(targetWp, this.position).normalize();
@@ -302,10 +311,13 @@ export class Creep {
         const lookPos = targetWp.clone();
         lookPos.y = this.position.y;
         this.animPokemon.mesh.lookAt(lookPos);
+        break;
       }
-
-      this.group.position.copy(this.position);
     }
+    if (!this.reachedEnd && this.currentWpIdx < this.waypoints.length) {
+      this.pathProgress = -(this.position.distanceTo(this.waypoints[this.currentWpIdx]) + this.remainingAtWaypoint[this.currentWpIdx]);
+    }
+    this.group.position.copy(this.position);
 
     // Rendering follows combat state without changing movement or damage timing.
     this.entranceTimer -= dt;

@@ -1,9 +1,9 @@
 /**
  * StadiumArena.ts — 3D Pokémon Stadium Colosseum Environment
  *
- * Generates the iconic Pokémon Stadium arena:
- * - Central Poké Ball battle pitch with authentic graphics
- * - Winding 3D tactical lane with waypoints
+ * Renders authored tower-defense courses inside the Pokémon Stadium arena:
+ * - Themed terrain, water, bridges and low-poly placement obstacles
+ * - Map-specific lanes sharing geometry with navigation and placement tests
  * - Free-placement build rules: arena bounds, lane clearance, keep-out zones
  * - Stadium grandstands, animated spectator crowd, and perimeter walls
  * - Floodlight towers and giant stadium jumbotrons
@@ -11,33 +11,20 @@
 
 import * as THREE from 'three';
 import { DEFAULT_STADIUM_MAP, type MapObstacle, type StadiumMap } from '../td/MapCatalog';
+import { mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
+import { buildMapGround, buildMapObstacle, disposeScenery } from './MapScenery';
 
-/** Why the arena itself refuses a spot. `null` means the ground is clear. */
-export type BuildBlockReason = 'out_of_bounds' | 'on_lane' | 'restricted' | null;
-
-/** A circular region a map declares permanently off-limits for building. */
-export interface NoBuildZone {
-  x: number;
-  z: number;
-  radius: number;
-  label: string;
-  style?: MapObstacle['style'];
-}
+export type BuildBlockReason = MapBuildBlock;
+export type NoBuildZone = MapObstacle;
 
 export class StadiumArena {
   public group: THREE.Group = new THREE.Group();
   public waypoints: THREE.Vector3[] = [];
+  public routes: THREE.Vector3[][] = [];
 
   /** Towers may be placed anywhere inside this radius of the pitch centre. */
   public readonly buildableRadius: number;
   public readonly map: StadiumMap;
-  /** Half the creep lane's visual width — a footprint must clear it entirely. */
-  private readonly laneHalfWidth = 1.6;
-  /** Map-authored keep-out regions, rendered with matching physical props. */
-  private noBuildZones: NoBuildZone[] = [];
-  /** Densely sampled lane centreline, used for clearance tests. */
-  private pathSamples: THREE.Vector3[] = [];
-
   private environmentGroup = new THREE.Group();
   private gameplayGroup = new THREE.Group();
   private noBuildGroup = new THREE.Group();
@@ -50,6 +37,8 @@ export class StadiumArena {
   constructor(map: StadiumMap = DEFAULT_STADIUM_MAP) {
     this.map = map;
     this.buildableRadius = map.buildableRadius;
+    this.routes = sampleMapRoutes(map);
+    this.waypoints = this.routes[0];
     this.environmentGroup.name = 'arena-environment';
     this.gameplayGroup.name = 'tower-defense-overlay';
     this.noBuildGroup.name = 'no-build-zones';
@@ -63,181 +52,88 @@ export class StadiumArena {
 
     this.initArena();
     this.setNoBuildZones(map.obstacles);
-    this.initWaypoints();
-    // Sampled once: every placement test measures against these points, and the
-    // spacing (~0.6 units) bounds how far a footprint can cheat toward the lane.
-    this.pathSamples = this.createPathCurve().getPoints(240);
   }
 
   private initArena(): void {
-    // 1. Stadium Ground Turf
-    const groundGeo = new THREE.CylinderGeometry(36, 36, 1.2, 48);
-    const groundMat = new THREE.MeshLambertMaterial({
-      color: 0x1a472a, // Deep stadium grass green
-    });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.position.y = -0.6;
-    ground.receiveShadow = true;
-    this.environmentGroup.add(ground);
-
-    // 2. Central Poké Ball Battle Pitch (Canvas Texture)
-    const pitchCanvas = document.createElement('canvas');
-    pitchCanvas.width = 1024;
-    pitchCanvas.height = 1024;
-    const ctx = pitchCanvas.getContext('2d')!;
-
-    // Outer turf circle
-    ctx.fillStyle = '#2d6a4f';
-    ctx.beginPath();
-    ctx.arc(512, 512, 500, 0, Math.PI * 2);
-    ctx.fill();
-
-    // White outer boundary line
-    ctx.strokeStyle = '#e9ecef';
-    ctx.lineWidth = 14;
-    ctx.stroke();
-
-    // Giant Poké Ball Emblem
-    // Top half: Stadium Red
-    ctx.fillStyle = '#d90429';
-    ctx.beginPath();
-    ctx.arc(512, 512, 380, Math.PI, 0, false);
-    ctx.fill();
-
-    // Bottom half: Crisp White
-    ctx.fillStyle = '#f8f9fa';
-    ctx.beginPath();
-    ctx.arc(512, 512, 380, 0, Math.PI, false);
-    ctx.fill();
-
-    // Black center dividing stripe
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(512 - 380, 512 - 28, 760, 56);
-
-    // Center Outer Ring (Black)
-    ctx.beginPath();
-    ctx.arc(512, 512, 110, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Center Inner Ring (White)
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(512, 512, 70, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Inner Button (Light Cyan/White sheen)
-    ctx.fillStyle = '#e2eafc';
-    ctx.beginPath();
-    ctx.arc(512, 512, 45, 0, Math.PI * 2);
-    ctx.fill();
-
-    const pitchTex = new THREE.CanvasTexture(pitchCanvas);
-    pitchTex.anisotropy = 8;
-    const pitchMat = new THREE.MeshLambertMaterial({
-      map: pitchTex,
-    });
-    const pitchMesh = new THREE.Mesh(new THREE.CircleGeometry(24, 48), pitchMat);
-    pitchMesh.rotation.x = -Math.PI / 2;
-    pitchMesh.position.y = 0.02;
-    pitchMesh.receiveShadow = true;
-    this.environmentGroup.add(pitchMesh);
-
-    // 3. Creep Track Visuals (Winding Dirt Path)
+    this.environmentGroup.add(new THREE.HemisphereLight(0xe6f1ff, 0x647557, 1.1));
+    this.environmentGroup.add(buildMapGround(this.map));
     this.buildTrackPath();
-
-    // 4. Perimeter Colosseum Walls & Barriers
-    const wallGeo = new THREE.CylinderGeometry(36, 36, 3.5, 48, 1, true);
-    const wallMat = new THREE.MeshLambertMaterial({
-      color: 0x0a3871, // Stadium metallic blue
-      side: THREE.BackSide,
-    });
-    const wall = new THREE.Mesh(wallGeo, wallMat);
-    wall.position.y = 1.75;
-    this.environmentGroup.add(wall);
-
-    // Glowing stadium neon barrier strip
-    const neonGeo = new THREE.TorusGeometry(35.9, 0.25, 8, 48);
-    const neonMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-    const neon = new THREE.Mesh(neonGeo, neonMat);
-    neon.rotation.x = Math.PI / 2;
-    neon.position.y = 3.4;
-    this.environmentGroup.add(neon);
-
-    // 5. Tiered Grandstands with Stadium Crowds
     this.buildGrandstands();
-
-    // 6. Corner Floodlight Towers
     this.buildFloodlightTowers();
-
-    // 7. Giant Stadium Jumbotrons (North & South)
     this.buildJumbotrons();
-  }
 
-  private createPathCurve(): THREE.CatmullRomCurve3 {
-    // A perimeter route keeps the native battle floor readable and leaves a
-    // coherent central build zone. The ends sit outside opposite arena gates.
-    return new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-27, 0.5, -18),
-      new THREE.Vector3(-20, 0.5, -18),
-      new THREE.Vector3(-16, 0.5, -10),
-      new THREE.Vector3(-20, 0.5, 0),
-      new THREE.Vector3(-16, 0.5, 10),
-      new THREE.Vector3(-8, 0.5, 17),
-      new THREE.Vector3(0, 0.5, 20),
-      new THREE.Vector3(8, 0.5, 17),
-      new THREE.Vector3(16, 0.5, 10),
-      new THREE.Vector3(20, 0.5, 0),
-      new THREE.Vector3(16, 0.5, -10),
-      new THREE.Vector3(20, 0.5, -18),
-      new THREE.Vector3(27, 0.5, -18),
-    ], false, 'centripetal');
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(35.6,35.6,1.1,64,1,true),
+      new THREE.MeshLambertMaterial({color:0x233e5c,side:THREE.DoubleSide})
+    );
+    wall.position.y=0.3;
+    this.environmentGroup.add(wall);
+    const neon = new THREE.Mesh(new THREE.TorusGeometry(35.6,0.12,6,64),new THREE.MeshBasicMaterial({color:this.map.palette.accent}));
+    neon.rotation.x=Math.PI/2;
+    neon.position.y=0.85;
+    this.environmentGroup.add(neon);
   }
 
   private buildTrackPath(): void {
-    // Generate curved path ribbon around the waypoints
-    const curve = this.createPathCurve();
-    const curvePoints = curve.getPoints(100);
-
-    // Build ribbon strip
-    const stripGeo = new THREE.BufferGeometry();
-    const positions: number[] = [];
-    const colors: number[] = [];
-    const width = 3.2;
-
-    for (let i = 0; i < curvePoints.length - 1; i++) {
-      const p1 = curvePoints[i];
-      const p2 = curvePoints[i + 1];
-      const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-      const normal = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(width / 2);
-
-      const v1 = new THREE.Vector3().addVectors(p1, normal);
-      const v2 = new THREE.Vector3().subVectors(p1, normal);
-      const v3 = new THREE.Vector3().addVectors(p2, normal);
-      const v4 = new THREE.Vector3().subVectors(p2, normal);
-
-      // Triangle 1
-      positions.push(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z, v3.x, v3.y, v3.z);
-      // Triangle 2
-      positions.push(v2.x, v2.y, v2.z, v4.x, v4.y, v4.z, v3.x, v3.y, v3.z);
-
-      // Dirt color with subtle checker
-      const c = (i % 4 === 0) ? 0.65 : 0.72;
-      for (let k = 0; k < 6; k++) {
-        colors.push(c * 0.85, c * 0.72, c * 0.52);
+    this.routes.forEach((points, routeIndex) => {
+      // Constant-width ribbon with shared normals at joins; all routes use
+      // exactly the same sampled points as movement and placement collision.
+      for (const edge of [true,false]) {
+        const halfWidth=this.map.laneWidth/2+(edge?0.22:0);
+        const positions:number[]=[], indices:number[]=[];
+        points.forEach((point,index)=>{
+          const before=points[Math.max(0,index-1)], after=points[Math.min(points.length-1,index+1)];
+          const direction=new THREE.Vector3().subVectors(after,before).normalize();
+          const normal=new THREE.Vector3(-direction.z,0,direction.x).multiplyScalar(halfWidth);
+          positions.push(point.x+normal.x,edge?0.12:0.14,point.z+normal.z,point.x-normal.x,edge?0.12:0.14,point.z-normal.z);
+          if(index<points.length-1) {
+            const v=index*2; indices.push(v,v+1,v+2,v+1,v+3,v+2);
+          }
+        });
+        const geometry=new THREE.BufferGeometry();
+        geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+        geometry.setIndex(indices);geometry.computeVertexNormals();
+        const track=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({color:edge?this.map.palette.edge:this.map.palette.path,side:THREE.DoubleSide}));
+        track.receiveShadow=true;track.name=`route-${routeIndex}-${edge?'edge':'lane'}`;
+        this.gameplayGroup.add(track);
       }
-    }
-
-    stripGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    stripGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    stripGeo.computeVertexNormals();
-
-    const trackMat = new THREE.MeshLambertMaterial({
-      vertexColors: true,
-      side: THREE.DoubleSide,
+      // Direction chevrons make the winding and crossing routes legible.
+      for(let i=8;i<points.length-8;i+=28) {
+        const point=points[i], next=points[i+2];
+        const shape=new THREE.Shape();
+        shape.moveTo(-0.65,0.38);shape.lineTo(0, -0.38);shape.lineTo(0.65,0.38);
+        shape.lineTo(0.65,0.05);shape.lineTo(0,-0.7);shape.lineTo(-0.65,0.05);shape.closePath();
+        const arrow=new THREE.Mesh(new THREE.ShapeGeometry(shape),new THREE.MeshBasicMaterial({color:this.map.theme==='industrial'?(routeIndex?'#66cee5':'#f9d578'):this.map.palette.edge,side:THREE.DoubleSide}));
+        arrow.rotation.x=-Math.PI/2;
+        arrow.rotation.z=Math.atan2(next.x-point.x,next.z-point.z);
+        arrow.position.set(point.x,0.55,point.z);
+        this.gameplayGroup.add(arrow);
+      }
+      this.addGate(points[0],points[1],true,routeIndex);
+      this.addGate(points[points.length-1],points[points.length-2],false,routeIndex);
     });
-    const trackMesh = new THREE.Mesh(stripGeo, trackMat);
-    trackMesh.receiveShadow = true;
-    this.gameplayGroup.add(trackMesh);
+  }
+
+  private addGate(point: THREE.Vector3, adjacent: THREE.Vector3, entry: boolean, index: number): void {
+    const gate=new THREE.Group();
+    gate.position.set(point.x,0,point.z);
+    gate.rotation.y=Math.atan2(adjacent.x-point.x,adjacent.z-point.z);
+    const color=entry?'#90dfae':'#ff9579';
+    const mat=new THREE.MeshLambertMaterial({color:0x233f56});
+    for(const side of [-1,1]) {
+      const post=new THREE.Mesh(new THREE.BoxGeometry(0.55,2.7,0.55),mat);
+      post.position.set(side*(this.map.laneWidth/2+0.4),1.35,0);gate.add(post);
+    }
+    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;
+    const ctx=canvas.getContext('2d')!;
+    ctx.fillStyle='#152f47';ctx.fillRect(0,0,256,64);
+    ctx.strokeStyle=color;ctx.lineWidth=5;ctx.strokeRect(3,3,250,58);
+    ctx.fillStyle=color;ctx.font='bold 36px sans-serif';ctx.textAlign='center';
+    ctx.fillText(`${entry?'IN':'OUT'}${this.routes.length>1?' '+(index+1):''}`,128,46);
+    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+    const sign=new THREE.Sprite(new THREE.SpriteMaterial({map:texture}));
+    sign.scale.set(4.3,1.1,1);sign.position.y=3;gate.add(sign);
+    this.gameplayGroup.add(gate);
   }
 
   private buildGrandstands(): void {
@@ -345,7 +241,7 @@ export class StadiumArena {
       this.environmentGroup.add(frame);
     });
 
-    this.updateJumbotron("POKÉMON STADIUM", "TOURNAMENT CUP: POKE CUP", 1);
+    this.updateJumbotron(this.map.name.toUpperCase(), this.map.venue, 1);
   }
 
   public updateJumbotron(title: string, subtitle: string, wave: number): void {
@@ -390,87 +286,23 @@ export class StadiumArena {
     this.jumbotronTexture.needsUpdate = true;
   }
 
-  private initWaypoints(): void {
-    this.waypoints = this.createPathCurve().getPoints(72);
-  }
-
-  /**
-   * Arena-side placement test for a footprint of `radius` centred on (x, z).
-   * Tower-versus-tower crowding is the game's concern, not the arena's.
-   */
   public isBuildable(x: number, z: number, radius: number): BuildBlockReason {
-    if (Math.hypot(x, z) > this.buildableRadius - radius) return 'out_of_bounds';
-
-    const laneClearance = this.laneHalfWidth + radius;
-    for (const point of this.pathSamples) {
-      if (Math.hypot(x - point.x, z - point.z) < laneClearance) return 'on_lane';
-    }
-
-    for (const zone of this.noBuildZones) {
-      if (Math.hypot(x - zone.x, z - zone.z) < zone.radius + radius) return 'restricted';
-    }
-
-    return null;
+    return mapBuildBlock(this.map,this.routes,x,z,radius);
   }
 
   public getNoBuildZones(): readonly NoBuildZone[] {
-    return this.noBuildZones;
+    return this.map.obstacles;
   }
 
-  /** Replaces the map's keep-out regions along with their on-field markings. */
   public setNoBuildZones(zones: NoBuildZone[]): void {
-    this.noBuildZones = zones;
-
-    this.noBuildGroup.children.forEach((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        (child.material as THREE.Material).dispose();
-      }
-    });
+    this.map.obstacles = zones;
+    disposeScenery(this.noBuildGroup);
     this.noBuildGroup.clear();
-
-    zones.forEach((zone) => {
-      const marker = new THREE.Mesh(
-        new THREE.CircleGeometry(zone.radius, 40),
-        new THREE.MeshBasicMaterial({
-          color: 0xd90429,
-          transparent: true,
-          opacity: 0.16,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        })
-      );
-      marker.rotation.x = -Math.PI / 2;
-      marker.position.set(zone.x, 0.04, zone.z);
-      marker.renderOrder = 3;
-      this.noBuildGroup.add(marker);
-      if (zone.style && zone.style !== 'none') this.noBuildGroup.add(this.createObstacle(zone));
-    });
+    zones.forEach(zone => this.noBuildGroup.add(buildMapObstacle(zone,this.map)));
   }
 
-  /** Authored low-poly stand-ins; their circles remain the authoritative collision. */
-  private createObstacle(zone: NoBuildZone): THREE.Group {
-    const prop = new THREE.Group();
-    prop.name = `obstacle-${zone.style}-${zone.label}`;
-    prop.position.set(zone.x, 0, zone.z);
-    if (zone.style === 'rock') {
-      const material = new THREE.MeshLambertMaterial({ color: 0x7b7165, flatShading: true });
-      for (let i = 0; i < 4; i++) {
-        const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(zone.radius * (0.38 + i * 0.05), 0), material);
-        const angle = i * Math.PI / 2 + 0.25;
-        boulder.position.set(Math.cos(angle) * zone.radius * 0.34, zone.radius * 0.32, Math.sin(angle) * zone.radius * 0.34);
-        boulder.rotation.set(i * 0.4, i, i * 0.2);
-        prop.add(boulder);
-      }
-    } else {
-      const fountain = zone.style === 'fountain';
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(zone.radius * 0.72, zone.radius * 0.9, 1.1, 8), new THREE.MeshLambertMaterial({ color: fountain ? 0x4e94b8 : 0x41546a, flatShading: true }));
-      base.position.y = 0.55;
-      prop.add(base);
-      const core = new THREE.Mesh(new THREE.CylinderGeometry(zone.radius * 0.28, zone.radius * 0.36, fountain ? 1.0 : 2.5, 8), new THREE.MeshStandardMaterial({ color: fountain ? 0x6ee7ff : 0x253447, emissive: fountain ? 0x000000 : 0x00a8c6, emissiveIntensity: 0.7, flatShading: true }));
-      core.position.y = fountain ? 1.2 : 1.75;
-      prop.add(core);
-    }
-    return prop;
+  public dispose(): void {
+    disposeScenery(this.group);
+    this.jumbotronTexture.dispose();
   }
 }
