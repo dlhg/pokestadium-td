@@ -10,6 +10,7 @@ import { StadiumTDGame } from './td/StadiumTDGame';
 import { Input } from './engine/Input';
 import { TOWER_TEMPLATES, Tower, TOWER_BASE_HEIGHT } from './td/Tower';
 import { Creep } from './td/Creep';
+import { STADIUM_MAPS } from './td/MapCatalog';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('stadium-canvas') as HTMLCanvasElement;
@@ -29,9 +30,19 @@ window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const shot = urlParams.get('shot');
 
-  if (shot) {
+  if (shot) game.announcer.setVoiceEnabled(false);
+  const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}`);
+  if (courseShot) {
+    game.loadMap(courseShot);
+    game.announcer.update(60);
+    game.isPaused = true;
+  }
+
+  if (shot && shot !== 'map_select' && !courseShot) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
+    game.loadMap(STADIUM_MAPS[0]);
+    game.isPaused = true;
 
       // Populate battle scene for screenshots — free placement means these are
       // just open turf coordinates, chosen clear of the creep lane.

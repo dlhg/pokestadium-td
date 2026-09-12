@@ -31,7 +31,7 @@ export class StadiumCamera {
   private readonly minPitch = THREE.MathUtils.degToRad(20);
   private readonly maxPitch = THREE.MathUtils.degToRad(80);
   private readonly minDistance = 12;
-  private readonly maxDistance = 75;
+  private readonly maxDistance = 110;
   private readonly panSpeed = 20;
   private readonly arenaLimit = 22;
 
@@ -51,6 +51,8 @@ export class StadiumCamera {
       300
     );
     this.setMode('tactical');
+    this.currentPos.copy(this.desiredPos);
+    this.currentTarget.copy(this.desiredTarget);
     this.camera.position.copy(this.currentPos);
     this.camera.lookAt(this.currentTarget);
 
@@ -64,8 +66,8 @@ export class StadiumCamera {
     this.mode = mode;
     switch (mode) {
       case 'tactical':
-        this.desiredPos.set(0, 45, 26);
-        this.desiredTarget.set(0, 0, 1);
+        this.desiredPos.set(4, 82, 42);
+        this.desiredTarget.set(4, 0, 0);
         break;
       case 'stadium':
         this.desiredPos.set(-26, 26, 30);

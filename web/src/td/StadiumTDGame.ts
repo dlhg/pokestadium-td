@@ -39,6 +39,7 @@ const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
   out_of_bounds: 'OUTSIDE THE ARENA',
   on_lane: 'TOO CLOSE TO THE LANE',
   restricted: 'NO-BUILD ZONE',
+  water: 'WATER · PLACE ON THE BANK',
   overlaps_tower: 'ANOTHER POKÉMON IS THERE',
 };
 
@@ -60,6 +61,7 @@ export class StadiumTDGame {
   public gameOver: boolean = false;
   public victory: boolean = false;
   public map: StadiumMap = DEFAULT_STADIUM_MAP;
+  public isChoosingMap = true;
 
   // Entities
   public towers: Tower[] = [];
@@ -86,18 +88,20 @@ export class StadiumTDGame {
     this.placementPreview.visible = false;
     this.renderer.scene.add(this.placementPreview);
 
-    this.waveManager = new WaveManager(this.arena.waypoints, this.announcer);
+    this.waveManager = new WaveManager(this.arena.routes, this.announcer);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera);
 
     this.bindUIEvents();
 
-    // Trigger opening announcer callout
-    setTimeout(() => {
-      this.announcer.trigger('battle_start');
-    }, 600);
   }
 
   private bindUIEvents(): void {
+    this.ui.onOpenMaps = () => {
+      this.clearSelection();
+      this.isChoosingMap = true;
+      this.ui.setMapSelectVisible(true, true);
+    };
+    this.ui.onResumeMap = () => { this.isChoosingMap = false; };
     this.ui.onSelectMap = (map) => this.loadMap(map);
     this.ui.onSelectTemplate = (template) => {
       if (this.selectedTower) {
@@ -176,7 +180,7 @@ export class StadiumTDGame {
     };
   }
 
-  private loadMap(map: StadiumMap): void {
+  public loadMap(map: StadiumMap): void {
     this.map = map;
     this.clearSelection();
     this.towers.forEach(tower => this.renderer.scene.remove(tower.group));
@@ -186,13 +190,20 @@ export class StadiumTDGame {
     this.creeps = [];
     this.projectiles = [];
     this.renderer.scene.remove(this.arena.group);
+    this.arena.dispose();
     this.arena = new StadiumArena(map);
     this.renderer.scene.add(this.arena.group);
-    this.waveManager = new WaveManager(this.arena.waypoints, this.announcer);
+    this.waveManager = new WaveManager(this.arena.routes, this.announcer);
     this.money = 420;
     this.lives = 6;
     this.gameOver = false;
     this.victory = false;
+    this.isPaused = false;
+    this.isChoosingMap = false;
+    this.gameSpeed = 1;
+    this.camera.setMode('tactical');
+    this.particles.update(60);
+    this.ui.setMapSelectVisible(false);
     this.audio.playSelect();
     this.announcer.trigger('battle_start');
   }
@@ -396,6 +407,11 @@ export class StadiumTDGame {
   }
 
   public update(realDt: number, input: Input): void {
+    if (this.isChoosingMap) {
+      this.camera.update(realDt);
+      this.renderer.update(realDt, 0);
+      return;
+    }
     if (this.gameOver) return;
 
     this.camera.handleInput(input, realDt);
@@ -404,7 +420,7 @@ export class StadiumTDGame {
     const dt = this.isPaused ? 0 : realDt * this.gameSpeed;
 
     // Update Wave Manager
-    this.waveManager.update(
+    if (dt > 0) this.waveManager.update(
       dt,
       this.creeps,
       (newCreep) => {
@@ -477,7 +493,7 @@ export class StadiumTDGame {
     const currentWave = this.waveManager.getCurrentWave();
     if (currentWave) {
       this.arena.updateJumbotron(
-        "POKÉMON STADIUM",
+        this.map.name.toUpperCase(),
         currentWave.cupName,
         currentWave.round
       );
@@ -498,6 +514,7 @@ export class StadiumTDGame {
         selectedTemplate: this.selectedTemplate,
         placementStatus: this.placementStatus,
         mapName: this.map.name,
+        mapStrategy: this.map.strategy,
       }
     );
   }

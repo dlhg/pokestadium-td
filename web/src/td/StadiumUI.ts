@@ -15,6 +15,8 @@ import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
+import { mapPreview } from './MapPreview';
+import './map-select.css';
 
 /** What the roster hint says about the spot the cursor is currently over. */
 export interface PlacementStatus {
@@ -35,6 +37,7 @@ export interface UIState {
   selectedTemplate: TowerTemplate | null;
   placementStatus: PlacementStatus | null;
   mapName: string;
+  mapStrategy: string;
 }
 
 /**
@@ -83,6 +86,8 @@ export class StadiumUI {
   public onStartWave: () => void = () => {};
   public onChangeSpeed: (speed: number) => void = () => {};
   public onChangeCamera: (mode: CameraMode) => void = () => {};
+  public onOpenMaps: () => void = () => {};
+  public onResumeMap: () => void = () => {};
   public onSelectMap: (map: StadiumMap) => void = () => {};
 
   constructor(container: HTMLElement, announcer: StadiumAnnouncer, camera: StadiumCamera) {
@@ -110,8 +115,7 @@ export class StadiumUI {
         #top-bar {
           position: absolute;
           top: 14px;
-          left: 50%;
-          transform: translateX(-50%);
+          left: 18px;
           display: flex;
           align-items: center;
           gap: 24px;
@@ -843,17 +847,27 @@ export class StadiumUI {
         .tp-footer { border-top-color: #d8b33a; background: linear-gradient(180deg, #14396b, #071a35); }
         .tp-sell-value { font-family: 'Teko', sans-serif; font-size: 22px; line-height: .85; }
         .tp-sell-btn { border-radius: 0; border-color: #ffd099; background: linear-gradient(180deg, #e34c50 0 10%, #b81e2a 13%, #7b101c 100%); font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .85; box-shadow: 2px 2px 0 rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.35); }
-        #map-select { position:absolute; inset:0; z-index:80; display:grid; place-items:center; pointer-events:auto; background:radial-gradient(circle at center,rgba(13,61,106,.82),rgba(2,8,20,.94)); }
-        .map-select-panel { width:min(880px,calc(100vw - 40px)); padding:26px; }
-        .map-select-eyebrow { color:#8fcbef; font-size:13px; font-weight:800; letter-spacing:2px; }
-        .map-select-title { color:#ffd700; font:42px Impact,sans-serif; letter-spacing:1.5px; }.map-select-subtitle { color:#d9eafa; margin:4px 0 18px; font-size:16px; }
-        .map-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }.map-card { min-height:245px; padding:14px; text-align:left; cursor:pointer; color:#fff; border:2px solid #719bc2; background:linear-gradient(145deg,#235b93,#0a1d3c 70%); box-shadow:inset 0 1px rgba(255,255,255,.3),3px 4px 0 rgba(0,0,0,.5); }.map-card:hover { border-color:#ffe06a; transform:translateY(-3px); box-shadow:0 0 0 2px #b77d15,3px 7px 0 rgba(0,0,0,.5); }
-        .map-difficulty { display:inline-block; padding:3px 7px; font:15px Teko,sans-serif; letter-spacing:1px; background:#176b43; border:1px solid #a9e6be; }.map-difficulty.medium { background:#956715; border-color:#ffe283; }.map-difficulty.hard { background:#9b2430; border-color:#ffaaa8; }
-        .map-name { display:block; margin-top:14px; font:27px Impact,sans-serif; letter-spacing:.8px; }.map-venue { display:block; color:#80cbe9; font-size:12px; font-weight:800; letter-spacing:.7px; }.map-description { display:block; margin-top:18px; color:#dceafa; font-size:14px; line-height:1.25; }.map-obstacles { display:block; margin-top:18px; color:#ffd700; font-size:12px; font-weight:800; letter-spacing:.7px; }
-        @media (max-width:720px) { .map-cards { grid-template-columns:1fr; }.map-card { min-height:145px; }.map-select-panel { max-height:94vh; overflow:auto; }.map-select-title { font-size:34px; } }
       </style>
 
-      <div id="map-select"><section class="map-select-panel stadium-panel"><div class="map-select-eyebrow">POKÉMON STADIUM TD</div><h1 class="map-select-title">SELECT A BATTLEFIELD</h1><p class="map-select-subtitle">Choose a course. Obstacles reserve valuable tower positions.</p><div class="map-cards">${STADIUM_MAPS.map(map => `<button class="map-card interactive" data-map-id="${map.id}"><span class="map-difficulty ${map.difficulty}">${map.difficulty.toUpperCase()}</span><strong class="map-name">${map.name}</strong><span class="map-venue">${map.venue}</span><span class="map-description">${map.description}</span><span class="map-obstacles">${map.obstacles.length ? `${map.obstacles.length} PLACEMENT OBSTACLES` : 'OPEN PLACEMENT FIELD'}</span></button>`).join('')}</div></section></div>
+      <div id="map-select" class="interactive" aria-label="Select a battlefield">
+        <section class="map-select-panel stadium-panel">
+          <div class="map-select-eyebrow">POKÉMON STADIUM TD / COURSE SELECT</div>
+          <h1 class="map-select-title">CHOOSE YOUR BATTLEFIELD</h1>
+          <p class="map-select-subtitle">Every course has a different way through. Find your team's home advantage.</p>
+          <div class="map-filters" aria-label="Map difficulty">
+            ${['all','easy','medium','hard'].map((filter,i)=>`<button class="stadium-btn map-filter ${i===0?'active':''}" data-difficulty="${filter}" aria-pressed="${i===0}">${filter.toUpperCase()}</button>`).join('')}
+          </div>
+          <div class="map-cards">
+            ${STADIUM_MAPS.map(map=>`<button class="map-card interactive" data-map-id="${map.id}" data-map-difficulty="${map.difficulty}" aria-label="Play ${map.name}, ${map.difficulty}">
+              ${mapPreview(map)}
+              <span class="map-difficulty ${map.difficulty}">${map.difficulty.toUpperCase()}</span>
+              <span class="map-card-body"><strong class="map-name">${map.name}</strong><span class="map-venue">${map.venue}</span>
+              <span class="map-description">${map.description}</span><span class="map-obstacles">${map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
+            </button>`).join('')}
+          </div>
+          <div class="map-select-footer"><div class="map-legend"><span>Entrance</span><span>Exit</span></div><span>Choose a course to start a fresh match.</span><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>
+        </section>
+      </div>
 
       <!-- Top Bar -->
       <div id="top-bar" class="stadium-panel interactive">
@@ -890,6 +904,7 @@ export class StadiumUI {
       <!-- Tower Purchase Roster -->
       <div id="card-deck" class="stadium-panel interactive"></div>
 
+      <div id="course-info"><button id="btn-maps" class="stadium-btn interactive">MAPS</button><strong id="course-name"></strong><span id="course-strategy"></span></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
     `;
@@ -900,15 +915,27 @@ export class StadiumUI {
 
     this.bindEvents();
     this.renderCardDeck();
+    this.setMapSelectVisible(true);
     this.container.querySelectorAll<HTMLButtonElement>('[data-map-id]').forEach(button => {
       button.addEventListener('click', () => {
         const map = STADIUM_MAPS.find(candidate => candidate.id === button.dataset.mapId);
         if (!map) return;
-        const chooser = this.container.querySelector('#map-select') as HTMLElement;
-        chooser.style.display = 'none';
+        this.setMapSelectVisible(false);
         this.onSelectMap(map);
       });
     });
+  }
+
+  public setMapSelectVisible(visible: boolean, canResume=false): void {
+    const chooser=this.container.querySelector<HTMLElement>('#map-select')!;
+    chooser.style.display=visible?'grid':'none';
+    this.container.classList.toggle('map-select-open',visible);
+    ['top-bar','controls-bar','card-deck','tower-panel','course-info'].forEach(id=>{
+      this.container.querySelector<HTMLElement>(`#${id}`)!.inert=visible;
+    });
+    this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
+    if(visible) chooser.querySelector<HTMLButtonElement>('.map-filter.active')?.focus();
+    else this.container.querySelector<HTMLButtonElement>('#btn-maps')!.focus();
   }
 
   private renderCardDeck(): void {
@@ -942,6 +969,21 @@ export class StadiumUI {
   }
 
   private bindEvents(): void {
+    document.getElementById('btn-maps')!.addEventListener('click',()=>this.onOpenMaps());
+    document.getElementById('btn-resume-map')!.addEventListener('click',()=>{
+      this.setMapSelectVisible(false);this.onResumeMap();
+    });
+    this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(button=>{
+      button.addEventListener('click',()=>{
+        const filter=button.dataset.difficulty;
+        this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(tab=>{
+          tab.classList.toggle('active',tab===button);tab.setAttribute('aria-pressed',String(tab===button));
+        });
+        this.container.querySelectorAll<HTMLButtonElement>('[data-map-id]').forEach(card=>{
+          card.hidden=filter!=='all' && card.dataset.mapDifficulty!==filter;
+        });
+      });
+    });
     // Wave start button
     document.getElementById('btn-wave')!.addEventListener('click', () => {
       this.onStartWave();
@@ -1148,6 +1190,10 @@ export class StadiumUI {
 
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
+    document.getElementById('course-name')!.innerText=state.mapName.toUpperCase();
+    document.getElementById('course-strategy')!.innerText=state.mapStrategy;
+    [1,2,3].forEach(speed => document.getElementById(`btn-speed-${speed}`)!.classList.toggle('active',state.gameSpeed===speed));
+    ['tactical','stadium','action'].forEach(mode => document.getElementById(`btn-cam-${mode}`)!.classList.toggle('active',state.cameraMode===mode));
 
     // Top Bar updates
     document.getElementById('cup-title')!.innerText = state.mapName.toUpperCase();
@@ -1171,7 +1217,7 @@ export class StadiumUI {
       waveBtn.style.pointerEvents = 'none';
       waveBtn.style.opacity = '0.7';
     } else {
-      waveBtn.innerText = `NEXT MATCH (${Math.ceil(state.intermissionTimer)}S)`;
+      waveBtn.innerText = state.intermissionTimer > 0 ? `NEXT MATCH (${Math.ceil(state.intermissionTimer)}S)` : 'START MATCH';
       waveBtn.classList.add('active');
       waveBtn.style.pointerEvents = 'auto';
       waveBtn.style.opacity = '1.0';
