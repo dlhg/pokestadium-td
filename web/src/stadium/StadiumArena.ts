@@ -17,6 +17,21 @@ import { buildMapGround, buildMapObstacle, disposeScenery } from './MapScenery';
 export type BuildBlockReason = MapBuildBlock;
 export type NoBuildZone = MapObstacle;
 
+type CrowdMember = {
+  atlasSet: number;
+  character: number;
+  phase: number;
+  position: THREE.Vector3;
+  facing: number;
+  scale: number;
+};
+
+type CrowdBatch = {
+  atlasCell: THREE.InstancedBufferAttribute;
+  mesh: THREE.InstancedMesh;
+  members: CrowdMember[];
+};
+
 export class StadiumArena {
   public group: THREE.Group = new THREE.Group();
   public waypoints: THREE.Vector3[] = [];
@@ -33,6 +48,8 @@ export class StadiumArena {
   private jumbotronCanvas: HTMLCanvasElement;
   private jumbotronCtx: CanvasRenderingContext2D;
   private jumbotronTexture: THREE.CanvasTexture;
+  private crowdMaterial: THREE.ShaderMaterial | null = null;
+  private crowdBatches: CrowdBatch[] = [];
 
   constructor(map: StadiumMap = DEFAULT_STADIUM_MAP) {
     this.map = map;
@@ -155,25 +172,171 @@ export class StadiumArena {
       stand.position.y = t.y;
       this.environmentGroup.add(stand);
 
-      // Low-poly cheering crowd blocks
-      const crowdCount = 120;
-      const crowdGeo = new THREE.BoxGeometry(0.8, 1.2, 0.8);
-      const crowdColors = [0xd62828, 0x00f0ff, 0xffd166, 0x06d6a0, 0xffffff];
-
-      for (let i = 0; i < crowdCount; i++) {
-        const angle = (i / crowdCount) * Math.PI * 2;
-        const radius = t.rInner + 1.5 + Math.random() * (t.rOuter - t.rInner - 2.5);
-        const col = crowdColors[Math.floor(Math.random() * crowdColors.length)];
-        const personMat = new THREE.MeshBasicMaterial({ color: col });
-        const person = new THREE.Mesh(crowdGeo, personMat);
-        person.position.set(
-          Math.cos(angle) * radius,
-          t.y + 0.6,
-          Math.sin(angle) * radius
-        );
-        this.environmentGroup.add(person);
-      }
+      this.addCrowdTier(t);
     });
+  }
+
+  /**
+   * The crowd is a single instanced card draw, not hundreds of individual
+   * materials.  Each instance chooses a cell from the 8 x 4 character atlas
+   * and has a different cheer phase so the stands do not bob in lockstep.
+   */
+  private addCrowdTier(tier: { rInner: number; rOuter: number; y: number; height: number }): void {
+    const crowdCount = 144;
+    const geometry = new THREE.PlaneGeometry(1.9, 1.9);
+    const atlasCell = new Float32Array(crowdCount * 2);
+    const cheerPhase = new Float32Array(crowdCount);
+    const tint = new Float32Array(crowdCount * 3);
+    const atlasSet = new Float32Array(crowdCount);
+    const members: CrowdMember[] = [];
+    const mesh = new THREE.InstancedMesh(geometry, this.getCrowdMaterial(), crowdCount);
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+
+    for (let i = 0; i < crowdCount; i++) {
+      const seed = this.crowdNoise(i + tier.rInner * 10);
+      const angle = (i / crowdCount) * Math.PI * 2 + (seed - 0.5) * 0.024;
+      const radius = tier.rInner + 0.65 + seed * Math.max(0.25, tier.rOuter - tier.rInner - 1.4);
+      dummy.position.set(Math.cos(angle) * radius, tier.y + 0.92, Math.sin(angle) * radius);
+      dummy.lookAt(0, dummy.position.y, 0);
+      const scale = 0.78 + this.crowdNoise(i * 7 + tier.y) * 0.2;
+      dummy.scale.set(scale, scale, scale);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+
+      // The generated atlas is 8 columns x 4 rows. Flip the authored row for
+      // WebGL UV origin so index zero corresponds to the top-left character.
+      const character = Math.floor(this.crowdNoise(i * 13 + tier.y * 2) * 20);
+      const phase = this.crowdNoise(i * 19 + tier.rOuter) * Math.PI * 2;
+      // Temporary front / idle coordinates; updateCrowdCards assigns the
+      // camera-correct direction and current animation frame every tick.
+      atlasCell[i * 2] = (character % 4) % 2 * 4;
+      atlasCell[i * 2 + 1] = 3 - (Math.floor((character % 4) / 2) * 2);
+      atlasSet[i] = Math.floor(character / 4);
+      cheerPhase[i] = phase;
+      members.push({
+        atlasSet: atlasSet[i],
+        character: character % 4,
+        phase,
+        position: dummy.position.clone(),
+        facing: Math.atan2(-dummy.position.x, -dummy.position.z),
+        scale,
+      });
+      color.setRGB(0.72 + seed * 0.22, 0.72 + seed * 0.22, 0.78 + seed * 0.16);
+      tint.set([color.r, color.g, color.b], i * 3);
+    }
+
+    geometry.setAttribute('atlasCell', new THREE.InstancedBufferAttribute(atlasCell, 2));
+    geometry.setAttribute('cheerPhase', new THREE.InstancedBufferAttribute(cheerPhase, 1));
+    geometry.setAttribute('crowdTint', new THREE.InstancedBufferAttribute(tint, 3));
+    geometry.setAttribute('atlasSet', new THREE.InstancedBufferAttribute(atlasSet, 1));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.name = 'instanced-sprite-crowd';
+    this.crowdBatches.push({ atlasCell: geometry.getAttribute('atlasCell') as THREE.InstancedBufferAttribute, mesh, members });
+    this.environmentGroup.add(mesh);
+  }
+
+  private getCrowdMaterial(): THREE.ShaderMaterial {
+    if (this.crowdMaterial) return this.crowdMaterial;
+    const loader = new THREE.TextureLoader();
+    const atlases = [1, 2, 3, 4, 5].map((index) => {
+      const atlas = loader.load(`/crowd/turnaround-crowd-0${index}.png`);
+      atlas.colorSpace = THREE.SRGBColorSpace;
+      // Sprite sheets have no painted cell borders. Nearest sampling plus no
+      // mip levels and the UV inset below guarantee a neighbour never leaks
+      // into a character at distance.
+      atlas.magFilter = THREE.NearestFilter;
+      atlas.minFilter = THREE.NearestFilter;
+      atlas.generateMipmaps = false;
+      return atlas;
+    });
+    this.crowdMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        atlas0: { value: atlases[0] }, atlas1: { value: atlases[1] }, atlas2: { value: atlases[2] },
+        atlas3: { value: atlases[3] }, atlas4: { value: atlases[4] }, time: { value: 0 },
+      },
+      vertexShader: `
+        attribute vec2 atlasCell;
+        attribute float cheerPhase;
+        attribute vec3 crowdTint;
+        attribute float atlasSet;
+        uniform float time;
+        varying vec2 vAtlasUv;
+        varying vec3 vTint;
+        varying float vAtlasSet;
+        void main() {
+          vec3 animatedPosition = position;
+          animatedPosition.y += sin(time * 5.0 + cheerPhase) * 0.075;
+          animatedPosition.x += sin(time * 2.5 + cheerPhase) * 0.018;
+          // Four pixel inset inside each 224px cell prevents transparent-edge
+          // filtering from sampling art in a neighbouring cell.
+          vec2 cellSize = vec2(1.0 / 8.0, 1.0 / 4.0);
+          vec2 inset = vec2(4.0 / 1774.0, 4.0 / 887.0);
+          vAtlasUv = atlasCell * cellSize + inset + uv * (cellSize - 2.0 * inset);
+          vTint = crowdTint;
+          vAtlasSet = atlasSet;
+          vec4 worldPosition = modelMatrix * instanceMatrix * vec4(animatedPosition, 1.0);
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D atlas0;
+        uniform sampler2D atlas1;
+        uniform sampler2D atlas2;
+        uniform sampler2D atlas3;
+        uniform sampler2D atlas4;
+        varying vec2 vAtlasUv;
+        varying vec3 vTint;
+        varying float vAtlasSet;
+        void main() {
+          vec4 sprite = texture2D(atlas0, vAtlasUv);
+          if (vAtlasSet > 0.5 && vAtlasSet < 1.5) sprite = texture2D(atlas1, vAtlasUv);
+          if (vAtlasSet > 1.5 && vAtlasSet < 2.5) sprite = texture2D(atlas2, vAtlasUv);
+          if (vAtlasSet > 2.5 && vAtlasSet < 3.5) sprite = texture2D(atlas3, vAtlasUv);
+          if (vAtlasSet > 3.5) sprite = texture2D(atlas4, vAtlasUv);
+          if (sprite.a < 0.18) discard;
+          gl_FragColor = vec4(sprite.rgb * vTint, sprite.a);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.FrontSide,
+    });
+    return this.crowdMaterial;
+  }
+
+  private crowdNoise(value: number): number {
+    const hashed = Math.sin(value * 12.9898) * 43758.5453;
+    return hashed - Math.floor(hashed);
+  }
+
+  public update(time: number, cameraPosition: THREE.Vector3): void {
+    if (this.crowdMaterial) this.crowdMaterial.uniforms.time.value = time;
+    this.crowdBatches.forEach(({ atlasCell, mesh, members }) => {
+      const dummy = new THREE.Object3D();
+      members.forEach((member, index) => {
+        const viewAngle = Math.atan2(cameraPosition.x - member.position.x, cameraPosition.z - member.position.z);
+        const relative = this.wrapAngle(viewAngle - member.facing);
+        const direction = Math.abs(relative) > Math.PI * 0.75 ? 2 : relative > Math.PI * 0.25 ? 1 : relative < -Math.PI * 0.25 ? 3 : 0;
+        const cheering = Math.sin(time * 2.2 + member.phase) > 0.42 ? 1 : 0;
+        const rowFromTop = Math.floor(member.character / 2) * 2 + cheering;
+        atlasCell.setXY(index, (member.character % 2) * 4 + direction, 3 - rowFromTop);
+
+        // One-sided card: yaw it towards the viewer, then select the art that
+        // matches the viewer's angle around the fixed pitch-facing spectator.
+        dummy.position.copy(member.position);
+        dummy.lookAt(cameraPosition.x, member.position.y, cameraPosition.z);
+        dummy.scale.setScalar(member.scale);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(index, dummy.matrix);
+      });
+      atlasCell.needsUpdate = true;
+      mesh.instanceMatrix.needsUpdate = true;
+    });
+  }
+
+  private wrapAngle(angle: number): number {
+    return Math.atan2(Math.sin(angle), Math.cos(angle));
   }
 
   private buildFloodlightTowers(): void {
