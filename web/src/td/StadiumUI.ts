@@ -9,7 +9,7 @@
  * - Speed & camera controls
  */
 
-import { Tower, TOWER_TEMPLATES, TowerTemplate } from './Tower';
+import { Tower } from './Tower';
 import { TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
 import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
@@ -20,6 +20,10 @@ import { BallType, CaptureHud } from './CaptureSequence';
 import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
+import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
+import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
+import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
+import type { MatchReportEntry } from './progression/MatchProgress';
 import './map-select.css';
 import stadiumThemeUrl from './stadium-ui-theme.css?url';
 
@@ -47,7 +51,9 @@ export interface UIState {
   gameSpeed: number;
   cameraMode: CameraMode;
   selectedTower: Tower | null;
-  selectedTemplate: TowerTemplate | null;
+  selectedMember: OwnedPokemon | null;
+  /** UIDs of roster members currently standing on the pitch. */
+  deployed: Set<string>;
   placementStatus: PlacementStatus | null;
   mapName: string;
   mapStrategy: string;
@@ -88,8 +94,11 @@ export class StadiumUI {
   /** Structure is rebuilt only when the tower's purchases actually change. */
   private panelSignature: string = '';
   private currentSelectedTower: Tower | null = null;
-  private capturedTemplates: TowerTemplate[] = [];
+  private roster: OwnedPokemon[] = [];
+  /** Rebuild the deck only when membership, names or forms change. */
+  private rosterSignature = '';
   private rosterViews = new Map<string, RosterModelView>();
+  public readonly trainer: TrainerScreens;
 
   // Callbacks
   private cinemaEl!: HTMLElement;
@@ -97,9 +106,8 @@ export class StadiumUI {
   private trophyTimer: number = 0;
   private trophyView = new TrophyModelView();
 
-  public onSelectTemplate: (template: TowerTemplate | null) => void = () => {};
+  public onSelectMember: (member: OwnedPokemon | null) => void = () => {};
   public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
-  public onEvolveTower: (tower: Tower) => void = () => {};
   public onSellTower: (tower: Tower) => void = () => {};
   public onChangeTargetPriority: (tower: Tower, dir: number) => void = () => {};
   public onDeselectTower: () => void = () => {};
@@ -115,12 +123,15 @@ export class StadiumUI {
   public onBuyBall: (ball: BallType) => void = () => {};
   public onSelectMap: (map: StadiumMap) => void = () => {};
 
-  constructor(container: HTMLElement, announcer: StadiumAnnouncer, camera: StadiumCamera) {
+  constructor(container: HTMLElement, announcer: StadiumAnnouncer, camera: StadiumCamera, private store: TrainerStore) {
     this.container = container;
     this.announcer = announcer;
     this.camera = camera;
 
     this.initDOM();
+    this.trainer = new TrainerScreens(container, store);
+    // A new trainer picks a starter before anything else.
+    if (!store.data.starterChosen) this.trainer.openStarterSelect(() => this.setMapSelectVisible(true));
   }
 
   private initDOM(): void {
@@ -1019,7 +1030,7 @@ export class StadiumUI {
               <span class="map-description">${map.description}</span><span class="map-obstacles">${map.terrain?'3 TERRACES · HIGH GROUND':map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
             </button>`).join('')}
           </div>
-          <div class="map-select-footer"><div class="map-legend"><span>Entrance</span><span>Exit</span></div><span>Choose a course to start a fresh match.</span><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>
+          <div class="map-select-footer"><div class="map-legend"><span>Entrance</span><span>Exit</span></div><span>Choose a course, then pick your team.</span><button id="btn-open-team" class="stadium-btn">MY POKÉMON</button><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>
         </section>
       </div>
 
@@ -1116,6 +1127,7 @@ export class StadiumUI {
           <div class="defeat-kicker">STADIUM HP DEPLETED</div>
           <div class="defeat-title">DEFEAT</div>
           <div class="defeat-detail" id="defeat-detail"></div>
+          <div id="defeat-report"></div>
           <div class="defeat-actions">
             <button class="stadium-btn active" id="btn-defeat-retry">RETRY COURSE</button>
             <button class="stadium-btn" id="btn-defeat-maps">COURSE SELECT</button>
@@ -1148,9 +1160,19 @@ export class StadiumUI {
       button.addEventListener('click', () => {
         const map = STADIUM_MAPS.find(candidate => candidate.id === button.dataset.mapId);
         if (!map) return;
+        // A course leads to team select; the match starts only once a team is confirmed.
         this.setMapSelectVisible(false);
-        this.onSelectMap(map);
+        this.trainer.openTeamSelect({
+          map,
+          onConfirm: () => this.onSelectMap(map),
+          onBack: () => this.setMapSelectVisible(true),
+        });
       });
+    });
+    document.getElementById('btn-open-team')!.addEventListener('click', () => {
+      const canResume = !document.getElementById('btn-resume-map')!.hidden;
+      this.setMapSelectVisible(false);
+      this.trainer.openTeamSelect({ map: null, onBack: () => this.setMapSelectVisible(true, canResume) });
     });
   }
 
@@ -1173,49 +1195,52 @@ export class StadiumUI {
     if (visible) pause.querySelector<HTMLButtonElement>('#btn-pause-resume')?.focus();
   }
 
-  public setCapturedTemplates(templates: TowerTemplate[]): void {
-    this.capturedTemplates = templates;
+  /** The match roster: the chosen team plus anything caught since the match began. */
+  public setRoster(members: OwnedPokemon[]): void {
+    this.roster = [...members];
     this.renderCardDeck();
   }
 
   private renderCardDeck(): void {
+    this.rosterSignature = this.roster.map(m => `${m.uid}:${m.stage}:${m.nickname ?? ''}`).join('|');
     this.rosterViews.forEach(view => view.destroy());
     this.rosterViews.clear();
-    const templates = [...Object.values(TOWER_TEMPLATES), ...this.capturedTemplates];
     this.cardDeckEl.innerHTML = `
       <div class="tower-rail-header">
         <span class="pokeball-emblem" aria-hidden="true"></span>
         <span class="tower-rail-copy">
-          <span class="tower-rail-title">TOWER ROSTER</span>
+          <span class="tower-rail-title">TEAM ROSTER</span>
           <span id="placement-hint">SELECT A POKÉMON</span>
         </span>
       </div>
     `;
 
-    templates.forEach(tmpl => {
+    this.roster.forEach(member => {
+      const form = formOf(member);
       const card = document.createElement('div');
       card.className = 'stadium-panel tower-card';
-      card.id = `card-${tmpl.id}`;
+      card.id = `card-${member.uid}`;
       card.setAttribute('role', 'button');
       card.setAttribute('tabindex', '0');
 
-      const typeCol = TYPE_COLORS[tmpl.type]?.hex || '#fff';
-      const typeArt = `/ui/types/${tmpl.type.toLowerCase()}.jpg`;
+      const typeCol = TYPE_COLORS[form.type]?.hex || '#fff';
+      const typeArt = `/ui/types/${form.type.toLowerCase()}.jpg`;
 
       card.innerHTML = `
         <span class="card-portrait-stage" style="background-image: linear-gradient(90deg, transparent 28%, rgba(4,12,43,.18) 48%, rgba(4,12,43,.96) 78%), url('${typeArt}');"></span>
-        <span class="card-type-tag" style="background-color: ${typeCol};">${tmpl.type.toUpperCase()}</span>
-        <span class="card-name">${tmpl.name}</span>
-        <span class="card-cost">$${tmpl.cost}</span>
+        <span class="card-type-tag" style="background-color: ${typeCol};">LV <b class="card-level">${member.level}</b></span>
+        <span class="card-name">${escapeHtml(displayName(member))}</span>
+        <span class="card-cost">$${speciesOf(member).deployCost}</span>
+        <span class="card-xp"><i style="width:${levelProgress(member.xp, member.level) * 100}%"></i></span>
+        <span class="card-deployed">ON FIELD</span>
       `;
 
-      card.addEventListener('click', () => {
-        this.onSelectTemplate(tmpl);
-      });
+      const select = () => this.onSelectMember(member);
+      card.addEventListener('click', select);
       card.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          this.onSelectTemplate(tmpl);
+          select();
         }
       });
 
@@ -1223,8 +1248,8 @@ export class StadiumUI {
       const portraitStage = card.querySelector<HTMLElement>('.card-portrait-stage')!;
       const view = new RosterModelView();
       portraitStage.appendChild(view.canvas);
-      view.show(tmpl.name, tmpl.createModel);
-      this.rosterViews.set(tmpl.id, view);
+      view.show(form.name, speciesOf(member).createModel);
+      this.rosterViews.set(member.uid, view);
     });
   }
 
@@ -1287,14 +1312,15 @@ export class StadiumUI {
    * or evolution stage change — per-frame work is limited to affordability.
    */
   private buildPanel(tower: Tower): void {
-    const typeCol = TYPE_COLORS[tower.template.type];
-    const maxStages = tower.template.evolutions.length;
+    const form = formOf(tower.pokemon);
+    const typeCol = TYPE_COLORS[form.type];
+    const maxStages = tower.species.forms.length - 1;
 
     const stagePips = Array.from({ length: maxStages }, (_, i) =>
-      `<div class="tp-stage-pip ${i < tower.evolutionStage ? 'on' : ''}"></div>`
+      `<div class="tp-stage-pip ${i < tower.pokemon.stage ? 'on' : ''}"></div>`
     ).join('');
 
-    const lineRows = tower.template.lines.map((line, idx) => {
+    const lineRows = tower.species.lines.map((line, idx) => {
       const active = tower.getActiveMove(idx);
       const next = tower.getNextTier(idx);
       const blocked = tower.getUpgradeBlockReason(idx);
@@ -1313,12 +1339,13 @@ export class StadiumUI {
       if (blocked === 'maxed') {
         buyClass += ' maxed';
         buyInner = `<span class="tp-buy-note">MASTERED</span>`;
-      } else if (blocked === 'needs_evolution' && next) {
-        const needed = tower.template.evolutions[(next.requiresStage ?? 1) - 1];
+      } else if (blocked === 'needs_level' && next) {
+        const move = MOVES[next.moveId];
         buyClass += ' locked';
         buyInner = `
-          <span class="tp-buy-note">REQUIRES</span>
-          <span class="tp-buy-name">${needed ? needed.name.toUpperCase() : 'EVOLUTION'}</span>
+          <span class="tp-buy-name">${move.name.toUpperCase()}</span>
+          <span class="tp-buy-note">UNLOCKS AT</span>
+          <span class="tp-buy-cost">LV ${next.requiresLevel}</span>
         `;
       } else if (next) {
         const move = MOVES[next.moveId];
@@ -1346,26 +1373,28 @@ export class StadiumUI {
       `;
     }).join('');
 
-    const nextEvo = tower.getNextEvolution();
+    // Evolution is earned in battle now, so the track is a read-out, not a purchase.
+    const nextEvo = nextEvolution(tower.pokemon);
     const evoBlock = nextEvo
-      ? `<div class="tp-evolve" id="tp-evolve" data-cost="${nextEvo.cost}">
+      ? `<div class="tp-evolve earned">
            <div>
-             <span class="tp-evolve-label">EVOLVE → ${nextEvo.name.toUpperCase()}</span>
-             <span class="tp-evolve-sub">UNLOCKS TOP-TIER MOVES</span>
+             <span class="tp-evolve-label">→ ${nextEvo.name.toUpperCase()}</span>
+             <span class="tp-evolve-sub">EVOLVES BY LEVELING UP IN BATTLE</span>
            </div>
-           <span class="tp-evolve-cost">$${nextEvo.cost}</span>
+           <span class="tp-evolve-cost">LV ${nextEvo.atLevel}</span>
          </div>`
       : `<div class="tp-evolve final">
            <div>
              <span class="tp-evolve-label">FINAL FORM</span>
-             <span class="tp-evolve-sub">ALL MOVE TIERS UNLOCKED</span>
+             <span class="tp-evolve-sub">${tower.species.forms.length > 1 ? 'FULLY EVOLVED' : 'DOES NOT EVOLVE'}</span>
            </div>
          </div>`;
 
     this.panelEl.innerHTML = `
       <div class="tp-header">
         <span class="pokeball-emblem" aria-hidden="true"></span>
-        <span class="tp-title">${tower.name.toUpperCase()}</span>
+        <span class="tp-title">${escapeHtml(tower.name.toUpperCase())}</span>
+        <span class="tp-level">LV ${tower.level}</span>
         <div class="tp-stage-pips">${stagePips}</div>
         <button class="tp-close" id="tp-close">✕</button>
       </div>
@@ -1375,8 +1404,10 @@ export class StadiumUI {
           ${glyph(tower.primaryMove.fxType, '#0a1526', 28)}
         </div>
         <div class="tp-crest-meta">
-          <span class="tp-crest-type" style="color: ${typeCol.light};">${tower.template.type.toUpperCase()} TYPE</span>
+          <span class="tp-crest-type" style="color: ${typeCol.light};">${tower.pokemon.nickname ? `${form.name.toUpperCase()} · ` : ''}${form.type.toUpperCase()} TYPE</span>
           <span class="tp-matchup" id="tp-matchup">—</span>
+          <span class="tp-xp"><i id="tp-xp-fill"></i></span>
+          <span class="tp-xp-label" id="tp-xp-label"></span>
         </div>
       </div>
 
@@ -1407,9 +1438,6 @@ export class StadiumUI {
     document.getElementById('tp-sell')!.addEventListener('click', () => this.onSellTower(tower));
     document.getElementById('tp-target-prev')!.addEventListener('click', () => this.onChangeTargetPriority(tower, -1));
     document.getElementById('tp-target-next')!.addEventListener('click', () => this.onChangeTargetPriority(tower, 1));
-
-    const evoBtn = document.getElementById('tp-evolve');
-    if (evoBtn) evoBtn.addEventListener('click', () => this.onEvolveTower(tower));
 
     this.panelEl.querySelectorAll<HTMLElement>('.tp-buy').forEach(btn => {
       if (btn.classList.contains('maxed') || btn.classList.contains('locked')) return;
@@ -1447,9 +1475,13 @@ export class StadiumUI {
       btn.classList.toggle('poor', money < cost);
     });
 
-    const evoBtn = document.getElementById('tp-evolve');
-    if (evoBtn) {
-      evoBtn.classList.toggle('poor', money < Number((evoBtn as HTMLElement).dataset.cost));
+    const xpFill = document.getElementById('tp-xp-fill');
+    const xpLabel = document.getElementById('tp-xp-label');
+    if (xpFill && xpLabel) {
+      const { xp, level } = tower.pokemon;
+      xpFill.style.width = `${levelProgress(xp, level) * 100}%`;
+      const label = level >= MAX_LEVEL ? 'MAX LEVEL' : `${xpForLevel(level + 1) - xp} XP TO LV ${level + 1}`;
+      if (xpLabel.textContent !== label) xpLabel.textContent = label;
     }
   }
 
@@ -1552,8 +1584,9 @@ export class StadiumUI {
     this.trophyTimer = window.setTimeout(() => card.classList.remove('shown'), 4200);
   }
 
-  public showDefeat(mapName: string, round: number, winRound: number): void {
+  public showDefeat(mapName: string, round: number, winRound: number, report: MatchReportEntry[] = []): void {
     this.renderCaptureCinema(null);
+    document.getElementById('defeat-report')!.innerHTML = reportListHtml(report);
     document.getElementById('defeat-detail')!.innerText = round > winRound
       ? `${mapName.toUpperCase()} · FELL IN FREEPLAY ROUND ${round}`
       : `${mapName.toUpperCase()} · FELL IN ROUND ${round} OF ${winRound}`;
@@ -1565,34 +1598,68 @@ export class StadiumUI {
   }
 
   /**
-   * The payoff beat: the newly caught roster entry, named with the move lines
-   * it brings, held on screen before control returns.
+   * The payoff beat: the new catch with the move lines it brings, and a
+   * nickname prompt. The card holds until the player names it or skips.
    */
-  public showCaptureTrophy(template: TowerTemplate): void {
+  public showCaptureTrophy(pokemon: OwnedPokemon, onNamed: (name: string | null) => void): void {
     const card = document.getElementById('capture-trophy')!;
-    const typeColor = TYPE_COLORS[template.type]?.hex || '#ffffff';
-    const moves = template.lines.map(line => {
+    const species = speciesOf(pokemon);
+    const form = formOf(pokemon);
+    const typeColor = TYPE_COLORS[form.type]?.hex || '#ffffff';
+    const moves = species.lines.map(line => {
       const move = MOVES[line.tiers[0].moveId];
       return `<div class="trophy-move"><span>${move ? move.name.toUpperCase() : line.label}</span><em>${line.label}</em></div>`;
     }).join('');
     card.innerHTML = `
       <div class="trophy-stage"></div>
       <div class="trophy-copy">
-        <div class="trophy-kicker">ADDED TO YOUR ROSTER</div>
-        <div class="trophy-name">${template.name.toUpperCase()}</div>
-        <div class="trophy-type" style="background:${typeColor}">${template.type.toUpperCase()}</div>
+        <div class="trophy-kicker">ADDED TO YOUR COLLECTION</div>
+        <div class="trophy-name">${form.name.toUpperCase()} <small>LV ${pokemon.level}</small></div>
+        <div class="trophy-type" style="background:${typeColor}">${form.type.toUpperCase()}</div>
         <div class="trophy-moves">${moves}</div>
+        <form class="trophy-nickname">
+          <label for="trophy-nickname-input">GIVE A NICKNAME TO ${form.name.toUpperCase()}?</label>
+          <div class="trophy-nickname-row">
+            <input id="trophy-nickname-input" maxlength="10" autocomplete="off" placeholder="${form.name}">
+            <button class="stadium-btn active" type="submit">OK</button>
+            <button class="stadium-btn" type="button" data-skip>SKIP</button>
+          </div>
+        </form>
       </div>
     `;
     card.querySelector('.trophy-stage')!.appendChild(this.trophyView.canvas);
-    card.classList.add('has-model', 'shown');
-    this.trophyView.show(template.name, template.createModel);
+    card.classList.add('has-model', 'shown', 'naming', 'interactive');
+    this.trophyView.show(form.name, species.createModel);
     window.clearTimeout(this.trophyTimer);
-    // Held a beat longer than the text-only cards so the send-out clip can land.
-    this.trophyTimer = window.setTimeout(() => {
-      card.classList.remove('shown');
-      this.trophyTimer = window.setTimeout(() => this.trophyView.hide(), 400);
-    }, 5200);
+
+    const input = card.querySelector<HTMLInputElement>('#trophy-nickname-input')!;
+    let answered = false;
+    const finish = (name: string | null) => {
+      if (answered) return;
+      answered = true;
+      card.classList.remove('naming', 'interactive');
+      onNamed(name);
+      // A short hold so the name lands before the card leaves.
+      this.trophyTimer = window.setTimeout(() => {
+        card.classList.remove('shown');
+        this.trophyTimer = window.setTimeout(() => this.trophyView.hide(), 400);
+      }, 900);
+    };
+    card.querySelector('form')!.addEventListener('submit', (event) => {
+      event.preventDefault();
+      finish(input.value.trim() || null);
+    });
+    card.querySelector('[data-skip]')!.addEventListener('click', () => finish(null));
+    input.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      if (event.key === 'Escape') finish(null);
+    });
+    window.setTimeout(() => input.focus(), 50);
+  }
+
+  /** The end-of-match card when a player quits: who grew, who evolved, who was caught. */
+  public showMatchReport(report: MatchReportEntry[], mapName: string, onContinue: () => void): void {
+    this.trainer.showMatchReport(report, mapName, onContinue);
   }
 
   public update(state: UIState): void {
@@ -1651,27 +1718,33 @@ export class StadiumUI {
     if (state.placementStatus) {
       placementHint.innerText = state.placementStatus.label;
       placementHint.style.color = state.placementStatus.valid ? '#00f0ff' : '#ff6b6b';
-    } else if (state.selectedTemplate) {
-      placementHint.innerText = `PLACE ${state.selectedTemplate.name.toUpperCase()} · ESC TO CANCEL`;
+    } else if (state.selectedMember) {
+      placementHint.innerText = `PLACE ${displayName(state.selectedMember).toUpperCase()} · ESC TO CANCEL`;
       placementHint.style.color = '#00f0ff';
     } else {
       placementHint.innerText = 'SELECT A POKÉMON';
       placementHint.style.color = '#8faecf';
     }
 
-    const templates = Object.values(TOWER_TEMPLATES);
-    templates.forEach(tmpl => {
-      const el = document.getElementById(`card-${tmpl.id}`);
-      if (el) {
-        el.classList.toggle('disabled', state.money < tmpl.cost);
-        el.classList.toggle('selected', state.selectedTemplate?.id === tmpl.id);
-      }
+    // Evolutions and renames change a card's model and title; rebuild only then.
+    const rosterSignature = this.roster.map(m => `${m.uid}:${m.stage}:${m.nickname ?? ''}`).join('|');
+    if (rosterSignature !== this.rosterSignature) this.renderCardDeck();
+    this.roster.forEach(member => {
+      const el = document.getElementById(`card-${member.uid}`);
+      if (!el) return;
+      const deployed = state.deployed.has(member.uid);
+      el.classList.toggle('deployed', deployed);
+      el.classList.toggle('disabled', deployed || state.money < speciesOf(member).deployCost);
+      el.classList.toggle('selected', state.selectedMember?.uid === member.uid);
+      const level = el.querySelector<HTMLElement>('.card-level')!;
+      if (level.textContent !== String(member.level)) level.textContent = String(member.level);
+      el.querySelector<HTMLElement>('.card-xp i')!.style.width = `${levelProgress(member.xp, member.level) * 100}%`;
     });
 
     // Tower Detail Panel
     const tower = state.selectedTower;
     if (tower) {
-      const signature = `${tower.id}|${tower.tiers.join(',')}|${tower.evolutionStage}`;
+      const signature = `${tower.id}|${tower.tiers.join(',')}|${tower.pokemon.stage}|${tower.pokemon.level}|${tower.pokemon.nickname ?? ''}`;
       if (signature !== this.panelSignature) {
         this.panelSignature = signature;
         this.buildPanel(tower);

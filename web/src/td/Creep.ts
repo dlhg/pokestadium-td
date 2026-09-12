@@ -10,6 +10,8 @@ import { AnimatedPokemon, PokemonModelFactory } from '../stadium/PokemonModels';
 import { PokemonGait } from '../stadium/PokemonGait';
 import { PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
 import { StatusEffectType } from '../stadium/MoveDatabase';
+import type { Tower } from './Tower';
+import { STATUS_CONTRIBUTION } from './progression/Stats';
 
 /** A 0.4 grade stair roughly halves a creep's pace. */
 const CLIMB_SLOWDOWN = 2.6;
@@ -29,6 +31,8 @@ export interface CreepConfig {
   modelType: 'rattata' | 'zubat' | 'geodude' | 'dragonair' | 'boss_titan';
   modelName?: string;
   titanType?: 'Onix' | 'Gyarados';
+  /** Assigned by the wave manager from the round and course difficulty. */
+  level?: number;
 }
 
 export class Creep {
@@ -44,6 +48,14 @@ export class Creep {
   public isBoss: boolean;
   public threat: 'normal' | 'elite' | 'titan';
   public modelType: CreepConfig['modelType'];
+  public level: number;
+  /**
+   * Who helped bring this creep down: damage dealt plus a share of max HP for
+   * each status landed. The knockout XP pool is split by these weights.
+   */
+  public contributors = new Map<Tower, number>();
+  /** Burn and poison ticks credit whoever applied them. */
+  private statusSource: Tower | null = null;
   public alive: boolean = true;
   public reachedEnd: boolean = false;
   public removalReady: boolean = false;
@@ -92,6 +104,7 @@ export class Creep {
     this.speed = config.speed;
     this.reward = config.reward;
     this.modelType = config.modelType;
+    this.level = config.level ?? 5;
     this.threat = config.threat || (config.isBoss ? 'titan' : 'normal');
     this.isBoss = this.threat === 'titan' || !!config.isBoss;
     this.waypoints = waypoints;
@@ -185,8 +198,10 @@ export class Creep {
     this.updateHpBar();
   }
 
-  public takeDamage(amount: number): boolean {
+  public takeDamage(amount: number, source: Tower | null = null): boolean {
     if (!this.alive || this.captureLocked) return false;
+    // Overkill earns nothing: only the HP actually removed counts.
+    if (source) this.credit(source, Math.min(amount, this.hp));
     this.hp -= amount;
     this.hitAnimationTimer = 0.28;
     this.updateHpBar();
@@ -201,10 +216,18 @@ export class Creep {
     return false;
   }
 
-  public applyStatus(effect: StatusEffectType, duration: number): void {
+  public applyStatus(effect: StatusEffectType, duration: number, source: Tower | null = null): void {
     if (effect === 'none' || !this.alive) return;
     this.status = effect;
     this.statusTimer = duration;
+    if (source) {
+      this.statusSource = source;
+      this.credit(source, this.maxHp * STATUS_CONTRIBUTION);
+    }
+  }
+
+  private credit(source: Tower, amount: number): void {
+    if (amount > 0) this.contributors.set(source, (this.contributors.get(source) ?? 0) + amount);
   }
 
   public get hpFraction(): number { return this.hp / this.maxHp; }
@@ -316,7 +339,7 @@ export class Creep {
         this.burnTickTimer += dt;
         if (this.burnTickTimer >= 0.5) {
           this.burnTickTimer = 0;
-          if (this.takeDamage(this.maxHp * 0.04)) {
+          if (this.takeDamage(this.maxHp * 0.04, this.statusSource)) {
             onDeath(this);
             return;
           }
@@ -326,7 +349,7 @@ export class Creep {
         this.burnTickTimer += dt;
         if (this.burnTickTimer >= 0.5) {
           this.burnTickTimer = 0;
-          if (this.takeDamage(this.maxHp * 0.018)) {
+          if (this.takeDamage(this.maxHp * 0.018, this.statusSource)) {
             onDeath(this);
             return;
           }
