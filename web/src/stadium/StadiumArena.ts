@@ -10,6 +10,7 @@
  */
 
 import * as THREE from 'three';
+import { DEFAULT_STADIUM_MAP, type MapObstacle, type StadiumMap } from '../td/MapCatalog';
 
 /** Why the arena itself refuses a spot. `null` means the ground is clear. */
 export type BuildBlockReason = 'out_of_bounds' | 'on_lane' | 'restricted' | null;
@@ -20,6 +21,7 @@ export interface NoBuildZone {
   z: number;
   radius: number;
   label: string;
+  style?: MapObstacle['style'];
 }
 
 export class StadiumArena {
@@ -27,10 +29,11 @@ export class StadiumArena {
   public waypoints: THREE.Vector3[] = [];
 
   /** Towers may be placed anywhere inside this radius of the pitch centre. */
-  public readonly buildableRadius = 31;
+  public readonly buildableRadius: number;
+  public readonly map: StadiumMap;
   /** Half the creep lane's visual width — a footprint must clear it entirely. */
   private readonly laneHalfWidth = 1.6;
-  /** Map-authored keep-out regions. The colosseum declares none. */
+  /** Map-authored keep-out regions, rendered with matching physical props. */
   private noBuildZones: NoBuildZone[] = [];
   /** Densely sampled lane centreline, used for clearance tests. */
   private pathSamples: THREE.Vector3[] = [];
@@ -44,7 +47,9 @@ export class StadiumArena {
   private jumbotronCtx: CanvasRenderingContext2D;
   private jumbotronTexture: THREE.CanvasTexture;
 
-  constructor() {
+  constructor(map: StadiumMap = DEFAULT_STADIUM_MAP) {
+    this.map = map;
+    this.buildableRadius = map.buildableRadius;
     this.environmentGroup.name = 'arena-environment';
     this.gameplayGroup.name = 'tower-defense-overlay';
     this.noBuildGroup.name = 'no-build-zones';
@@ -57,6 +62,7 @@ export class StadiumArena {
     this.jumbotronTexture = new THREE.CanvasTexture(this.jumbotronCanvas);
 
     this.initArena();
+    this.setNoBuildZones(map.obstacles);
     this.initWaypoints();
     // Sampled once: every placement test measures against these points, and the
     // spacing (~0.6 units) bounds how far a footprint can cheat toward the lane.
@@ -438,6 +444,33 @@ export class StadiumArena {
       marker.position.set(zone.x, 0.04, zone.z);
       marker.renderOrder = 3;
       this.noBuildGroup.add(marker);
+      if (zone.style && zone.style !== 'none') this.noBuildGroup.add(this.createObstacle(zone));
     });
+  }
+
+  /** Authored low-poly stand-ins; their circles remain the authoritative collision. */
+  private createObstacle(zone: NoBuildZone): THREE.Group {
+    const prop = new THREE.Group();
+    prop.name = `obstacle-${zone.style}-${zone.label}`;
+    prop.position.set(zone.x, 0, zone.z);
+    if (zone.style === 'rock') {
+      const material = new THREE.MeshLambertMaterial({ color: 0x7b7165, flatShading: true });
+      for (let i = 0; i < 4; i++) {
+        const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(zone.radius * (0.38 + i * 0.05), 0), material);
+        const angle = i * Math.PI / 2 + 0.25;
+        boulder.position.set(Math.cos(angle) * zone.radius * 0.34, zone.radius * 0.32, Math.sin(angle) * zone.radius * 0.34);
+        boulder.rotation.set(i * 0.4, i, i * 0.2);
+        prop.add(boulder);
+      }
+    } else {
+      const fountain = zone.style === 'fountain';
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(zone.radius * 0.72, zone.radius * 0.9, 1.1, 8), new THREE.MeshLambertMaterial({ color: fountain ? 0x4e94b8 : 0x41546a, flatShading: true }));
+      base.position.y = 0.55;
+      prop.add(base);
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(zone.radius * 0.28, zone.radius * 0.36, fountain ? 1.0 : 2.5, 8), new THREE.MeshStandardMaterial({ color: fountain ? 0x6ee7ff : 0x253447, emissive: fountain ? 0x000000 : 0x00a8c6, emissiveIntensity: 0.7, flatShading: true }));
+      core.position.y = fountain ? 1.2 : 1.75;
+      prop.add(core);
+    }
+    return prop;
   }
 }
