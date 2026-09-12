@@ -55,6 +55,18 @@ export class Projectile {
     } else if (move.fxType === 'razor_leaf') {
       geo = new THREE.PlaneGeometry(0.7, 0.4);
       mat = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
+    } else if (move.fxType === 'blizzard') {
+      geo = new THREE.OctahedronGeometry(0.45);
+      mat = new THREE.MeshBasicMaterial({ color: colorHex, wireframe: true });
+    } else if (move.fxType === 'spore_cloud') {
+      geo = new THREE.SphereGeometry(0.65, 6, 6);
+      mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.55 });
+    } else if (move.fxType === 'earthquake') {
+      geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+      mat = new THREE.MeshLambertMaterial({ color: colorHex });
+    } else if (move.fxType === 'impact') {
+      geo = new THREE.TetrahedronGeometry(0.42);
+      mat = new THREE.MeshBasicMaterial({ color: colorHex });
     } else {
       geo = new THREE.SphereGeometry(0.5, 8, 8);
       mat = new THREE.MeshBasicMaterial({ color: colorHex });

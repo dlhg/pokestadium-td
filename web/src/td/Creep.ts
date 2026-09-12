@@ -228,6 +228,16 @@ export class Creep {
             return;
           }
         }
+      } else if (this.status === 'poison') {
+        // Weaker per-tick than burn, but control moves apply it for far longer.
+        this.burnTickTimer += dt;
+        if (this.burnTickTimer >= 0.5) {
+          this.burnTickTimer = 0;
+          if (this.takeDamage(this.maxHp * 0.018)) {
+            onDeath(this);
+            return;
+          }
+        }
       } else if (this.status === 'freeze') {
         this.speed = this.baseSpeed * 0.45; // 55% slow
       } else if (this.status === 'paralyze') {

@@ -7,7 +7,7 @@
 
 import { PokemonType } from './TypeMatrix';
 
-export type StatusEffectType = 'none' | 'burn' | 'freeze' | 'paralyze' | 'stun';
+export type StatusEffectType = 'none' | 'burn' | 'freeze' | 'paralyze' | 'stun' | 'poison';
 
 export type ParticleFXType =
   | 'lightning'
@@ -19,7 +19,8 @@ export type ParticleFXType =
   | 'blizzard'
   | 'hyper_beam'
   | 'spore_cloud'
-  | 'earthquake';
+  | 'earthquake'
+  | 'impact';
 
 export interface MoveDefinition {
   id: string;
@@ -273,5 +274,159 @@ export const MOVES: Record<string, MoveDefinition> = {
     statusDuration: 2.5,
     fxType: 'hyper_beam',
     description: 'The ultimate devastating attack, obliterating everything in its wake.',
+  },
+
+  // ---------------------------------------------------------------------------
+  // Coverage moves — off-type attacks bought to answer match-ups a tower's own
+  // element is walled by (Electric into Ground, Fire into Rock, and so on).
+  // ---------------------------------------------------------------------------
+  quick_attack: {
+    id: 'quick_attack', name: 'Quick Attack', type: 'Normal', basePower: 15, attackSpeed: 2.4,
+    range: 10, projectileSpeed: 45, splashRadius: 0,
+    statusEffect: 'none', statusChance: 0, statusDuration: 0,
+    fxType: 'impact', description: 'A blindingly fast tackle that always strikes first.',
+  },
+  bite: {
+    id: 'bite', name: 'Bite', type: 'Normal', basePower: 26, attackSpeed: 1.8,
+    range: 10, projectileSpeed: 34, splashRadius: 0,
+    statusEffect: 'stun', statusChance: 0.1, statusDuration: 0.5,
+    fxType: 'impact', description: 'A savage bite that can make the target flinch.',
+  },
+  wing_attack: {
+    id: 'wing_attack', name: 'Wing Attack', type: 'Flying', basePower: 30, attackSpeed: 1.7,
+    range: 13, projectileSpeed: 38, splashRadius: 0,
+    statusEffect: 'none', statusChance: 0, statusDuration: 0,
+    fxType: 'impact', description: 'A sweeping strike with spread wings, strong against Grass.',
+  },
+  sludge: {
+    id: 'sludge', name: 'Sludge', type: 'Poison', basePower: 42, attackSpeed: 1.3,
+    range: 14, projectileSpeed: 28, splashRadius: 3.0,
+    statusEffect: 'poison', statusChance: 0.4, statusDuration: 5.0,
+    fxType: 'spore_cloud', description: 'Hurled toxic sludge that lingers on everything it splatters.',
+  },
+  dig: {
+    id: 'dig', name: 'Dig', type: 'Ground', basePower: 58, attackSpeed: 1.0,
+    range: 12, projectileSpeed: 40, splashRadius: 2.5,
+    statusEffect: 'stun', statusChance: 0.2, statusDuration: 1.0,
+    fxType: 'earthquake', description: 'Burrows and erupts underfoot — the answer to Ground immunity.',
+  },
+  seismic_toss: {
+    id: 'seismic_toss', name: 'Seismic Toss', type: 'Fighting', basePower: 45, attackSpeed: 1.2,
+    range: 11, projectileSpeed: 30, splashRadius: 0,
+    statusEffect: 'none', statusChance: 0, statusDuration: 0,
+    fxType: 'impact', ignoresType: true,
+    description: 'Fixed throwing damage that lands no matter the elemental match-up.',
+  },
+  ice_beam: {
+    id: 'ice_beam', name: 'Ice Beam', type: 'Ice', basePower: 62, attackSpeed: 1.25,
+    range: 17, projectileSpeed: 38, splashRadius: 2.5,
+    statusEffect: 'freeze', statusChance: 0.45, statusDuration: 3.0,
+    fxType: 'blizzard', description: 'A frozen beam that chills runners to a crawl.',
+  },
+  body_slam: {
+    id: 'body_slam', name: 'Body Slam', type: 'Normal', basePower: 55, attackSpeed: 1.15,
+    range: 11, projectileSpeed: 36, splashRadius: 2.0,
+    statusEffect: 'paralyze', statusChance: 0.35, statusDuration: 2.5,
+    fxType: 'impact', description: 'A full-body crush that frequently paralyzes on contact.',
+  },
+  surf: {
+    id: 'surf', name: 'Surf', type: 'Water', basePower: 55, attackSpeed: 1.2,
+    range: 16, projectileSpeed: 30, splashRadius: 5.0,
+    statusEffect: 'freeze', statusChance: 0.3, statusDuration: 2.0,
+    fxType: 'water_stream', description: 'A rolling wave that washes across the whole lane.',
+  },
+  earthquake: {
+    id: 'earthquake', name: 'Earthquake', type: 'Ground', basePower: 95, attackSpeed: 0.8,
+    range: 13, projectileSpeed: 60, splashRadius: 7.0,
+    statusEffect: 'stun', statusChance: 0.25, statusDuration: 1.2,
+    fxType: 'earthquake', description: 'Shakes the colosseum floor, hitting everything grounded nearby.',
+  },
+  blizzard: {
+    id: 'blizzard', name: 'Blizzard', type: 'Ice', basePower: 105, attackSpeed: 0.7,
+    range: 18, projectileSpeed: 32, splashRadius: 6.5,
+    statusEffect: 'freeze', statusChance: 0.7, statusDuration: 4.0,
+    fxType: 'blizzard', description: 'A howling whiteout that nearly halts an entire wave.',
+  },
+
+  // ---------------------------------------------------------------------------
+  // Control moves — little damage, bought for the status they inflict.
+  // ---------------------------------------------------------------------------
+  thunder_wave: {
+    id: 'thunder_wave', name: 'Thunder Wave', type: 'Electric', basePower: 6, attackSpeed: 1.5,
+    range: 13, projectileSpeed: 40, splashRadius: 0,
+    statusEffect: 'paralyze', statusChance: 1.0, statusDuration: 4.0,
+    fxType: 'lightning', description: 'A weak current that always paralyzes what it touches.',
+  },
+  flash: {
+    id: 'flash', name: 'Flash', type: 'Normal', basePower: 8, attackSpeed: 1.2,
+    range: 12, projectileSpeed: 34, splashRadius: 4.0,
+    statusEffect: 'stun', statusChance: 0.55, statusDuration: 1.2,
+    fxType: 'psychic_wave', description: 'A blinding burst that leaves a cluster reeling.',
+  },
+  smokescreen: {
+    id: 'smokescreen', name: 'Smokescreen', type: 'Normal', basePower: 5, attackSpeed: 1.4,
+    range: 12, projectileSpeed: 26, splashRadius: 4.5,
+    statusEffect: 'stun', statusChance: 0.5, statusDuration: 1.0,
+    fxType: 'spore_cloud', description: 'A choking cloud of soot that stalls the front of a wave.',
+  },
+  fire_spin: {
+    id: 'fire_spin', name: 'Fire Spin', type: 'Fire', basePower: 22, attackSpeed: 1.5,
+    range: 13, projectileSpeed: 28, splashRadius: 3.0,
+    statusEffect: 'burn', statusChance: 0.75, statusDuration: 5.0,
+    fxType: 'flamethrower', description: 'A whirling vortex of flame that traps and steadily burns.',
+  },
+  toxic: {
+    id: 'toxic', name: 'Toxic', type: 'Poison', basePower: 4, attackSpeed: 0.9,
+    range: 15, projectileSpeed: 30, splashRadius: 0,
+    statusEffect: 'poison', statusChance: 1.0, statusDuration: 10.0,
+    fxType: 'spore_cloud', description: 'Guaranteed long-lasting poison — the answer to armored bosses.',
+  },
+  bubble: {
+    id: 'bubble', name: 'Bubble', type: 'Water', basePower: 12, attackSpeed: 1.9,
+    range: 12, projectileSpeed: 28, splashRadius: 2.5,
+    statusEffect: 'freeze', statusChance: 0.5, statusDuration: 2.0,
+    fxType: 'water_stream', description: 'A rapid spray of bubbles that reliably slows a group.',
+  },
+  clamp: {
+    id: 'clamp', name: 'Clamp', type: 'Water', basePower: 30, attackSpeed: 1.0,
+    range: 10, projectileSpeed: 26, splashRadius: 0,
+    statusEffect: 'stun', statusChance: 0.6, statusDuration: 2.0,
+    fxType: 'water_stream', description: 'Clamps a single runner in place for a long beat.',
+  },
+  stun_spore: {
+    id: 'stun_spore', name: 'Stun Spore', type: 'Grass', basePower: 5, attackSpeed: 1.3,
+    range: 13, projectileSpeed: 24, splashRadius: 4.0,
+    statusEffect: 'paralyze', statusChance: 0.85, statusDuration: 3.5,
+    fxType: 'spore_cloud', description: 'Scatters paralyzing spores over a wide stretch of track.',
+  },
+  sleep_powder: {
+    id: 'sleep_powder', name: 'Sleep Powder', type: 'Grass', basePower: 3, attackSpeed: 1.0,
+    range: 14, projectileSpeed: 22, splashRadius: 4.5,
+    statusEffect: 'stun', statusChance: 0.7, statusDuration: 2.6,
+    fxType: 'spore_cloud', description: 'Puts a whole cluster to sleep where they stand.',
+  },
+  leech_seed: {
+    id: 'leech_seed', name: 'Leech Seed', type: 'Grass', basePower: 10, attackSpeed: 1.1,
+    range: 15, projectileSpeed: 26, splashRadius: 0,
+    statusEffect: 'poison', statusChance: 1.0, statusDuration: 12.0,
+    fxType: 'spore_cloud', description: 'Plants a seed that drains the target for the rest of its run.',
+  },
+  hypnosis: {
+    id: 'hypnosis', name: 'Hypnosis', type: 'Psychic', basePower: 4, attackSpeed: 1.0,
+    range: 15, projectileSpeed: 30, splashRadius: 3.0,
+    statusEffect: 'stun', statusChance: 0.75, statusDuration: 2.8,
+    fxType: 'psychic_wave', description: 'Lulls approaching invaders into a dead stop.',
+  },
+  confuse_ray: {
+    id: 'confuse_ray', name: 'Confuse Ray', type: 'Ghost', basePower: 14, attackSpeed: 1.3,
+    range: 15, projectileSpeed: 28, splashRadius: 3.5,
+    statusEffect: 'stun', statusChance: 0.5, statusDuration: 2.0,
+    fxType: 'shadow_ball', description: 'A sinister light that leaves a group staggering in place.',
+  },
+  disable: {
+    id: 'disable', name: 'Disable', type: 'Normal', basePower: 6, attackSpeed: 1.4,
+    range: 14, projectileSpeed: 32, splashRadius: 0,
+    statusEffect: 'stun', statusChance: 0.8, statusDuration: 1.8,
+    fxType: 'psychic_wave', description: 'Locks a single target down almost every time it lands.',
   },
 };

@@ -4,13 +4,14 @@
  * Implements:
  * - Iconic metallic tournament top bar (Cup, Round, Prize Money, Poké Balls)
  * - Vertical tower roster for selecting and deploying Pokémon
- * - Stadium Circular Radial Command Wheel for tower inspection/upgrades
+ * - Tower detail panel: three buyable move lines, evolution track, sell
  * - Dynamic Stadium Announcer popup banners
  * - Speed & camera controls
  */
 
 import { Tower, TOWER_TEMPLATES, TowerTemplate } from './Tower';
 import { TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
+import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 
@@ -27,23 +28,49 @@ export interface UIState {
   selectedTemplate: TowerTemplate | null;
 }
 
+/**
+ * Abstract geometric marks for each effect family — deliberately simple
+ * shapes so a move reads at tile size without leaning on character art.
+ */
+const FX_GLYPHS: Record<ParticleFXType, string> = {
+  lightning: '<polygon points="14,2 5,13 11,13 9,22 19,10 13,10"/>',
+  flamethrower: '<path d="M12 2c3 5-1 6 1 9 1-1 2-3 2-3 2 3 3 5 3 8a6 6 0 0 1-12 0c0-5 4-8 6-14z"/>',
+  water_stream: '<path d="M12 2c4 6 6 9.5 6 12.5a6 6 0 0 1-12 0C6 11.5 8 8 12 2z"/>',
+  razor_leaf: '<path d="M4 20C4 10.5 11.5 4 20 4c0 9.5-7.5 16-16 16z"/><path d="M6 18 18 6" stroke="currentColor" stroke-width="1.2" fill="none"/>',
+  shadow_ball: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4" fill="#0a1526"/>',
+  psychic_wave: '<circle cx="12" cy="12" r="3" /><path d="M12 4.5a7.5 7.5 0 0 1 0 15M12 1a11 11 0 0 1 0 22" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  blizzard: '<path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17" fill="none" stroke="currentColor" stroke-width="2"/>',
+  spore_cloud: '<circle cx="8" cy="14" r="4"/><circle cx="15" cy="15" r="4.5"/><circle cx="12" cy="9" r="4.2"/>',
+  earthquake: '<path d="M2 12h5l3-5 3 10 3-7 3 2h3" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  hyper_beam: '<path d="M2 10h20v4H2z"/><path d="M4 6h16M4 18h16" stroke="currentColor" stroke-width="1.6"/>',
+  impact: '<polygon points="12,2 14.5,9 22,12 14.5,15 12,22 9.5,15 2,12 9.5,9"/>',
+};
+
+function glyph(fx: ParticleFXType, color: string, size = 26): string {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="${color}" style="color:${color}">${FX_GLYPHS[fx] || FX_GLYPHS.impact}</svg>`;
+}
+
 export class StadiumUI {
   private container: HTMLElement;
   private announcer: StadiumAnnouncer;
   private camera: StadiumCamera;
 
   // UI elements
-  private topBarEl!: HTMLElement;
   private cardDeckEl!: HTMLElement;
-  private radialMenuEl!: HTMLElement;
+  private panelEl!: HTMLElement;
   private announcerBannerEl!: HTMLElement;
-  private controlsEl!: HTMLElement;
+
+  /** Structure is rebuilt only when the tower's purchases actually change. */
+  private panelSignature: string = '';
+  private currentSelectedTower: Tower | null = null;
 
   // Callbacks
   public onSelectTemplate: (template: TowerTemplate | null) => void = () => {};
-  public onUpgradeTower: (tower: Tower) => void = () => {};
+  public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
+  public onEvolveTower: (tower: Tower) => void = () => {};
   public onSellTower: (tower: Tower) => void = () => {};
-  public onChangeTargetPriority: (tower: Tower) => void = () => {};
+  public onChangeTargetPriority: (tower: Tower, dir: number) => void = () => {};
+  public onDeselectTower: () => void = () => {};
   public onStartWave: () => void = () => {};
   public onChangeSpeed: (speed: number) => void = () => {};
   public onChangeCamera: (mode: CameraMode) => void = () => {};
@@ -66,13 +93,8 @@ export class StadiumUI {
           border-radius: 6px;
         }
 
-        .gold-glow {
-          text-shadow: 0 0 10px #ffd700, 0 0 20px #ff9e00;
-        }
-
-        .cyan-glow {
-          text-shadow: 0 0 8px #00f0ff;
-        }
+        .gold-glow { text-shadow: 0 0 10px #ffd700, 0 0 20px #ff9e00; }
+        .cyan-glow { text-shadow: 0 0 8px #00f0ff; }
 
         /* Top Bar */
         #top-bar {
@@ -87,11 +109,7 @@ export class StadiumUI {
           z-index: 30;
         }
 
-        .stat-badge {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
+        .stat-badge { display: flex; flex-direction: column; align-items: center; }
 
         .stat-label {
           font-size: 11px;
@@ -107,12 +125,7 @@ export class StadiumUI {
           letter-spacing: 1px;
         }
 
-        /* Poke Balls Remaining */
-        .pokeball-tray {
-          display: flex;
-          gap: 6px;
-          align-items: center;
-        }
+        .pokeball-tray { display: flex; gap: 6px; align-items: center; }
 
         .ui-pokeball {
           width: 22px;
@@ -124,11 +137,7 @@ export class StadiumUI {
           transition: transform 0.2s, opacity 0.2s;
         }
 
-        .ui-pokeball.lost {
-          opacity: 0.2;
-          filter: grayscale(1);
-          transform: scale(0.85);
-        }
+        .ui-pokeball.lost { opacity: 0.2; filter: grayscale(1); transform: scale(0.85); }
 
         /* Controls (Top Right) */
         #controls-bar {
@@ -254,11 +263,7 @@ export class StadiumUI {
           box-shadow: 0 0 8px #00f0ff;
         }
 
-        .tower-card.disabled {
-          opacity: 0.4;
-          filter: grayscale(0.7);
-          cursor: not-allowed;
-        }
+        .tower-card.disabled { opacity: 0.4; filter: grayscale(0.7); cursor: not-allowed; }
 
         .card-type-tag {
           grid-column: 1 / -1;
@@ -288,10 +293,7 @@ export class StadiumUI {
         }
 
         @media (max-height: 650px) {
-          .tower-card {
-            min-height: 62px;
-            flex-basis: 62px;
-          }
+          .tower-card { min-height: 62px; flex-basis: 62px; }
         }
 
         /* Announcer Banner */
@@ -320,64 +322,384 @@ export class StadiumUI {
           transform: skew(-6deg);
         }
 
-        /* Radial Command Wheel (Appears over selected tower) */
-        #radial-menu {
+        /* ------------------------------------------------------------------
+           Tower Detail Panel — move shop
+           ------------------------------------------------------------------ */
+        #tower-panel {
           position: absolute;
-          width: 290px;
-          height: 290px;
-          transform: translate(-50%, -50%);
-          pointer-events: auto;
+          /* Clears the announcer banner, which drops in at 68px. */
+          top: 122px;
+          right: 176px;
+          width: 312px;
+          max-height: calc(100% - 136px);
           display: none;
-          z-index: 35;
+          flex-direction: column;
+          padding: 0;
+          overflow: hidden;
+          z-index: 34;
         }
 
-        .radial-center {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 104px;
-          height: 104px;
-          border-radius: 50%;
-          background: radial-gradient(circle, #1a365d 0%, #0a192f 100%);
-          border: 3px solid #00f0ff;
-          box-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
+        #tower-panel.open { display: flex; }
+
+        .tp-header {
           display: flex;
-          flex-direction: column;
           align-items: center;
-          justify-content: center;
-          text-align: center;
-          padding: 4px;
+          gap: 8px;
+          padding: 8px 10px;
+          background: linear-gradient(180deg, #1d3c68 0%, #0d2140 100%);
+          border-bottom: 2px solid #3a608f;
         }
 
-        .radial-btn {
-          position: absolute;
-          width: 82px;
-          height: 60px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 4px;
-          font-size: 11px;
-          font-weight: 700;
-          text-align: center;
+        .tp-title {
+          flex: 1;
+          font-family: 'Impact', sans-serif;
+          font-size: 19px;
+          letter-spacing: 1px;
+          color: #fff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tp-stage-pips { display: flex; gap: 3px; }
+
+        .tp-stage-pip {
+          width: 9px;
+          height: 9px;
+          transform: rotate(45deg);
+          background: #0a1526;
+          border: 1px solid #5280b8;
+        }
+
+        .tp-stage-pip.on { background: #ffd700; border-color: #fff; box-shadow: 0 0 6px #ffd700; }
+
+        .tp-close {
+          width: 22px;
+          height: 22px;
+          flex: 0 0 auto;
+          border-radius: 3px;
+          border: 1px solid #5280b8;
+          background: #0d2140;
+          color: #8faecf;
+          font-size: 13px;
+          line-height: 1;
           cursor: pointer;
         }
 
-        .radial-btn.top { top: -6px; left: 50%; transform: translateX(-50%); }
-        .radial-btn.bottom { bottom: -6px; left: 50%; transform: translateX(-50%); }
-        .radial-btn.left { left: -6px; top: 50%; transform: translateY(-50%); }
-        .radial-btn.right { right: -6px; top: 50%; transform: translateY(-50%); }
+        .tp-close:hover { border-color: #ff3333; color: #ff6666; }
 
-        .radial-btn:hover {
-          border-color: #ffd700;
-          transform: scale(1.08);
+        .tp-crest {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 9px 10px 0;
+          padding: 9px 10px;
+          border-radius: 5px;
+          border: 1px solid #3a608f;
         }
-        .radial-btn.top:hover { transform: translateX(-50%) scale(1.08); }
-        .radial-btn.bottom:hover { transform: translateX(-50%) scale(1.08); }
-        .radial-btn.left:hover { transform: translateY(-50%) scale(1.08); }
-        .radial-btn.right:hover { transform: translateY(-50%) scale(1.08); }
+
+        .tp-crest-mark {
+          width: 46px;
+          height: 46px;
+          flex: 0 0 auto;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 2px solid rgba(255,255,255,0.5);
+        }
+
+        .tp-crest-meta { flex: 1; min-width: 0; }
+
+        .tp-crest-type {
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 1.2px;
+          color: #fff;
+        }
+
+        .tp-matchup {
+          display: block;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.4px;
+          margin-top: 2px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tp-target {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 6px;
+          margin: 7px 10px 0;
+          padding: 4px 6px;
+          border-radius: 4px;
+          border: 1px solid #3a608f;
+          background: #0a1a30;
+        }
+
+        .tp-arrow {
+          width: 24px;
+          height: 22px;
+          border-radius: 3px;
+          border: 1px solid #5280b8;
+          background: linear-gradient(180deg, #2b4870, #162a45);
+          color: #fff;
+          font-size: 12px;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .tp-arrow:hover { border-color: #00f0ff; box-shadow: 0 0 8px rgba(0,240,255,0.45); }
+
+        .tp-target-label {
+          flex: 1;
+          text-align: center;
+          font-family: 'Impact', sans-serif;
+          font-size: 14px;
+          letter-spacing: 1.4px;
+          color: #ffd700;
+        }
+
+        .tp-target-cap {
+          display: block;
+          font-family: 'Rajdhani', sans-serif;
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 1.2px;
+          color: #8faecf;
+        }
+
+        .tp-lines {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          padding: 9px 10px;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: #5280b8 #071326;
+        }
+
+        .tp-line {
+          display: grid;
+          grid-template-columns: 14px 1fr 92px;
+          align-items: stretch;
+          gap: 6px;
+          padding: 5px;
+          border-radius: 5px;
+          border: 1px solid #2d4a72;
+          background: rgba(9, 26, 48, 0.85);
+        }
+
+        .tp-pips {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 4px;
+        }
+
+        .tp-pip {
+          height: 11px;
+          border-radius: 2px;
+          background: #0a1526;
+          border: 1px solid #3a608f;
+        }
+
+        .tp-pip.on { background: #ffd700; border-color: #fff; box-shadow: 0 0 5px rgba(255,215,0,0.7); }
+
+        .tp-line-meta {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          min-width: 0;
+        }
+
+        .tp-line-label {
+          font-size: 8.5px;
+          font-weight: 800;
+          letter-spacing: 1.3px;
+          color: #6f92bb;
+        }
+
+        .tp-line-move {
+          font-family: 'Impact', sans-serif;
+          font-size: 14px;
+          letter-spacing: 0.6px;
+          color: #fff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tp-line-move.empty { color: #55749a; font-style: italic; }
+
+        .tp-line-stats {
+          font-size: 9px;
+          font-weight: 700;
+          color: #8faecf;
+          letter-spacing: 0.3px;
+        }
+
+        .tp-buy {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 1px;
+          padding: 4px 3px;
+          border-radius: 5px;
+          border: 1.5px solid #5280b8;
+          background: linear-gradient(180deg, #21375c 0%, #0e1f38 100%);
+          cursor: pointer;
+          text-align: center;
+          transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+        }
+
+        .tp-buy:hover:not(.locked):not(.maxed):not(.poor) {
+          border-color: #ffd700;
+          box-shadow: 0 0 12px rgba(255, 215, 0, 0.45);
+          transform: translateY(-1px);
+        }
+
+        .tp-buy-name {
+          font-size: 8.5px;
+          font-weight: 800;
+          letter-spacing: 0.4px;
+          color: #cfe2f7;
+          line-height: 1.1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+        }
+
+        .tp-buy-cost {
+          font-family: 'Rajdhani', sans-serif;
+          font-size: 14px;
+          font-weight: 800;
+          color: #ffd700;
+          line-height: 1;
+        }
+
+        .tp-buy.poor { opacity: 0.5; cursor: not-allowed; }
+        .tp-buy.poor .tp-buy-cost { color: #ff6b6b; }
+
+        .tp-buy.locked {
+          opacity: 0.65;
+          cursor: not-allowed;
+          border-color: #3a608f;
+          background: repeating-linear-gradient(
+            45deg, #101f36, #101f36 5px, #16273f 5px, #16273f 10px
+          );
+        }
+
+        .tp-buy.maxed {
+          cursor: default;
+          border-color: #ffd700;
+          background: linear-gradient(180deg, #3a2f10 0%, #1c1707 100%);
+        }
+
+        .tp-buy-note {
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+          color: #8faecf;
+          line-height: 1.1;
+        }
+
+        .tp-evolve {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin: 0 10px;
+          padding: 7px 10px;
+          border-radius: 5px;
+          border: 1.5px solid #00f0ff;
+          background: linear-gradient(180deg, #113a52 0%, #08202f 100%);
+          cursor: pointer;
+          transition: box-shadow 0.15s;
+        }
+
+        .tp-evolve:hover:not(.poor):not(.final) { box-shadow: 0 0 14px rgba(0, 240, 255, 0.55); }
+        .tp-evolve.poor { opacity: 0.55; cursor: not-allowed; }
+
+        .tp-evolve.final {
+          cursor: default;
+          border-color: #ffd700;
+          background: linear-gradient(180deg, #3a2f10 0%, #1c1707 100%);
+        }
+
+        .tp-evolve-label {
+          font-family: 'Impact', sans-serif;
+          font-size: 14px;
+          letter-spacing: 1px;
+          color: #00f0ff;
+        }
+
+        .tp-evolve.final .tp-evolve-label { color: #ffd700; }
+
+        .tp-evolve-sub {
+          display: block;
+          font-family: 'Rajdhani', sans-serif;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 1px;
+          color: #8faecf;
+        }
+
+        .tp-evolve-cost {
+          font-family: 'Rajdhani', sans-serif;
+          font-size: 17px;
+          font-weight: 800;
+          color: #ffd700;
+        }
+
+        .tp-footer {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 9px 10px;
+          border-top: 2px solid #3a608f;
+          background: linear-gradient(180deg, #0d2140 0%, #071326 100%);
+        }
+
+        .tp-sell-value {
+          flex: 1;
+          font-family: 'Rajdhani', sans-serif;
+          font-size: 16px;
+          font-weight: 800;
+          color: #48ff48;
+        }
+
+        .tp-sell-value span {
+          display: block;
+          font-size: 8px;
+          letter-spacing: 1.2px;
+          color: #8faecf;
+        }
+
+        .tp-sell-btn {
+          padding: 7px 24px;
+          border-radius: 4px;
+          border: 1.5px solid #ff6b6b;
+          background: linear-gradient(180deg, #a8121f 0%, #6d0b14 100%);
+          color: #fff;
+          font-family: 'Impact', sans-serif;
+          font-size: 15px;
+          letter-spacing: 1.6px;
+          cursor: pointer;
+        }
+
+        .tp-sell-btn:hover { background: linear-gradient(180deg, #d90429 0%, #8c0c19 100%); box-shadow: 0 0 12px rgba(217,4,41,0.6); }
+
+        @media (max-width: 1100px) {
+          #tower-panel { right: 172px; width: 272px; }
+          .tp-line { grid-template-columns: 12px 1fr 84px; }
+        }
       </style>
 
       <!-- Top Bar -->
@@ -415,37 +737,13 @@ export class StadiumUI {
       <!-- Tower Purchase Roster -->
       <div id="card-deck" class="stadium-panel interactive"></div>
 
-      <!-- Radial Command Wheel -->
-      <div id="radial-menu" class="interactive">
-        <div class="radial-center" id="radial-center-content">
-          <span style="font-family: Impact; font-size: 16px; color: #fff;" id="rad-name">PIKACHU</span>
-          <span style="font-size: 11px; color: #ffd700;" id="rad-lvl">LV. 1</span>
-          <span style="font-size: 9px; color: #fff;" id="rad-matchup">ELECTRIC</span>
-        </div>
-        <button class="stadium-panel radial-btn top" id="rad-upgrade">
-          <span style="color: #ffd700;">UPGRADE</span>
-          <span style="font-size: 10px;" id="rad-up-cost">$120</span>
-        </button>
-        <button class="stadium-panel radial-btn right" id="rad-evolve">
-          <span style="color: #00f0ff;">EVOLVE</span>
-          <span style="font-size: 10px;" id="rad-ev-cost">$220</span>
-        </button>
-        <button class="stadium-panel radial-btn bottom" id="rad-target">
-          <span style="color: #fff;">TARGET</span>
-          <span style="font-size: 10px; color: #8faecf;" id="rad-target-mode">FIRST</span>
-        </button>
-        <button class="stadium-panel radial-btn left" id="rad-sell">
-          <span style="color: #ff3333;">SELL</span>
-          <span style="font-size: 10px;" id="rad-sell-val">+$70</span>
-        </button>
-      </div>
+      <!-- Tower Detail Panel -->
+      <div id="tower-panel" class="stadium-panel interactive"></div>
     `;
 
-    this.topBarEl = document.getElementById('top-bar')!;
     this.cardDeckEl = document.getElementById('card-deck')!;
-    this.radialMenuEl = document.getElementById('radial-menu')!;
+    this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
-    this.controlsEl = document.getElementById('controls-bar')!;
 
     this.bindEvents();
     this.renderCardDeck();
@@ -514,36 +812,179 @@ export class StadiumUI {
         this.onChangeCamera(c.mode);
       });
     });
+  }
 
-    // Radial Menu Actions
-    document.getElementById('rad-upgrade')!.addEventListener('click', () => {
-      if (this.currentSelectedTower) {
-        this.onUpgradeTower(this.currentSelectedTower);
-      }
-    });
+  /**
+   * Rebuilds the panel body. Called only when the tower's identity, purchases
+   * or evolution stage change — per-frame work is limited to affordability.
+   */
+  private buildPanel(tower: Tower): void {
+    const typeCol = TYPE_COLORS[tower.template.type];
+    const maxStages = tower.template.evolutions.length;
 
-    document.getElementById('rad-evolve')!.addEventListener('click', () => {
-      if (this.currentSelectedTower) {
-        this.onUpgradeTower(this.currentSelectedTower);
-      }
-    });
+    const stagePips = Array.from({ length: maxStages }, (_, i) =>
+      `<div class="tp-stage-pip ${i < tower.evolutionStage ? 'on' : ''}"></div>`
+    ).join('');
 
-    document.getElementById('rad-target')!.addEventListener('click', () => {
-      if (this.currentSelectedTower) {
-        this.onChangeTargetPriority(this.currentSelectedTower);
-      }
-    });
+    const lineRows = tower.template.lines.map((line, idx) => {
+      const active = tower.getActiveMove(idx);
+      const next = tower.getNextTier(idx);
+      const blocked = tower.getUpgradeBlockReason(idx);
 
-    document.getElementById('rad-sell')!.addEventListener('click', () => {
-      if (this.currentSelectedTower) {
-        this.onSellTower(this.currentSelectedTower);
+      const pips = line.tiers.map((_, t) =>
+        `<div class="tp-pip ${t < tower.tiers[idx] ? 'on' : ''}"></div>`
+      ).join('');
+
+      const stats = active
+        ? `${active.basePower} PWR · ${active.range} RNG${active.splashRadius > 0 ? ' · SPLASH' : ''}`
+        : 'NOT LEARNED';
+
+      let buyInner: string;
+      let buyClass = 'tp-buy';
+
+      if (blocked === 'maxed') {
+        buyClass += ' maxed';
+        buyInner = `<span class="tp-buy-note">MASTERED</span>`;
+      } else if (blocked === 'needs_evolution' && next) {
+        const needed = tower.template.evolutions[(next.requiresStage ?? 1) - 1];
+        buyClass += ' locked';
+        buyInner = `
+          <span class="tp-buy-note">REQUIRES</span>
+          <span class="tp-buy-name">${needed ? needed.name.toUpperCase() : 'EVOLUTION'}</span>
+        `;
+      } else if (next) {
+        const move = MOVES[next.moveId];
+        const col = TYPE_COLORS[move.type]?.hex || '#fff';
+        buyInner = `
+          <span class="tp-buy-name">${move.name.toUpperCase()}</span>
+          ${glyph(move.fxType, col, 22)}
+          <span class="tp-buy-cost">$${next.cost}</span>
+        `;
+      } else {
+        buyClass += ' maxed';
+        buyInner = `<span class="tp-buy-note">MASTERED</span>`;
       }
+
+      return `
+        <div class="tp-line">
+          <div class="tp-pips">${pips}</div>
+          <div class="tp-line-meta">
+            <span class="tp-line-label">${line.label}</span>
+            <span class="tp-line-move ${active ? '' : 'empty'}">${active ? active.name : 'No move'}</span>
+            <span class="tp-line-stats">${stats}</span>
+          </div>
+          <div class="${buyClass}" data-line="${idx}" ${next ? `data-cost="${next.cost}"` : ''}>${buyInner}</div>
+        </div>
+      `;
+    }).join('');
+
+    const nextEvo = tower.getNextEvolution();
+    const evoBlock = nextEvo
+      ? `<div class="tp-evolve" id="tp-evolve" data-cost="${nextEvo.cost}">
+           <div>
+             <span class="tp-evolve-label">EVOLVE → ${nextEvo.name.toUpperCase()}</span>
+             <span class="tp-evolve-sub">UNLOCKS TOP-TIER MOVES</span>
+           </div>
+           <span class="tp-evolve-cost">$${nextEvo.cost}</span>
+         </div>`
+      : `<div class="tp-evolve final">
+           <div>
+             <span class="tp-evolve-label">FINAL FORM</span>
+             <span class="tp-evolve-sub">ALL MOVE TIERS UNLOCKED</span>
+           </div>
+         </div>`;
+
+    this.panelEl.innerHTML = `
+      <div class="tp-header">
+        <span class="tp-title">${tower.name.toUpperCase()}</span>
+        <div class="tp-stage-pips">${stagePips}</div>
+        <button class="tp-close" id="tp-close">✕</button>
+      </div>
+
+      <div class="tp-crest" style="background: linear-gradient(135deg, ${typeCol.hex}33 0%, rgba(7,19,38,0.9) 70%);">
+        <div class="tp-crest-mark" style="background: radial-gradient(circle at 35% 30%, ${typeCol.light}, ${typeCol.hex});">
+          ${glyph(tower.primaryMove.fxType, '#0a1526', 28)}
+        </div>
+        <div class="tp-crest-meta">
+          <span class="tp-crest-type" style="color: ${typeCol.light};">${tower.template.type.toUpperCase()} TYPE</span>
+          <span class="tp-matchup" id="tp-matchup">—</span>
+        </div>
+      </div>
+
+      <div class="tp-target">
+        <button class="tp-arrow" id="tp-target-prev">◀</button>
+        <div>
+          <span class="tp-target-cap">TARGETING</span>
+          <span class="tp-target-label" id="tp-target-label">FIRST</span>
+        </div>
+        <button class="tp-arrow" id="tp-target-next">▶</button>
+      </div>
+
+      <div class="tp-lines">${lineRows}</div>
+
+      ${evoBlock}
+
+      <div class="tp-footer">
+        <div class="tp-sell-value">
+          <span>SELL VALUE</span>
+          <span id="tp-sell-value">$0</span>
+        </div>
+        <button class="tp-sell-btn" id="tp-sell">SELL</button>
+      </div>
+    `;
+
+    // Wire the freshly-built controls to the tower they were built for.
+    document.getElementById('tp-close')!.addEventListener('click', () => this.onDeselectTower());
+    document.getElementById('tp-sell')!.addEventListener('click', () => this.onSellTower(tower));
+    document.getElementById('tp-target-prev')!.addEventListener('click', () => this.onChangeTargetPriority(tower, -1));
+    document.getElementById('tp-target-next')!.addEventListener('click', () => this.onChangeTargetPriority(tower, 1));
+
+    const evoBtn = document.getElementById('tp-evolve');
+    if (evoBtn) evoBtn.addEventListener('click', () => this.onEvolveTower(tower));
+
+    this.panelEl.querySelectorAll<HTMLElement>('.tp-buy').forEach(btn => {
+      if (btn.classList.contains('maxed') || btn.classList.contains('locked')) return;
+      const lineIdx = Number(btn.dataset.line);
+      btn.addEventListener('click', () => this.onUpgradeTower(tower, lineIdx));
     });
   }
 
-  private currentSelectedTower: Tower | null = null;
+  /** Per-frame refresh: affordability, targeting, live match-up, sell value. */
+  private refreshPanel(tower: Tower, money: number): void {
+    const targetLabel = document.getElementById('tp-target-label');
+    if (targetLabel) targetLabel.innerText = tower.targetPriority.toUpperCase();
 
-  public update(state: UIState, screenPos?: { x: number; y: number; visible: boolean }): void {
+    const sellEl = document.getElementById('tp-sell-value');
+    if (sellEl) sellEl.innerText = `$${tower.getSellValue()}`;
+
+    const matchup = document.getElementById('tp-matchup');
+    if (matchup) {
+      const move = tower.primaryMove;
+      if (tower.currentTarget) {
+        const multiplier = move.ignoresType
+          ? 1
+          : getCombinedEffectiveness(move.type, tower.currentTarget.types);
+        matchup.innerText = `${move.type.toUpperCase()} → ${tower.currentTarget.types.join('/').toUpperCase()} ${multiplier}×`;
+        matchup.style.color = getEffectivenessLabel(multiplier).color;
+      } else {
+        matchup.innerText = `${tower.getKnownMoves().length} MOVE${tower.getKnownMoves().length === 1 ? '' : 'S'} KNOWN`;
+        matchup.style.color = '#8faecf';
+      }
+    }
+
+    this.panelEl.querySelectorAll<HTMLElement>('.tp-buy').forEach(btn => {
+      if (btn.classList.contains('maxed') || btn.classList.contains('locked')) return;
+      const cost = Number(btn.dataset.cost);
+      btn.classList.toggle('poor', money < cost);
+    });
+
+    const evoBtn = document.getElementById('tp-evolve');
+    if (evoBtn) {
+      evoBtn.classList.toggle('poor', money < Number((evoBtn as HTMLElement).dataset.cost));
+    }
+  }
+
+  public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
 
     // Top Bar updates
@@ -585,63 +1026,24 @@ export class StadiumUI {
     templates.forEach(tmpl => {
       const el = document.getElementById(`card-${tmpl.id}`);
       if (el) {
-        if (state.money < tmpl.cost) {
-          el.classList.add('disabled');
-        } else {
-          el.classList.remove('disabled');
-        }
-        if (state.selectedTemplate && state.selectedTemplate.id === tmpl.id) {
-          el.classList.add('selected');
-        } else {
-          el.classList.remove('selected');
-        }
+        el.classList.toggle('disabled', state.money < tmpl.cost);
+        el.classList.toggle('selected', state.selectedTemplate?.id === tmpl.id);
       }
     });
 
-    // Radial Menu Positioning & Content
-    if (state.selectedTower && screenPos && screenPos.visible) {
-      this.radialMenuEl.style.display = 'block';
-      this.radialMenuEl.style.left = `${screenPos.x}px`;
-      this.radialMenuEl.style.top = `${screenPos.y}px`;
-
-      const t = state.selectedTower;
-      document.getElementById('rad-name')!.innerText = t.name;
-      document.getElementById('rad-lvl')!.innerText = `LV. ${t.level} (${t.currentMove.name})`;
-      document.getElementById('rad-target-mode')!.innerText = t.targetPriority.toUpperCase();
-      const matchup = document.getElementById('rad-matchup')!;
-      if (t.currentTarget) {
-        const multiplier = t.currentMove.ignoresType
-          ? 1
-          : getCombinedEffectiveness(t.currentMove.type, t.currentTarget.types);
-        const effectiveness = getEffectivenessLabel(multiplier);
-        matchup.innerText = `${t.currentMove.type.toUpperCase()} → ${t.currentTarget.types.join('/').toUpperCase()} ${multiplier}×`;
-        matchup.style.color = effectiveness.color;
-      } else {
-        matchup.innerText = `${t.currentMove.type.toUpperCase()} · ${t.currentMove.basePower} POWER`;
-        matchup.style.color = TYPE_COLORS[t.currentMove.type].light;
+    // Tower Detail Panel
+    const tower = state.selectedTower;
+    if (tower) {
+      const signature = `${tower.id}|${tower.tiers.join(',')}|${tower.evolutionStage}`;
+      if (signature !== this.panelSignature) {
+        this.panelSignature = signature;
+        this.buildPanel(tower);
       }
-
-      // Upgrade / Evolve costs
-      const upBtn = document.getElementById('rad-upgrade')!;
-      const evBtn = document.getElementById('rad-evolve')!;
-      const sellVal = document.getElementById('rad-sell-val')!;
-
-      sellVal.innerText = `+$${t.getSellValue()}`;
-
-      if (t.level === 1) {
-        upBtn.style.display = 'flex';
-        evBtn.style.display = 'none';
-        document.getElementById('rad-up-cost')!.innerText = `$${t.template.upgradeCost}`;
-      } else if (t.level === 2) {
-        upBtn.style.display = 'none';
-        evBtn.style.display = 'flex';
-        document.getElementById('rad-ev-cost')!.innerText = `$${t.template.evolveCost}`;
-      } else {
-        upBtn.style.display = 'none';
-        evBtn.style.display = 'none';
-      }
+      this.panelEl.classList.add('open');
+      this.refreshPanel(tower, state.money);
     } else {
-      this.radialMenuEl.style.display = 'none';
+      this.panelEl.classList.remove('open');
+      this.panelSignature = '';
     }
 
     // Announcer Banner
