@@ -4,28 +4,40 @@
  * Generates the iconic Pokémon Stadium arena:
  * - Central Poké Ball battle pitch with authentic graphics
  * - Winding 3D tactical lane with waypoints
- * - Interactive tower placement pedestals
+ * - Free-placement build rules: arena bounds, lane clearance, keep-out zones
  * - Stadium grandstands, animated spectator crowd, and perimeter walls
  * - Floodlight towers and giant stadium jumbotrons
  */
 
 import * as THREE from 'three';
 
-export interface PedestalSlot {
-  id: number;
-  position: THREE.Vector3;
-  mesh: THREE.Mesh;
-  occupied: boolean;
-  towerId: string | null;
+/** Why the arena itself refuses a spot. `null` means the ground is clear. */
+export type BuildBlockReason = 'out_of_bounds' | 'on_lane' | 'restricted' | null;
+
+/** A circular region a map declares permanently off-limits for building. */
+export interface NoBuildZone {
+  x: number;
+  z: number;
+  radius: number;
+  label: string;
 }
 
 export class StadiumArena {
   public group: THREE.Group = new THREE.Group();
   public waypoints: THREE.Vector3[] = [];
-  public pedestals: PedestalSlot[] = [];
-  public pedestalMeshes: THREE.Mesh[] = [];
+
+  /** Towers may be placed anywhere inside this radius of the pitch centre. */
+  public readonly buildableRadius = 31;
+  /** Half the creep lane's visual width — a footprint must clear it entirely. */
+  private readonly laneHalfWidth = 1.6;
+  /** Map-authored keep-out regions. The colosseum declares none. */
+  private noBuildZones: NoBuildZone[] = [];
+  /** Densely sampled lane centreline, used for clearance tests. */
+  private pathSamples: THREE.Vector3[] = [];
+
   private environmentGroup = new THREE.Group();
   private gameplayGroup = new THREE.Group();
+  private noBuildGroup = new THREE.Group();
 
   // Jumbotron dynamic canvas textures
   private jumbotronCanvas: HTMLCanvasElement;
@@ -35,6 +47,8 @@ export class StadiumArena {
   constructor() {
     this.environmentGroup.name = 'arena-environment';
     this.gameplayGroup.name = 'tower-defense-overlay';
+    this.noBuildGroup.name = 'no-build-zones';
+    this.gameplayGroup.add(this.noBuildGroup);
     this.group.add(this.environmentGroup, this.gameplayGroup);
     this.jumbotronCanvas = document.createElement('canvas');
     this.jumbotronCanvas.width = 512;
@@ -44,7 +58,9 @@ export class StadiumArena {
 
     this.initArena();
     this.initWaypoints();
-    this.initPedestals();
+    // Sampled once: every placement test measures against these points, and the
+    // spacing (~0.6 units) bounds how far a footprint can cheat toward the lane.
+    this.pathSamples = this.createPathCurve().getPoints(240);
   }
 
   private initArena(): void {
@@ -372,71 +388,56 @@ export class StadiumArena {
     this.waypoints = this.createPathCurve().getPoints(72);
   }
 
-  private initPedestals(): void {
-    // Select deterministic slots with guaranteed clearance from both the lane
-    // and each other. This prevents tower footprints from intersecting creeps.
-    const pathSamples = this.createPathCurve().getPoints(180);
-    const candidates: THREE.Vector3[] = [];
-    for (const radius of [5.5, 10.5, 14.5, 24]) {
-      const count = radius < 8 ? 8 : radius < 13 ? 12 : 16;
-      for (let index = 0; index < count; index++) {
-        const angle = index / count * Math.PI * 2 + (radius % 2) * 0.17;
-        candidates.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
-      }
+  /**
+   * Arena-side placement test for a footprint of `radius` centred on (x, z).
+   * Tower-versus-tower crowding is the game's concern, not the arena's.
+   */
+  public isBuildable(x: number, z: number, radius: number): BuildBlockReason {
+    if (Math.hypot(x, z) > this.buildableRadius - radius) return 'out_of_bounds';
+
+    const laneClearance = this.laneHalfWidth + radius;
+    for (const point of this.pathSamples) {
+      if (Math.hypot(x - point.x, z - point.z) < laneClearance) return 'on_lane';
     }
-    const laneClearance = 4.7;
-    const slotSpacing = 5.4;
-    const pedestalPositions: THREE.Vector3[] = [];
-    for (const candidate of candidates) {
-      const clearsLane = pathSamples.every((point) =>
-        Math.hypot(candidate.x - point.x, candidate.z - point.z) >= laneClearance);
-      const clearsSlots = pedestalPositions.every((other) => candidate.distanceTo(other) >= slotSpacing);
-      if (clearsLane && clearsSlots) pedestalPositions.push(candidate);
-      if (pedestalPositions.length === 12) break;
+
+    for (const zone of this.noBuildZones) {
+      if (Math.hypot(x - zone.x, z - zone.z) < zone.radius + radius) return 'restricted';
     }
-    if (pedestalPositions.length < 12) throw new Error('could not place 12 path-safe tower pedestals');
 
-    pedestalPositions.forEach((pos, idx) => {
-      const pedGeo = new THREE.CylinderGeometry(1.8, 2.1, 0.8, 16);
-      const pedMat = new THREE.MeshStandardMaterial({
-        color: 0x1d2d44,
-        metalness: 0.7,
-        roughness: 0.35,
-      });
-      const mesh = new THREE.Mesh(pedGeo, pedMat);
-      mesh.position.set(pos.x, 0.4, pos.z);
-      mesh.receiveShadow = true;
-      mesh.castShadow = true;
-
-      // Glowing blue rim ring
-      const ringGeo = new THREE.TorusGeometry(1.85, 0.08, 8, 24);
-      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.41;
-      mesh.add(ring);
-
-      mesh.userData = { isPedestal: true, pedestalId: idx };
-
-      this.gameplayGroup.add(mesh);
-      this.pedestals.push({
-        id: idx,
-        position: new THREE.Vector3(pos.x, 0.8, pos.z),
-        mesh,
-        occupied: false,
-        towerId: null,
-      });
-      this.pedestalMeshes.push(mesh);
-    });
+    return null;
   }
 
-  public setPedestalHighlight(id: number, highlight: boolean, colorHex: number = 0xffd700): void {
-    const ped = this.pedestals.find(p => p.id === id);
-    if (!ped) return;
-    const ring = ped.mesh.children[0] as THREE.Mesh;
-    if (ring && ring.material) {
-      (ring.material as THREE.MeshBasicMaterial).color.setHex(highlight ? colorHex : 0x00f0ff);
-      ped.mesh.scale.set(highlight ? 1.08 : 1.0, highlight ? 1.08 : 1.0, highlight ? 1.08 : 1.0);
-    }
+  public getNoBuildZones(): readonly NoBuildZone[] {
+    return this.noBuildZones;
+  }
+
+  /** Replaces the map's keep-out regions along with their on-field markings. */
+  public setNoBuildZones(zones: NoBuildZone[]): void {
+    this.noBuildZones = zones;
+
+    this.noBuildGroup.children.forEach((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        (child.material as THREE.Material).dispose();
+      }
+    });
+    this.noBuildGroup.clear();
+
+    zones.forEach((zone) => {
+      const marker = new THREE.Mesh(
+        new THREE.CircleGeometry(zone.radius, 40),
+        new THREE.MeshBasicMaterial({
+          color: 0xd90429,
+          transparent: true,
+          opacity: 0.16,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+      );
+      marker.rotation.x = -Math.PI / 2;
+      marker.position.set(zone.x, 0.04, zone.z);
+      marker.renderOrder = 3;
+      this.noBuildGroup.add(marker);
+    });
   }
 }
