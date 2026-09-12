@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { AnimatedPokemon, PokemonModelFactory } from '../stadium/PokemonModels';
+import { PokemonGait } from '../stadium/PokemonGait';
 import { PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
 import { StatusEffectType } from '../stadium/MoveDatabase';
 
@@ -52,6 +53,10 @@ export class Creep {
   public position: THREE.Vector3 = new THREE.Vector3();
   public group: THREE.Group = new THREE.Group();
   public animPokemon: AnimatedPokemon;
+  /** Turns toward the path so the gait can pose the model in its own frame. */
+  private facing: THREE.Group = new THREE.Group();
+  private gait: PokemonGait;
+  private lastPosition = new THREE.Vector3();
 
   // Path following
   private waypoints: THREE.Vector3[];
@@ -117,7 +122,8 @@ export class Creep {
         this.animPokemon = PokemonModelFactory.createRattata();
     }
 
-    this.group.add(this.animPokemon.mesh);
+    this.group.add(this.facing);
+    this.facing.add(this.animPokemon.mesh);
     if (this.threat === 'elite') {
       this.addThreatAura(0x8ee7ff);
     } else if (this.threat === 'titan') {
@@ -127,12 +133,16 @@ export class Creep {
     // Asynchronously load authentic GLB model & animations
     const modelName = (config.modelName || config.name).toLowerCase()
       .replace('titan ', '').replace('boss ', '').trim();
+    this.gait = new PokemonGait(modelName);
     PokemonModelFactory.loadAuthenticModel(modelName, undefined, () => this.animPokemon).then((loaded) => {
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
-        this.group.remove(this.animPokemon.mesh);
+        this.facing.remove(this.animPokemon.mesh);
         this.animPokemon = loaded;
-        this.group.add(this.animPokemon.mesh);
-        if (loaded.height !== undefined) this.hpSprite.position.y = loaded.height + HP_BAR_CLEARANCE;
+        this.facing.add(this.animPokemon.mesh);
+        if (loaded.height !== undefined) {
+          this.hpSprite.position.y = loaded.height + HP_BAR_CLEARANCE;
+          this.gait.height = loaded.height;
+        }
       }
     });
 
@@ -141,6 +151,7 @@ export class Creep {
       this.position.copy(waypoints[0]);
       this.group.position.copy(this.position);
     }
+    this.lastPosition.copy(this.position);
 
     // 3D Billboard Sprite for HP Bar
     this.hpCanvas = document.createElement('canvas');
@@ -283,6 +294,7 @@ export class Creep {
     }
     if (!this.alive) {
       if (!this.reachedEnd) {
+        this.gait.update(this.animPokemon.mesh, 0, dt);
         this.animPokemon.update(time, dt, 'faint');
         this.faintAnimationTimer -= dt;
         this.removalReady = this.faintAnimationTimer <= 0;
@@ -290,6 +302,7 @@ export class Creep {
       return;
     }
     if (this.captureLocked) {
+      this.gait.update(this.animPokemon.mesh, 0, dt);
       this.animPokemon.update(time, dt, 'hit');
       return;
     }
@@ -363,7 +376,7 @@ export class Creep {
         // Smooth look-at facing
         const lookPos = targetWp.clone();
         lookPos.y = this.position.y;
-        this.animPokemon.mesh.lookAt(lookPos);
+        this.facing.lookAt(lookPos);
         break;
       }
     }
@@ -371,6 +384,8 @@ export class Creep {
       this.pathProgress = -(this.position.distanceTo(this.waypoints[this.currentWpIdx]) + this.remainingAtWaypoint[this.currentWpIdx]);
     }
     this.group.position.copy(this.position);
+    this.gait.update(this.animPokemon.mesh, this.position.distanceTo(this.lastPosition), dt);
+    this.lastPosition.copy(this.position);
 
     // Rendering follows combat state without changing movement or damage timing.
     this.entranceTimer -= dt;
