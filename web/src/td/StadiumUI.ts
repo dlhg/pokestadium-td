@@ -16,7 +16,7 @@ import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
 import { mapPreview } from './MapPreview';
-import { BallType } from './CaptureSequence';
+import { BallType, CaptureHud } from './CaptureSequence';
 import './map-select.css';
 
 /** What the roster hint says about the spot the cursor is currently over. */
@@ -31,6 +31,8 @@ export interface UIState {
   balls: Record<BallType, number>;
   selectedBall: BallType | null;
   captureHint: string | null;
+  /** Live capture set piece, or null when no ball is in the air. */
+  captureCinema: CaptureHud | null;
   cupName: string;
   round: number;
   inWave: boolean;
@@ -82,6 +84,9 @@ export class StadiumUI {
   private capturedTemplates: TowerTemplate[] = [];
 
   // Callbacks
+  private cinemaEl!: HTMLElement;
+  private cinemaVerdict: string = '';
+
   public onSelectTemplate: (template: TowerTemplate | null) => void = () => {};
   public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
   public onEvolveTower: (tower: Tower) => void = () => {};
@@ -162,6 +167,54 @@ export class StadiumUI {
         .capture-kit { display:flex; gap:4px; align-items:center; }
         .ball-choice { min-width:38px; padding:4px 5px; font-size:11px; }
         .ball-choice.selected { border-color:#fff; box-shadow:0 0 10px #f6c437; background:linear-gradient(180deg,#f6c437,#a85d00); color:#071326; }
+        /* ---- Capture cinematic overlay ---- */
+        /* Gameplay chrome recedes so the ball owns the screen. */
+        #top-bar, #controls-bar, #card-deck, #tower-panel, #course-info, #poke-mart, #capture-hint { transition:opacity .28s ease, filter .28s ease; }
+        .cinema-live #top-bar, .cinema-live #controls-bar, .cinema-live #card-deck,
+        .cinema-live #tower-panel, .cinema-live #course-info, .cinema-live #poke-mart,
+        .cinema-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
+        .cinema-live #announcer-banner { display:none !important; }
+        #capture-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .18s ease; }
+        #capture-cinema.live { opacity:1; }
+        .cine-bar { position:absolute; left:0; right:0; height:13vh; background:#04070d; box-shadow:0 0 40px rgba(0,0,0,.9); transform:translateY(0); }
+        .cine-bar.top { top:0; }
+        .cine-bar.bottom { bottom:0; }
+        #cine-vignette { position:absolute; inset:0; background:radial-gradient(ellipse 60% 50% at 50% 52%, rgba(0,0,0,0) 32%, rgba(3,6,14,.55) 72%, rgba(3,6,14,.88) 100%); }
+        #cine-flare { position:absolute; inset:0; background:#fff; opacity:0; mix-blend-mode:screen; }
+        #cine-card {
+          position:absolute; left:50%; top:calc(13vh + 22px); transform:translateX(-50%) skew(-7deg);
+          display:flex; align-items:center; gap:12px; padding:8px 18px 8px 12px;
+          background:linear-gradient(180deg,#16305a 0%,#07142a 100%);
+          border:2px solid #f6c437; border-left:6px solid #f6c437;
+          box-shadow:0 6px 0 rgba(3,7,16,.75), 0 0 26px rgba(246,196,55,.35);
+        }
+        #cine-card .cine-orb { width:30px; height:30px; border-radius:50%; border:2px solid #0a0f1b; box-shadow:inset 0 -6px 10px rgba(0,0,0,.45), 0 0 14px currentColor; }
+        #cine-card .cine-orb.poke { background:linear-gradient(180deg,#d90429 50%,#fff 50%); color:#ff5566; }
+        #cine-card .cine-orb.great { background:linear-gradient(180deg,#2468c7 50%,#f14b3e 50%); color:#5fa8ff; }
+        #cine-card .cine-orb.ultra { background:linear-gradient(180deg,#1b1b20 50%,#f3c532 50%); color:#ffd34d; }
+        #cine-card .cine-copy { display:flex; flex-direction:column; line-height:1; }
+        #cine-target { font-family:'Teko','Impact',sans-serif; font-size:26px; letter-spacing:1.4px; color:#fff; text-shadow:2px 2px #08152b; }
+        #cine-sub { font-size:11px; font-weight:800; letter-spacing:1.6px; color:#f6c437; }
+        #cine-pips { display:flex; gap:6px; margin-left:8px; }
+        .cine-pip { width:13px; height:13px; border-radius:50%; border:2px solid #7d93b5; background:#0a1428; transition:all .12s ease; }
+        .cine-pip.lit { border-color:#fff2a7; background:radial-gradient(circle at 40% 35%,#fff,#f6c437 60%,#a85d00); box-shadow:0 0 12px #f6c437; transform:scale(1.18); }
+        /* The caption rides inside the lower bar so it never fights the ball. */
+        #cine-caption {
+          position:absolute; left:50%; bottom:calc(6.5vh - 26px); transform:translateX(-50%) skew(-7deg);
+          font-family:'Teko','Impact',sans-serif; font-size:40px; letter-spacing:2px; color:#fff;
+          text-shadow:0 0 18px rgba(0,0,0,.9), 3px 4px #0a1428; white-space:nowrap;
+        }
+        #cine-verdict {
+          position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) skew(-8deg) scale(1);
+          font-family:'Teko','Impact',sans-serif; font-size:104px; line-height:.85; letter-spacing:3px;
+          white-space:nowrap; opacity:0; text-align:center;
+        }
+        #cine-verdict.caught { opacity:1; color:#fff3b0; text-shadow:0 0 30px #f6c437, 4px 6px #7a3d00, 0 0 70px rgba(246,196,55,.7); animation:cine-slam .45s cubic-bezier(.14,1.5,.4,1) forwards; }
+        #cine-verdict.broke { opacity:1; color:#ffd7d7; text-shadow:0 0 26px #ff3b3b, 4px 6px #55070f; animation:cine-shatter .4s ease-out forwards; }
+        @keyframes cine-slam { 0% { opacity:1; transform:translate(-50%,-50%) skew(-8deg) scale(2.4); } 70% { opacity:1; transform:translate(-50%,-50%) skew(-8deg) scale(.92); } 100% { opacity:1; transform:translate(-50%,-50%) skew(-8deg) scale(1); } }
+        @keyframes cine-shatter { 0% { opacity:1; transform:translate(-50%,-50%) skew(-8deg) scale(.6) rotate(-6deg); } 60% { opacity:1; transform:translate(-50%,-52%) skew(-8deg) scale(1.12) rotate(2deg); } 100% { opacity:1; transform:translate(-50%,-50%) skew(-8deg) scale(1.02) rotate(0); } }
+        @media (prefers-reduced-motion: reduce) { #cine-verdict.caught, #cine-verdict.broke { animation:none; opacity:1; } }
+
         #capture-hint { position:absolute; bottom:136px; left:18px; color:#fff2a7; font-weight:800; letter-spacing:.8px; text-shadow:0 2px 3px #000; z-index:31; background:rgba(9,25,51,.88); border-left:3px solid #f6c437; padding:6px 10px; }
         #capture-hint:empty { display:none; }
         #poke-mart { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:flex; gap:7px; align-items:center; }
@@ -929,6 +982,21 @@ export class StadiumUI {
 
       <div id="course-info"><button id="btn-maps" class="stadium-btn interactive">MAPS</button><strong id="course-name"></strong><span id="course-strategy"></span></div>
       <div id="capture-hint"></div>
+
+      <!-- Capture Cinematic -->
+      <div id="capture-cinema">
+        <div id="cine-vignette"></div>
+        <div class="cine-bar top"></div>
+        <div class="cine-bar bottom"></div>
+        <div id="cine-flare"></div>
+        <div id="cine-card">
+          <div class="cine-orb poke" id="cine-orb"></div>
+          <div class="cine-copy"><span id="cine-target">CHALLENGER</span><span id="cine-sub">POKÉ BALL · 0%</span></div>
+          <div id="cine-pips"></div>
+        </div>
+        <div id="cine-caption">CAPTURE ATTEMPT</div>
+        <div id="cine-verdict"></div>
+      </div>
       <div id="poke-mart" class="stadium-panel interactive"><strong>POKÉ MART</strong><button class="stadium-btn mart-item" data-buy-ball="poke">BALL $35</button><button class="stadium-btn mart-item" data-buy-ball="great">GREAT $85</button><button class="stadium-btn mart-item" data-buy-ball="ultra">ULTRA $170</button></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
@@ -937,6 +1005,7 @@ export class StadiumUI {
     this.cardDeckEl = document.getElementById('card-deck')!;
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
+    this.cinemaEl = document.getElementById('capture-cinema')!;
 
     this.bindEvents();
     this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => button.addEventListener('click', () => this.onBuyBall(button.dataset.buyBall as BallType)));
@@ -1227,6 +1296,54 @@ export class StadiumUI {
     }
   }
 
+  /**
+   * Mirrors the live capture set piece: letterbox bars ride in, the vignette
+   * tightens with the sequence's tension, wobble pips light one per click, and
+   * the verdict slams in over the whole screen.
+   */
+  private renderCaptureCinema(cinema: CaptureHud | null): void {
+    if (!cinema) {
+      if (this.cinemaEl.classList.contains('live')) {
+        this.cinemaEl.classList.remove('live');
+        this.container.classList.remove('cinema-live');
+        this.cinemaVerdict = '';
+        this.cinemaEl.querySelector<HTMLElement>('#cine-verdict')!.className = '';
+      }
+      return;
+    }
+    this.cinemaEl.classList.add('live');
+    this.container.classList.add('cinema-live');
+
+    const bars = this.cinemaEl.querySelectorAll<HTMLElement>('.cine-bar');
+    bars[0].style.transform = `translateY(${(cinema.letterbox - 1) * 100}%)`;
+    bars[1].style.transform = `translateY(${(1 - cinema.letterbox) * 100}%)`;
+    this.cinemaEl.querySelector<HTMLElement>('#cine-vignette')!.style.opacity = `${0.35 + cinema.tension * 0.65}`;
+    // A pale flare rides the tension so the near-frozen wobble beats still breathe.
+    this.cinemaEl.querySelector<HTMLElement>('#cine-flare')!.style.opacity =
+      cinema.phase === 'wobble' ? `${0.04 + Math.abs(Math.sin(performance.now() * 0.006)) * 0.05 * cinema.tension}` : '0';
+
+    this.cinemaEl.querySelector<HTMLElement>('#cine-orb')!.className = `cine-orb ${cinema.ballType}`;
+    this.cinemaEl.querySelector<HTMLElement>('#cine-target')!.innerText = cinema.targetName;
+    this.cinemaEl.querySelector<HTMLElement>('#cine-sub')!.innerText =
+      `${cinema.ballName} · ${(cinema.chance * 100).toFixed(0)}% CATCH RATE`;
+    this.cinemaEl.querySelector<HTMLElement>('#cine-caption')!.innerText = cinema.caption;
+
+    const pips = this.cinemaEl.querySelector<HTMLElement>('#cine-pips')!;
+    if (pips.children.length !== cinema.totalWobbles) {
+      pips.innerHTML = Array.from({ length: cinema.totalWobbles }, () => '<div class="cine-pip"></div>').join('');
+    }
+    Array.from(pips.children).forEach((pip, idx) => pip.classList.toggle('lit', idx < cinema.wobbles));
+
+    const verdict = this.cinemaEl.querySelector<HTMLElement>('#cine-verdict')!;
+    const label = cinema.verdict === 'caught' ? 'GOTCHA!' : cinema.verdict === 'broke' ? 'BROKE FREE!' : '';
+    if (label !== this.cinemaVerdict) {
+      this.cinemaVerdict = label;
+      verdict.innerText = label;
+      // Reassigning the class restarts the slam/shatter keyframes.
+      verdict.className = cinema.verdict ?? '';
+    }
+  }
+
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
     document.getElementById('course-name')!.innerText=state.mapName.toUpperCase();
@@ -1258,6 +1375,7 @@ export class StadiumUI {
       if (button.textContent !== label) button.textContent = label;
       button.disabled = state.balls[type] <= 0;
     });
+    this.renderCaptureCinema(state.captureCinema);
     const captureHint = document.getElementById('capture-hint')!;
     captureHint.innerText = state.captureHint || '';
     const mart = document.getElementById('poke-mart')!;

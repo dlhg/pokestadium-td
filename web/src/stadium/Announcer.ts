@@ -23,6 +23,8 @@ export class StadiumAnnouncer {
     elite_spawn: { cooldown: 12_000, chance: 1 }, elite_defeat: { cooldown: 12_000, chance: 0.7 },
     victory: { cooldown: 0, chance: 1 }, game_over: { cooldown: 0, chance: 1 },
     tower_evolve: { cooldown: 15_000, chance: 0.6 }, wave_cleared: { cooldown: 22_000, chance: 0.2 },
+    capture_throw: { cooldown: 0, chance: 1 },
+    capture_success: { cooldown: 0, chance: 1 }, capture_failed: { cooldown: 0, chance: 1 },
   };
   private static readonly originalVoiceClips: Partial<Record<string, number[]>> = {
     battle_start: [222],
@@ -134,6 +136,12 @@ export class StadiumAnnouncer {
         return [
           { text: `WHAT'S THIS? ${detail || 'YOUR POKÉMON'} IS EVOLVING!`, intensity: 'epic' },
           { text: "AN ASTONISHING POWER SURGE! IT HAS EVOLVED!", intensity: 'epic' }
+        ];
+      case 'capture_throw':
+        return [
+          { text: `THE BALL IS AWAY — AT ${detail || 'THE CHALLENGER'}!`, intensity: 'epic' },
+          { text: "HERE COMES THE THROW! THE CROWD HOLDS ITS BREATH!", intensity: 'epic' },
+          { text: `A CAPTURE ATTEMPT ON ${detail || 'THE CHALLENGER'}!`, intensity: 'epic' },
         ];
       case 'capture_success':
         return [{ text: `${detail || 'THE POKÉMON'} WAS CAUGHT! A NEW TOWER JOINS THE ROSTER!`, intensity: 'epic' }];

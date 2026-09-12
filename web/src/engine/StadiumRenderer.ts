@@ -103,12 +103,16 @@ export class StadiumRenderer {
     });
   }
 
+  /** 0 = full house lights, 1 = blackout. Set by set pieces that want a single spot. */
+  public floodlightDim: number = 0;
+
   public update(dt: number, battleIntensity: number): void {
     // Subtle breathing/pulsing animation for stadium floodlights
     const time = performance.now() * 0.001;
+    const dim = 1 - Math.min(1, Math.max(0, this.floodlightDim));
     this.floodlights.forEach((spot, idx) => {
       const baseIntensity = 1.8 + (battleIntensity * 1.2);
-      spot.intensity = baseIntensity + Math.sin(time * 2 + idx) * 0.3;
+      spot.intensity = (baseIntensity + Math.sin(time * 2 + idx) * 0.3) * dim;
     });
   }
 
