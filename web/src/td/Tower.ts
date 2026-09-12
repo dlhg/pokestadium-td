@@ -17,6 +17,12 @@ export type TargetPriority = 'first' | 'last' | 'strongest' | 'weakest';
 
 export const TARGET_PRIORITIES: TargetPriority[] = ['first', 'strongest', 'weakest', 'last'];
 
+/** Ground radius a tower occupies. Drives lane clearance and tower spacing. */
+export const TOWER_FOOTPRINT_RADIUS = 1.6;
+
+/** Height of the deploy pad a tower stands on, and so the tower's ground Y. */
+export const TOWER_BASE_HEIGHT = 0.3;
+
 /** One purchasable step within a move line. */
 export interface MoveTier {
   moveId: string;
@@ -242,7 +248,6 @@ export type UpgradeBlockReason = 'maxed' | 'needs_evolution' | null;
 export class Tower {
   public id: string;
   public template: TowerTemplate;
-  public pedestalId: number;
   public position: THREE.Vector3;
   public targetPriority: TargetPriority = 'first';
   public totalInvested: number;
@@ -262,14 +267,18 @@ export class Tower {
   private modelLoadGeneration = 0;
   public currentTarget: Creep | null = null;
 
-  constructor(template: TowerTemplate, pedestalId: number, pos: THREE.Vector3) {
+  constructor(template: TowerTemplate, pos: THREE.Vector3) {
     this.id = `tower_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     this.template = template;
-    this.pedestalId = pedestalId;
     this.position = pos.clone();
     this.totalInvested = template.cost;
 
     this.group.position.copy(pos);
+    // Lets a raycast against any child mesh resolve back to this tower.
+    this.group.userData.towerId = this.id;
+
+    // Free placement means a tower brings its own footing to wherever it lands.
+    this.group.add(this.createBasePad());
 
     // Instantiate 3D Model
     this.animPokemon = template.createModel();
@@ -286,12 +295,43 @@ export class Tower {
     });
     this.rangeRing = new THREE.Mesh(ringGeo, ringMat);
     this.rangeRing.rotation.x = -Math.PI / 2;
-    this.rangeRing.position.y = 0.05;
+    // Rides above the lane ribbon (y = 0.5) so the ring stays readable where it
+    // crosses the track instead of being clipped by it.
+    this.rangeRing.position.y = 0.35;
     this.rangeRing.visible = false;
     this.group.add(this.rangeRing);
 
     // Asynchronously load authentic GLB model & animations
     this.loadAuthenticModel();
+  }
+
+  /** Metallic deploy pad, sized to the footprint the placement rules enforce. */
+  private createBasePad(): THREE.Group {
+    const pad = new THREE.Group();
+    pad.position.y = -TOWER_BASE_HEIGHT / 2;
+
+    const disc = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        TOWER_FOOTPRINT_RADIUS * 0.88,
+        TOWER_FOOTPRINT_RADIUS,
+        TOWER_BASE_HEIGHT,
+        20
+      ),
+      new THREE.MeshStandardMaterial({ color: 0x1d2d44, metalness: 0.7, roughness: 0.35 })
+    );
+    disc.receiveShadow = true;
+    disc.castShadow = true;
+    pad.add(disc);
+
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(TOWER_FOOTPRINT_RADIUS * 0.9, 0.07, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+    );
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = TOWER_BASE_HEIGHT / 2;
+    pad.add(rim);
+
+    return pad;
   }
 
   /** Display name follows the evolution track. */

@@ -5,9 +5,10 @@
  * Also includes automated scene-population for headless screenshot verification.
  */
 
+import * as THREE from 'three';
 import { StadiumTDGame } from './td/StadiumTDGame';
 import { Input } from './engine/Input';
-import { TOWER_TEMPLATES, Tower } from './td/Tower';
+import { TOWER_TEMPLATES, Tower, TOWER_BASE_HEIGHT } from './td/Tower';
 import { Creep } from './td/Creep';
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -32,17 +33,13 @@ window.addEventListener('DOMContentLoaded', () => {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
 
-      // Populate battle scene for screenshots
-      const ped0 = game.arena.pedestals[0];
-      const t0 = new Tower(TOWER_TEMPLATES.pikachu, ped0.id, ped0.position);
+      // Populate battle scene for screenshots — free placement means these are
+      // just open turf coordinates, chosen clear of the creep lane.
+      const t0 = new Tower(TOWER_TEMPLATES.pikachu, new THREE.Vector3(-8, TOWER_BASE_HEIGHT, -6));
       game.renderer.scene.add(t0.group);
       game.towers.push(t0);
-      ped0.occupied = true;
-      ped0.towerId = t0.id;
 
-      // Charizard on pedestal 1
-      const ped1 = game.arena.pedestals[1];
-      const t1 = new Tower(TOWER_TEMPLATES.charizard, ped1.id, ped1.position);
+      const t1 = new Tower(TOWER_TEMPLATES.charizard, new THREE.Vector3(8, TOWER_BASE_HEIGHT, -6));
       t1.evolve(); // Charmeleon
       t1.evolve(); // Charizard!
       t1.buyUpgrade(0); // Flamethrower
@@ -50,29 +47,22 @@ window.addEventListener('DOMContentLoaded', () => {
       t1.buyUpgrade(2); // Smokescreen
       game.renderer.scene.add(t1.group);
       game.towers.push(t1);
-      ped1.occupied = true;
-      ped1.towerId = t1.id;
 
-      // Blastoise on pedestal 3
-      const ped3 = game.arena.pedestals[3];
-      const t3 = new Tower(TOWER_TEMPLATES.blastoise, ped3.id, ped3.position);
+      const t3 = new Tower(TOWER_TEMPLATES.blastoise, new THREE.Vector3(0, TOWER_BASE_HEIGHT, 8));
       t3.evolve();
       t3.evolve(); // Blastoise!
       t3.buyUpgrade(1); // Bite
       t3.buyUpgrade(1); // Ice Beam
       game.renderer.scene.add(t3.group);
       game.towers.push(t3);
-      ped3.occupied = true;
-      ped3.towerId = t3.id;
 
       if (shot === 'placement_preview') {
-        // Hover an open platform with Bulbasaur armed for placement so visual
+        // Hover open turf with Bulbasaur armed for placement so visual
         // verification captures both the side roster and its exact range.
         game.selectedTemplate = TOWER_TEMPLATES.venusaur;
-        const previewPedestal = game.arena.pedestals[2];
         game.arena.group.updateMatrixWorld(true);
         game.camera.camera.updateMatrixWorld(true);
-        const projected = previewPedestal.position.clone().project(game.camera.camera);
+        const projected = new THREE.Vector3(-9, TOWER_BASE_HEIGHT, 6).project(game.camera.camera);
         input.mouseNDC.set(projected.x, projected.y);
       } else {
         // Select Pikachu to showcase the move shop: one line part-bought, one

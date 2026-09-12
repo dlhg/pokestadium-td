@@ -11,15 +11,35 @@ import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { StadiumAudio } from '../engine/StadiumAudio';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { Input } from '../engine/Input';
-import { StadiumArena, PedestalSlot } from '../stadium/StadiumArena';
+import { StadiumArena, type BuildBlockReason } from '../stadium/StadiumArena';
 import { StadiumAnnouncer } from '../stadium/Announcer';
-import { StadiumUI } from './StadiumUI';
-import { Tower, TowerTemplate, TARGET_PRIORITIES } from './Tower';
+import { StadiumUI, type PlacementStatus } from './StadiumUI';
+import {
+  Tower,
+  TowerTemplate,
+  TARGET_PRIORITIES,
+  TOWER_FOOTPRINT_RADIUS,
+  TOWER_BASE_HEIGHT,
+} from './Tower';
 import { Creep } from './Creep';
 import { Projectile } from './Projectile';
 import { WaveManager } from './WaveManager';
 import { getCombinedEffectiveness } from '../stadium/TypeMatrix';
 import { MOVES } from '../stadium/MoveDatabase';
+
+/** Everything that can veto dropping the armed tower under the cursor. */
+type PlacementBlockReason =
+  | Exclude<BuildBlockReason, null>
+  | 'overlaps_tower'
+  | 'too_expensive';
+
+const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
+  too_expensive: 'NOT ENOUGH PRIZE MONEY',
+  out_of_bounds: 'OUTSIDE THE ARENA',
+  on_lane: 'TOO CLOSE TO THE LANE',
+  restricted: 'NO-BUILD ZONE',
+  overlaps_tower: 'ANOTHER POKÉMON IS THERE',
+};
 
 export class StadiumTDGame {
   public renderer!: StadiumRenderer;
@@ -47,9 +67,9 @@ export class StadiumTDGame {
   // Selection states
   public selectedTemplate: TowerTemplate | null = null;
   public selectedTower: Tower | null = null;
-  private hoveredPedestal: PedestalSlot | null = null;
   private placementPreview: THREE.Group = new THREE.Group();
   private placementPreviewTemplateId: string | null = null;
+  private placementStatus: PlacementStatus | null = null;
 
   public init(canvas: HTMLCanvasElement, uiContainer: HTMLElement): void {
     this.renderer = new StadiumRenderer(canvas);
@@ -153,11 +173,6 @@ export class StadiumTDGame {
   }
 
   private removeTower(tower: Tower): void {
-    const ped = this.arena.pedestals.find(p => p.id === tower.pedestalId);
-    if (ped) {
-      ped.occupied = false;
-      ped.towerId = null;
-    }
     this.renderer.scene.remove(tower.group);
     this.towers = this.towers.filter(t => t.id !== tower.id);
   }
@@ -169,96 +184,132 @@ export class StadiumTDGame {
     if (input.isKeyJustPressed('Digit3')) this.camera.setMode('action');
     if (input.isKeyJustPressed('Space')) this.isPaused = !this.isPaused;
     if (input.isKeyJustPressed('Escape') || input.rightClicked) {
-      if (this.selectedTower) {
-        this.selectedTower.setSelected(false);
-        this.selectedTower = null;
-      }
-      this.selectedTemplate = null;
-      this.placementPreview.visible = false;
+      this.clearSelection();
     }
 
-    // Raycast pedestals for placement & selection
-    const intersects = input.raycast(this.camera.camera, this.arena.pedestalMeshes);
+    // Free placement: the cursor's spot on the pitch is the candidate site.
+    const ground = input.raycastGround(this.camera.camera, 0);
 
-    let currentPed: PedestalSlot | null = null;
-    if (intersects.length > 0) {
-      const hit = intersects[0].object;
-      const pedId = hit.userData.pedestalId;
-      currentPed = this.arena.pedestals.find(p => p.id === pedId) || null;
+    // An armed template owns the cursor — clicks drop it, never select a tower.
+    if (this.selectedTemplate) {
+      this.updatePlacement(this.selectedTemplate, ground, input);
+      return;
     }
 
-    // Pedestal highlight logic
-    if (this.hoveredPedestal && this.hoveredPedestal !== currentPed) {
-      this.arena.setPedestalHighlight(this.hoveredPedestal.id, false);
-      this.hoveredPedestal = null;
-    }
+    this.placementPreview.visible = false;
+    this.placementStatus = null;
 
-    if (currentPed) {
-      this.hoveredPedestal = currentPed;
-      const canAfford = this.selectedTemplate ? this.money >= this.selectedTemplate.cost : true;
-      const color = !currentPed.occupied ? (canAfford ? 0x00f0ff : 0xd90429) : 0xffd700;
-      this.arena.setPedestalHighlight(currentPed.id, true, color);
-      this.updatePlacementPreview(currentPed);
-
-      // Handle Click on Pedestal
-      if (input.clicked && !input.clickedOnUI) {
-        if (!currentPed.occupied && this.selectedTemplate) {
-          // Place Tower!
-          if (this.money >= this.selectedTemplate.cost) {
-            this.money -= this.selectedTemplate.cost;
-            const tower = new Tower(this.selectedTemplate, currentPed.id, currentPed.position);
-            this.renderer.scene.add(tower.group);
-            this.towers.push(tower);
-
-            currentPed.occupied = true;
-            currentPed.towerId = tower.id;
-
-            this.audio.playDeploy();
-            this.particles.emitImpact(currentPed.position, 0x00f0ff, 25, 5);
-
-            // Select placed tower
-            if (this.selectedTower) this.selectedTower.setSelected(false);
-            this.selectedTower = tower;
-            tower.setSelected(true);
-
-            this.selectedTemplate = null;
-            this.placementPreview.visible = false;
-          }
-        } else if (currentPed.occupied && currentPed.towerId) {
-          // Select existing tower
-          const existing = this.towers.find(t => t.id === currentPed!.towerId);
-          if (existing) {
-            if (this.selectedTower) this.selectedTower.setSelected(false);
-            this.selectedTower = existing;
-            existing.setSelected(true);
-            this.selectedTemplate = null;
-            this.placementPreview.visible = false;
-            this.audio.playSelect();
-          }
+    if (input.clicked && !input.clickedOnUI) {
+      const picked = this.pickTower(input, ground);
+      if (picked !== this.selectedTower) {
+        if (this.selectedTower) this.selectedTower.setSelected(false);
+        this.selectedTower = picked;
+        if (picked) {
+          picked.setSelected(true);
+          this.audio.playSelect();
         }
-      }
-    } else {
-      this.placementPreview.visible = false;
-    }
-
-    if (!currentPed && input.clicked && !input.clickedOnUI) {
-      // Clicked on empty space
-      if (this.selectedTower) {
-        this.selectedTower.setSelected(false);
-        this.selectedTower = null;
       }
     }
   }
 
-  private updatePlacementPreview(pedestal: PedestalSlot): void {
-    const template = this.selectedTemplate;
-    if (!template || pedestal.occupied) {
+  private clearSelection(): void {
+    if (this.selectedTower) {
+      this.selectedTower.setSelected(false);
+      this.selectedTower = null;
+    }
+    this.selectedTemplate = null;
+    this.placementStatus = null;
+    this.placementPreview.visible = false;
+  }
+
+  /** Mesh hit first, then a footprint-sized radius so small models stay clickable. */
+  private pickTower(input: Input, ground: THREE.Vector3 | null): Tower | null {
+    const hits = input.raycast(this.camera.camera, this.towers.map(t => t.group));
+    for (const hit of hits) {
+      const tower = this.findTowerFromObject(hit.object);
+      if (tower) return tower;
+    }
+
+    if (!ground) return null;
+    return this.towers.find(t =>
+      Math.hypot(t.position.x - ground.x, t.position.z - ground.z) <= TOWER_FOOTPRINT_RADIUS
+    ) ?? null;
+  }
+
+  private findTowerFromObject(object: THREE.Object3D | null): Tower | null {
+    for (let node: THREE.Object3D | null = object; node; node = node.parent) {
+      const towerId = node.userData?.towerId;
+      if (towerId) return this.towers.find(t => t.id === towerId) ?? null;
+    }
+    return null;
+  }
+
+  private updatePlacement(
+    template: TowerTemplate,
+    ground: THREE.Vector3 | null,
+    input: Input,
+  ): void {
+    if (!ground) {
       this.placementPreview.visible = false;
+      this.placementStatus = { valid: false, label: PLACEMENT_BLOCK_LABELS.out_of_bounds };
       return;
     }
 
-    const canAfford = this.money >= template.cost;
-    const color = canAfford ? 0x00f0ff : 0xd90429;
+    const blocked = this.getPlacementBlock(template, ground.x, ground.z);
+    this.placementStatus = blocked
+      ? { valid: false, label: PLACEMENT_BLOCK_LABELS[blocked] }
+      : { valid: true, label: `PLACE ${template.name.toUpperCase()} · ESC TO CANCEL` };
+
+    this.updatePlacementPreview(template, ground, !blocked);
+
+    if (input.clicked && !input.clickedOnUI && !blocked) {
+      this.placeTower(template, ground);
+    }
+  }
+
+  private getPlacementBlock(
+    template: TowerTemplate,
+    x: number,
+    z: number,
+  ): PlacementBlockReason | null {
+    if (this.money < template.cost) return 'too_expensive';
+
+    const arenaBlock = this.arena.isBuildable(x, z, TOWER_FOOTPRINT_RADIUS);
+    if (arenaBlock) return arenaBlock;
+
+    const crowded = this.towers.some(t =>
+      Math.hypot(t.position.x - x, t.position.z - z) < TOWER_FOOTPRINT_RADIUS * 2
+    );
+    return crowded ? 'overlaps_tower' : null;
+  }
+
+  private placeTower(template: TowerTemplate, ground: THREE.Vector3): void {
+    const position = new THREE.Vector3(ground.x, TOWER_BASE_HEIGHT, ground.z);
+    this.money -= template.cost;
+
+    const tower = new Tower(template, position);
+    this.renderer.scene.add(tower.group);
+    this.towers.push(tower);
+
+    this.audio.playDeploy();
+    this.particles.emitImpact(position, 0x00f0ff, 25, 5);
+
+    // Select the freshly placed tower so its move shop opens immediately.
+    if (this.selectedTower) this.selectedTower.setSelected(false);
+    this.selectedTower = tower;
+    tower.setSelected(true);
+
+    this.selectedTemplate = null;
+    this.placementStatus = null;
+    this.placementPreview.visible = false;
+  }
+
+  private updatePlacementPreview(
+    template: TowerTemplate,
+    point: THREE.Vector3,
+    valid: boolean,
+  ): void {
+    const color = valid ? 0x00f0ff : 0xd90429;
     if (this.placementPreviewTemplateId !== template.id) {
       this.placementPreview.clear();
       const range = MOVES[template.lines[0].tiers[0].moveId].range;
@@ -293,7 +344,7 @@ export class StadiumTDGame {
       this.placementPreview.add(rangeRing);
 
       const footprint = new THREE.Mesh(
-        new THREE.RingGeometry(1.35, 1.65, 32),
+        new THREE.RingGeometry(TOWER_FOOTPRINT_RADIUS - 0.25, TOWER_FOOTPRINT_RADIUS, 32),
         new THREE.MeshBasicMaterial({
           color,
           transparent: true,
@@ -314,7 +365,8 @@ export class StadiumTDGame {
         object.material.color.setHex(color);
       }
     });
-    this.placementPreview.position.set(pedestal.position.x, 0.84, pedestal.position.z);
+    // Same clearance as the tower range ring: above the lane ribbon at y = 0.5.
+    this.placementPreview.position.set(point.x, TOWER_BASE_HEIGHT + 0.35, point.z);
     this.placementPreview.visible = true;
   }
 
@@ -432,6 +484,7 @@ export class StadiumTDGame {
         cameraMode: this.camera.mode,
         selectedTower: this.selectedTower,
         selectedTemplate: this.selectedTemplate,
+        placementStatus: this.placementStatus,
       }
     );
   }

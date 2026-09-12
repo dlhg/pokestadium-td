@@ -15,6 +15,12 @@ import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 
+/** What the roster hint says about the spot the cursor is currently over. */
+export interface PlacementStatus {
+  valid: boolean;
+  label: string;
+}
+
 export interface UIState {
   money: number;
   lives: number;
@@ -26,6 +32,7 @@ export interface UIState {
   cameraMode: CameraMode;
   selectedTower: Tower | null;
   selectedTemplate: TowerTemplate | null;
+  placementStatus: PlacementStatus | null;
 }
 
 /**
@@ -1017,10 +1024,16 @@ export class StadiumUI {
 
     // Card Deck affordability & selection highlight
     const placementHint = document.getElementById('placement-hint')!;
-    placementHint.innerText = state.selectedTemplate
-      ? `PLACE ${state.selectedTemplate.name.toUpperCase()} · ESC TO CANCEL`
-      : 'SELECT A POKÉMON';
-    placementHint.style.color = state.selectedTemplate ? '#00f0ff' : '#8faecf';
+    if (state.placementStatus) {
+      placementHint.innerText = state.placementStatus.label;
+      placementHint.style.color = state.placementStatus.valid ? '#00f0ff' : '#ff6b6b';
+    } else if (state.selectedTemplate) {
+      placementHint.innerText = `PLACE ${state.selectedTemplate.name.toUpperCase()} · ESC TO CANCEL`;
+      placementHint.style.color = '#00f0ff';
+    } else {
+      placementHint.innerText = 'SELECT A POKÉMON';
+      placementHint.style.color = '#8faecf';
+    }
 
     const templates = Object.values(TOWER_TEMPLATES);
     templates.forEach(tmpl => {
