@@ -16,6 +16,7 @@ import { StadiumAudio } from '../engine/StadiumAudio';
 import { StadiumCamera } from '../engine/StadiumCamera';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { Creep } from './Creep';
+import type { Tower } from './Tower';
 
 /** Everything a landing move needs in order to apply itself and react. */
 export interface HitContext {
@@ -45,7 +46,10 @@ export function resolveMoveHit(
   move: MoveDefinition,
   target: Creep,
   ctx: HitContext,
+  source: Tower | null = null,
 ): void {
+  // The caster's level and stats scale every hit; a sourceless hit is neutral.
+  const mods = source?.modifiers ?? { damage: 1, rate: 1, status: 1 };
   const color = moveColor(move);
   ctx.particles.emitImpact(centerMass(target), color, move.splashRadius > 0 ? 30 : 18, 7);
 
@@ -69,10 +73,10 @@ export function resolveMoveHit(
       : getCombinedEffectiveness(move.type, victim.types);
     if (multiplier >= 2.0) hasSuperEffective = true;
 
-    const died = victim.takeDamage(Math.floor(move.basePower * multiplier));
+    const died = victim.takeDamage(Math.floor(move.basePower * multiplier * mods.damage), source);
 
-    if (move.statusEffect !== 'none' && Math.random() < move.statusChance) {
-      victim.applyStatus(move.statusEffect, move.statusDuration);
+    if (!died && move.statusEffect !== 'none' && Math.random() < Math.min(1, move.statusChance * mods.status)) {
+      victim.applyStatus(move.statusEffect, move.statusDuration * mods.status, source);
     }
 
     if (died) ctx.onFaint(victim);

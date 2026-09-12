@@ -130,7 +130,11 @@ export class CaptureSequence {
   private sparkleIndex = -1;
   private trailTimer = 0;
 
-  constructor(private target: Creep, ballType: BallType, chance: number, private stage: CaptureStage) {
+  /**
+   * `forceSuccess` fixes the verdict without shortening the set piece: the
+   * safety net for a new trainer's last ball still wobbles like any other throw.
+   */
+  constructor(private target: Creep, ballType: BallType, chance: number, private stage: CaptureStage, private forceSuccess = false) {
     this.baseChance = chance;
     this.glow = BALL_GLOW[ballType];
     this.profile = THREAT_PROFILE[target.threat];
@@ -224,7 +228,7 @@ export class CaptureSequence {
     aim.released = aim.marker;
     this.hud.chance = THREE.MathUtils.clamp(this.baseChance + aim.bonus, 0.05, 0.98);
 
-    this.success = Math.random() < this.hud.chance;
+    this.success = this.forceSuccess || Math.random() < this.hud.chance;
     // A likelier catch tends to break late, so a lost 90% roll still gets its
     // last-wobble heartbreak instead of popping open immediately.
     const roll = Math.random();

@@ -105,6 +105,8 @@ export class Input {
 
     // Keyboard
     window.addEventListener('keydown', (e) => {
+      // Typing a nickname must not pause the match or swing the camera.
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable]')) return;
       if (!this.keysDown.has(e.code)) {
         this.keysJustPressed.add(e.code);
         this.keysDown.add(e.code);

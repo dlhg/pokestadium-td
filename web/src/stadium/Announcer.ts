@@ -137,6 +137,10 @@ export class StadiumAnnouncer {
           { text: `WHAT'S THIS? ${detail || 'YOUR POKÉMON'} IS EVOLVING!`, intensity: 'epic' },
           { text: "AN ASTONISHING POWER SURGE! IT HAS EVOLVED!", intensity: 'epic' }
         ];
+      case 'level_up':
+        return [
+          { text: `${detail || 'YOUR POKÉMON'}!`, intensity: 'high' },
+        ];
       case 'capture_throw':
         return [
           { text: `THE BALL IS AWAY — AT ${detail || 'THE CHALLENGER'}!`, intensity: 'epic' },
@@ -144,7 +148,7 @@ export class StadiumAnnouncer {
           { text: `A CAPTURE ATTEMPT ON ${detail || 'THE CHALLENGER'}!`, intensity: 'epic' },
         ];
       case 'capture_success':
-        return [{ text: `${detail || 'THE POKÉMON'} WAS CAUGHT! A NEW TOWER JOINS THE ROSTER!`, intensity: 'epic' }];
+        return [{ text: `${(detail || 'THE POKÉMON').toUpperCase()} WAS CAUGHT! IT JOINS YOUR COLLECTION!`, intensity: 'epic' }];
       case 'capture_failed':
         return [{ text: `${detail || 'IT'} BROKE FREE!`, intensity: 'high' }];
       case 'life_lost':

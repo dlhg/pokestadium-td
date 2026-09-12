@@ -9,7 +9,9 @@ import * as THREE from 'three';
 import { Creep, CreepConfig } from './Creep';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import type { MapDifficulty } from './MapCatalog';
+import type { PokemonType } from '../stadium/TypeMatrix';
 import type { BallType } from './CaptureSequence';
+import { creepLevel } from './progression/Stats';
 
 export interface WaveDefinition {
   round: number;
@@ -17,6 +19,334 @@ export interface WaveDefinition {
   name: string;
   spawns: { config: CreepConfig; count: number; interval: number }[];
 }
+
+/** The opening cups, hand-authored. Later rounds are generated. */
+const AUTHORED_WAVES: WaveDefinition[] = [
+  // POKE CUP (Waves 1 - 5)
+  {
+    round: 1,
+    cupName: 'POKE CUP',
+    name: 'Round 1: Route 1 Runners',
+    spawns: [
+      {
+        config: {
+          id: 'rattata_1',
+          name: 'Rattata',
+          type: 'Normal',
+          maxHp: 75,
+          speed: 4.2,
+          reward: 15,
+          modelType: 'rattata'
+        },
+        count: 8,
+        interval: 1.2
+      },
+      {
+        config: {
+          id: 'pidgey_1', name: 'Pidgey', type: 'Normal', secondaryType: 'Flying',
+          maxHp: 68, speed: 4.8, reward: 16, modelType: 'zubat'
+        },
+        count: 5,
+        interval: 1.35
+      }
+    ]
+  },
+  {
+    round: 2,
+    cupName: 'POKE CUP',
+    name: 'Round 2: Mt. Moon Swarm',
+    spawns: [
+      {
+        config: {
+          id: 'zubat_1',
+          name: 'Zubat',
+          type: 'Poison',
+          secondaryType: 'Flying',
+          maxHp: 95,
+          speed: 5.0,
+          reward: 18,
+          modelType: 'zubat'
+        },
+        count: 12,
+        interval: 1.0
+      },
+      {
+        config: {
+          id: 'paras_1', name: 'Paras', type: 'Bug', secondaryType: 'Grass',
+          maxHp: 125, speed: 3.2, reward: 23, modelType: 'rattata'
+        },
+        count: 6,
+        interval: 1.25
+      }
+    ]
+  },
+  {
+    round: 3,
+    cupName: 'POKE CUP',
+    name: 'Round 3: Granite Guard',
+    spawns: [
+      {
+        config: {
+          id: 'geodude_1',
+          name: 'Geodude',
+          type: 'Rock',
+          secondaryType: 'Ground',
+          maxHp: 180,
+          speed: 2.8,
+          reward: 25,
+          modelType: 'geodude'
+        },
+        count: 10,
+        interval: 1.4
+      },
+      {
+        config: {
+          id: 'machop_1', name: 'Machop', type: 'Fighting',
+          maxHp: 210, speed: 3.1, reward: 29, modelType: 'geodude'
+        },
+        count: 5,
+        interval: 1.55
+      },
+      {
+        config: {
+          id: 'elite_geodude_1', name: 'Geodude', type: 'Rock', secondaryType: 'Ground',
+          maxHp: 720, speed: 2.35, reward: 100, threat: 'elite', modelType: 'geodude'
+        },
+        count: 1,
+        interval: 2.4
+      }
+    ]
+  },
+  {
+    round: 4,
+    cupName: 'POKE CUP',
+    name: 'Round 4: Stadium Qualifier',
+    spawns: [
+      {
+        config: {
+          id: 'ponyta_1',
+          name: 'Ponyta',
+          type: 'Fire',
+          maxHp: 130,
+          speed: 4.6,
+          reward: 20,
+          modelType: 'rattata'
+        },
+        count: 8,
+        interval: 0.9
+      },
+      {
+        config: {
+          id: 'oddish_1',
+          name: 'Oddish',
+          type: 'Grass',
+          secondaryType: 'Poison',
+          maxHp: 140,
+          speed: 5.2,
+          reward: 22,
+          modelType: 'rattata'
+        },
+        count: 8,
+        interval: 0.9
+      },
+      {
+        config: {
+          id: 'psyduck_1', name: 'Psyduck', type: 'Water',
+          maxHp: 165, speed: 4.1, reward: 25, modelType: 'rattata'
+        },
+        count: 6,
+        interval: 1.0
+      }
+    ]
+  },
+  {
+    round: 5,
+    cupName: 'POKE CUP',
+    name: 'Poke Cup Final: TITAN ONIX',
+    spawns: [
+      {
+        config: {
+          id: 'boss_onix',
+          name: 'Titan Onix',
+          type: 'Rock',
+          secondaryType: 'Ground',
+          maxHp: 1400,
+          speed: 2.2,
+          reward: 250,
+          isBoss: true,
+          threat: 'titan',
+          modelType: 'boss_titan',
+          titanType: 'Onix'
+        },
+        count: 1,
+        interval: 1.0
+      }
+    ]
+  },
+
+  // PRIME CUP (Waves 6 - 10)
+  {
+    round: 6,
+    cupName: 'PRIME CUP',
+    name: 'Prime Cup: Spectral Apparitions',
+    spawns: [
+      {
+        config: {
+          id: 'haunter_1',
+          name: 'Haunter',
+          type: 'Ghost',
+          secondaryType: 'Poison',
+          maxHp: 220,
+          speed: 4.5,
+          reward: 30,
+          modelType: 'zubat'
+        },
+        count: 14,
+        interval: 1.1
+      }
+    ]
+  },
+  {
+    round: 7,
+    cupName: 'PRIME CUP',
+    name: 'Prime Cup: Boulder Battalion',
+    spawns: [
+      {
+        config: {
+          id: 'geodude_2',
+          name: 'Graveler',
+          type: 'Rock',
+          secondaryType: 'Ground',
+          maxHp: 340,
+          speed: 3.2,
+          reward: 35,
+          modelType: 'geodude'
+        },
+        count: 12,
+        interval: 1.2
+      },
+      {
+        config: {
+          id: 'machoke_1', name: 'Machoke', type: 'Fighting',
+          maxHp: 390, speed: 3.0, reward: 42, modelType: 'geodude'
+        },
+        count: 7,
+        interval: 1.35
+      }
+    ]
+  },
+  {
+    round: 8,
+    cupName: 'PRIME CUP',
+    name: 'Prime Cup: Dragonair Sprint',
+    spawns: [
+      {
+        config: {
+          id: 'dragonair_1',
+          name: 'Dragonair',
+          type: 'Dragon',
+          maxHp: 380,
+          speed: 5.6,
+          reward: 40,
+          modelType: 'dragonair'
+        },
+        count: 15,
+        interval: 0.9
+      },
+      {
+        config: {
+          id: 'lapras_1', name: 'Lapras', type: 'Water', secondaryType: 'Ice',
+          maxHp: 540, speed: 3.1, reward: 52, modelType: 'dragonair'
+        },
+        count: 5,
+        interval: 1.5
+      },
+      {
+        config: {
+          id: 'elite_dragonair_1', name: 'Dragonair', type: 'Dragon',
+          maxHp: 1520, speed: 3.7, reward: 185, threat: 'elite', modelType: 'dragonair'
+        },
+        count: 1,
+        interval: 2.6
+      }
+    ]
+  },
+  {
+    round: 9,
+    cupName: 'PRIME CUP',
+    name: 'Prime Cup: Semifinal Rush',
+    spawns: [
+      {
+        config: {
+          id: 'exeggutor_1',
+          name: 'Exeggutor',
+          type: 'Grass',
+          secondaryType: 'Psychic',
+          maxHp: 420,
+          speed: 5.4,
+          reward: 45,
+          modelType: 'geodude'
+        },
+        count: 10,
+        interval: 0.8
+      },
+      {
+        config: {
+          id: 'rhydon_1',
+          name: 'Rhydon',
+          type: 'Ground',
+          secondaryType: 'Rock',
+          maxHp: 480,
+          speed: 3.2,
+          reward: 45,
+          modelType: 'geodude'
+        },
+        count: 8,
+        interval: 0.8
+      },
+      {
+        config: {
+          id: 'scyther_1', name: 'Scyther', type: 'Bug', secondaryType: 'Flying',
+          maxHp: 410, speed: 5.8, reward: 48, modelType: 'zubat'
+        },
+        count: 8,
+        interval: 0.85
+      },
+      {
+        config: {
+          id: 'elite_rhydon_1', name: 'Rhydon', type: 'Ground', secondaryType: 'Rock',
+          maxHp: 1920, speed: 2.55, reward: 220, threat: 'elite', modelType: 'geodude'
+        },
+        count: 1,
+        interval: 2.8
+      }
+    ]
+  },
+  {
+    round: 10,
+    cupName: 'PRIME CUP',
+    name: 'Prime Cup Final: TITAN GYARADOS',
+    spawns: [
+      {
+        config: {
+          id: 'boss_gyarados',
+          name: 'Titan Gyarados',
+          type: 'Water',
+          secondaryType: 'Flying',
+          maxHp: 3600,
+          speed: 2.8,
+          reward: 500,
+          isBoss: true,
+          threat: 'titan',
+          modelType: 'boss_titan',
+          titanType: 'Gyarados'
+        },
+        count: 1,
+        interval: 1.0
+      }
+    ]
+  }
+];
 
 export class WaveManager {
   public currentWaveIndex: number = 0;
@@ -29,333 +359,9 @@ export class WaveManager {
   private routes: THREE.Vector3[][];
   private nextRoute = 0;
   private announcer: StadiumAnnouncer;
+  private difficulty: MapDifficulty;
 
-  private waves: WaveDefinition[] = [
-    // POKE CUP (Waves 1 - 5)
-    {
-      round: 1,
-      cupName: 'POKE CUP',
-      name: 'Round 1: Route 1 Runners',
-      spawns: [
-        {
-          config: {
-            id: 'rattata_1',
-            name: 'Rattata',
-            type: 'Normal',
-            maxHp: 75,
-            speed: 4.2,
-            reward: 15,
-            modelType: 'rattata'
-          },
-          count: 8,
-          interval: 1.2
-        },
-        {
-          config: {
-            id: 'pidgey_1', name: 'Pidgey', type: 'Normal', secondaryType: 'Flying',
-            maxHp: 68, speed: 4.8, reward: 16, modelType: 'zubat'
-          },
-          count: 5,
-          interval: 1.35
-        }
-      ]
-    },
-    {
-      round: 2,
-      cupName: 'POKE CUP',
-      name: 'Round 2: Mt. Moon Swarm',
-      spawns: [
-        {
-          config: {
-            id: 'zubat_1',
-            name: 'Zubat',
-            type: 'Poison',
-            secondaryType: 'Flying',
-            maxHp: 95,
-            speed: 5.0,
-            reward: 18,
-            modelType: 'zubat'
-          },
-          count: 12,
-          interval: 1.0
-        },
-        {
-          config: {
-            id: 'paras_1', name: 'Paras', type: 'Bug', secondaryType: 'Grass',
-            maxHp: 125, speed: 3.2, reward: 23, modelType: 'rattata'
-          },
-          count: 6,
-          interval: 1.25
-        }
-      ]
-    },
-    {
-      round: 3,
-      cupName: 'POKE CUP',
-      name: 'Round 3: Granite Guard',
-      spawns: [
-        {
-          config: {
-            id: 'geodude_1',
-            name: 'Geodude',
-            type: 'Rock',
-            secondaryType: 'Ground',
-            maxHp: 180,
-            speed: 2.8,
-            reward: 25,
-            modelType: 'geodude'
-          },
-          count: 10,
-          interval: 1.4
-        },
-        {
-          config: {
-            id: 'machop_1', name: 'Machop', type: 'Fighting',
-            maxHp: 210, speed: 3.1, reward: 29, modelType: 'geodude'
-          },
-          count: 5,
-          interval: 1.55
-        },
-        {
-          config: {
-            id: 'elite_geodude_1', name: 'Geodude', type: 'Rock', secondaryType: 'Ground',
-            maxHp: 720, speed: 2.35, reward: 100, threat: 'elite', modelType: 'geodude'
-          },
-          count: 1,
-          interval: 2.4
-        }
-      ]
-    },
-    {
-      round: 4,
-      cupName: 'POKE CUP',
-      name: 'Round 4: Stadium Qualifier',
-      spawns: [
-        {
-          config: {
-            id: 'ponyta_1',
-            name: 'Ponyta',
-            type: 'Fire',
-            maxHp: 130,
-            speed: 4.6,
-            reward: 20,
-            modelType: 'rattata'
-          },
-          count: 8,
-          interval: 0.9
-        },
-        {
-          config: {
-            id: 'oddish_1',
-            name: 'Oddish',
-            type: 'Grass',
-            secondaryType: 'Poison',
-            maxHp: 140,
-            speed: 5.2,
-            reward: 22,
-            modelType: 'rattata'
-          },
-          count: 8,
-          interval: 0.9
-        },
-        {
-          config: {
-            id: 'psyduck_1', name: 'Psyduck', type: 'Water',
-            maxHp: 165, speed: 4.1, reward: 25, modelType: 'rattata'
-          },
-          count: 6,
-          interval: 1.0
-        }
-      ]
-    },
-    {
-      round: 5,
-      cupName: 'POKE CUP',
-      name: 'Poke Cup Final: TITAN ONIX',
-      spawns: [
-        {
-          config: {
-            id: 'boss_onix',
-            name: 'Titan Onix',
-            type: 'Rock',
-            secondaryType: 'Ground',
-            maxHp: 1400,
-            speed: 2.2,
-            reward: 250,
-            isBoss: true,
-            threat: 'titan',
-            modelType: 'boss_titan',
-            titanType: 'Onix'
-          },
-          count: 1,
-          interval: 1.0
-        }
-      ]
-    },
-
-    // PRIME CUP (Waves 6 - 10)
-    {
-      round: 6,
-      cupName: 'PRIME CUP',
-      name: 'Prime Cup: Spectral Apparitions',
-      spawns: [
-        {
-          config: {
-            id: 'haunter_1',
-            name: 'Haunter',
-            type: 'Ghost',
-            secondaryType: 'Poison',
-            maxHp: 220,
-            speed: 4.5,
-            reward: 30,
-            modelType: 'zubat'
-          },
-          count: 14,
-          interval: 1.1
-        }
-      ]
-    },
-    {
-      round: 7,
-      cupName: 'PRIME CUP',
-      name: 'Prime Cup: Boulder Battalion',
-      spawns: [
-        {
-          config: {
-            id: 'geodude_2',
-            name: 'Graveler',
-            type: 'Rock',
-            secondaryType: 'Ground',
-            maxHp: 340,
-            speed: 3.2,
-            reward: 35,
-            modelType: 'geodude'
-          },
-          count: 12,
-          interval: 1.2
-        },
-        {
-          config: {
-            id: 'machoke_1', name: 'Machoke', type: 'Fighting',
-            maxHp: 390, speed: 3.0, reward: 42, modelType: 'geodude'
-          },
-          count: 7,
-          interval: 1.35
-        }
-      ]
-    },
-    {
-      round: 8,
-      cupName: 'PRIME CUP',
-      name: 'Prime Cup: Dragonair Sprint',
-      spawns: [
-        {
-          config: {
-            id: 'dragonair_1',
-            name: 'Dragonair',
-            type: 'Dragon',
-            maxHp: 380,
-            speed: 5.6,
-            reward: 40,
-            modelType: 'dragonair'
-          },
-          count: 15,
-          interval: 0.9
-        },
-        {
-          config: {
-            id: 'lapras_1', name: 'Lapras', type: 'Water', secondaryType: 'Ice',
-            maxHp: 540, speed: 3.1, reward: 52, modelType: 'dragonair'
-          },
-          count: 5,
-          interval: 1.5
-        },
-        {
-          config: {
-            id: 'elite_dragonair_1', name: 'Dragonair', type: 'Dragon',
-            maxHp: 1520, speed: 3.7, reward: 185, threat: 'elite', modelType: 'dragonair'
-          },
-          count: 1,
-          interval: 2.6
-        }
-      ]
-    },
-    {
-      round: 9,
-      cupName: 'PRIME CUP',
-      name: 'Prime Cup: Semifinal Rush',
-      spawns: [
-        {
-          config: {
-            id: 'exeggutor_1',
-            name: 'Exeggutor',
-            type: 'Grass',
-            secondaryType: 'Psychic',
-            maxHp: 420,
-            speed: 5.4,
-            reward: 45,
-            modelType: 'geodude'
-          },
-          count: 10,
-          interval: 0.8
-        },
-        {
-          config: {
-            id: 'rhydon_1',
-            name: 'Rhydon',
-            type: 'Ground',
-            secondaryType: 'Rock',
-            maxHp: 480,
-            speed: 3.2,
-            reward: 45,
-            modelType: 'geodude'
-          },
-          count: 8,
-          interval: 0.8
-        },
-        {
-          config: {
-            id: 'scyther_1', name: 'Scyther', type: 'Bug', secondaryType: 'Flying',
-            maxHp: 410, speed: 5.8, reward: 48, modelType: 'zubat'
-          },
-          count: 8,
-          interval: 0.85
-        },
-        {
-          config: {
-            id: 'elite_rhydon_1', name: 'Rhydon', type: 'Ground', secondaryType: 'Rock',
-            maxHp: 1920, speed: 2.55, reward: 220, threat: 'elite', modelType: 'geodude'
-          },
-          count: 1,
-          interval: 2.8
-        }
-      ]
-    },
-    {
-      round: 10,
-      cupName: 'PRIME CUP',
-      name: 'Prime Cup Final: TITAN GYARADOS',
-      spawns: [
-        {
-          config: {
-            id: 'boss_gyarados',
-            name: 'Titan Gyarados',
-            type: 'Water',
-            secondaryType: 'Flying',
-            maxHp: 3600,
-            speed: 2.8,
-            reward: 500,
-            isBoss: true,
-            threat: 'titan',
-            modelType: 'boss_titan',
-            titanType: 'Gyarados'
-          },
-          count: 1,
-          interval: 1.0
-        }
-      ]
-    }
-  ];
+  private waves = AUTHORED_WAVES;
 
   /** Hand-authored cups cover the opening; every later round is generated. */
   private generated = new Map<number, WaveDefinition>();
@@ -365,6 +371,7 @@ export class WaveManager {
     if (!routes.length || routes.some(route => route.length < 2)) throw new Error('A course needs a traversable route');
     this.routes = routes;
     this.announcer = announcer;
+    this.difficulty = difficulty;
     this.winRound = WIN_ROUNDS[difficulty];
   }
 
@@ -401,7 +408,10 @@ export class WaveManager {
     wave.spawns.forEach(group => {
       for (let i = 0; i < group.count; i++) {
         this.spawnQueue.push({
-          config: { ...group.config },
+          config: {
+            ...group.config,
+            level: creepLevel(wave.round, this.difficulty, group.config.threat ?? (group.config.isBoss ? 'titan' : 'normal')),
+          },
           delay: group.interval
         });
       }
@@ -605,4 +615,17 @@ function generateWave(round: number, winRound: number): WaveDefinition {
 
   const lead = spawns[0].config.name;
   return { round, cupName, name: `${cupName}: ${lead} Assault`, spawns };
+}
+
+/** Every type fielded in the opening rounds — what team select warns about. */
+export function openingThreatTypes(rounds = 10, winRound = WIN_ROUNDS.easy): PokemonType[] {
+  const types = new Set<PokemonType>();
+  for (let round = 1; round <= rounds; round++) {
+    const wave = round <= AUTHORED_WAVES.length ? AUTHORED_WAVES[round - 1] : generateWave(round, winRound);
+    for (const spawn of wave.spawns) {
+      types.add(spawn.config.type);
+      if (spawn.config.secondaryType) types.add(spawn.config.secondaryType);
+    }
+  }
+  return [...types];
 }

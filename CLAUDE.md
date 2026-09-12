@@ -30,10 +30,11 @@ stadium/
 - **`web/src/stadium/StadiumArena.ts`** — *Iconic 3D Colosseum Environment.* Multi-tier stadium stands, floodlight towers with dynamic spotlights, central Poké Ball battle pitch, perimeter safety barriers, and animated jumbotrons. Highly reusable for arena combat, fighting games, or tactical defense.
 - **`web/src/stadium/PokemonModels.ts`** — *Low-Poly 3D Character Models & Animations.* Authentic N64-proportioned geometries (Pikachu, Charizard, Blastoise, Venusaur, Gengar, Alakazam, Mewtwo, Snorlax, etc.) with joint hierarchies, idle breathing, attack animations, and hit reactions.
 - **`web/src/stadium/TypeMatrix.ts`** — *Elemental Combat Matrix.* Complete 15-type Gen 1 effectiveness table (2x Super Effective, 0.5x Not Very Effective, 0x Immune).
-- **`web/src/stadium/MoveDatabase.ts`** — *Data-Driven Move System.* 42 moves covering damage, ranges, cooldowns, status conditions (Burn, Freeze, Paralyze, Stun, Poison), and 3D visual FX bindings. Towers purchase these individually through the move lines defined in `td/Tower.ts`.
+- **`web/src/stadium/MoveDatabase.ts`** — *Data-Driven Move System.* 42 moves covering damage, ranges, cooldowns, status conditions (Burn, Freeze, Paralyze, Stun, Poison), and 3D visual FX bindings. Towers purchase these individually through the move lines defined per species in `td/progression/Species.ts`.
 - **`web/src/stadium/Announcer.ts`** — *Dynamic Stadium Announcer.* Real-time reactive commentary ("WHAT A HIT!", "IT'S SUPER EFFECTIVE!", "DOWN IT GOES!") with 3D banner overlays and synthesized speech.
 - **`web/src/engine/StadiumCamera.ts`** — *Cinematic Multi-Angle Director.* Smooth transitions between Tactical Top-Down, Stadium Isometric, and Dramatic Action Battle Cams.
-- **`web/src/td/StadiumUI.ts`** — *90s Stadium Presentation.* Tower move-shop panel (three buyable move lines with tier pips, evolution track, sell footer), metallic tournament headers, 3D floating HP bars, and tower selection decks.
+- **`web/src/td/StadiumUI.ts`** — *90s Stadium Presentation.* Tower move-shop panel (three buyable move lines with tier pips and level locks, earned-evolution read-out, sell footer), metallic tournament headers, 3D floating HP bars, and the team roster deck.
+- **`web/src/td/progression/`** — *Trainer Progression.* Persistent collection and team of six (`TrainerStore`, localStorage), species data and evolution lines (`Species`), Gen 1-style stats, XP curve and creep levels (`Stats`), per-match knockout XP splitting (`MatchProgress`), starter/team/summary/report screens (`TrainerScreens`), and a dev panel toggled with the backquote key (`DevPanel`, dev builds or `?dev`). `?save=dev` loads a fixed in-memory trainer.
 
 ## Web Development Commands
 

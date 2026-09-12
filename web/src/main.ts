@@ -8,10 +8,29 @@
 import * as THREE from 'three';
 import { StadiumTDGame } from './td/StadiumTDGame';
 import { Input } from './engine/Input';
-import { TOWER_TEMPLATES, Tower, TOWER_BASE_HEIGHT } from './td/Tower';
+import { Tower, TOWER_BASE_HEIGHT } from './td/Tower';
 import { Creep } from './td/Creep';
 import { STADIUM_MAPS } from './td/MapCatalog';
 import { getMilestone } from './td/WaveManager';
+import { createPokemon, freshSave, TrainerStore } from './td/progression/TrainerStore';
+import { DevPanel } from './td/progression/DevPanel';
+
+/** A fixed trainer for headless shots and `?save=dev`: the classic six, mid-journey. */
+function devSeed(): TrainerStore {
+  const store = new TrainerStore(false, freshSave());
+  const origin = { kind: 'dev' as const, at: 0 };
+  const dvs = { attack: 8, speed: 8, special: 8 };
+  (['pikachu', 'charmander', 'squirtle', 'bulbasaur', 'gastly', 'abra'] as const)
+    .forEach(id => store.add(createPokemon(id, 12, origin, { dvs })));
+  store.data.starterChosen = true;
+  store.data.matchesPlayed = 1;
+  return store;
+}
+
+/** A throwaway Pokémon for staging shots; `level` decides the evolved form. */
+function shotPokemon(speciesId: string, level: number) {
+  return createPokemon(speciesId, level, { kind: 'dev', at: 0 }, { dvs: { attack: 8, speed: 8, special: 8 } });
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('stadium-canvas') as HTMLCanvasElement;
@@ -22,14 +41,23 @@ window.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  const game = new StadiumTDGame();
-  game.init(canvas, uiContainer);
-
-  const input = new Input(canvas);
-
   // Automated Headless Setup for Visual Verification
   const urlParams = new URLSearchParams(window.location.search);
   const shot = urlParams.get('shot');
+
+  // Shots always start from the same trainer; everyone else gets their own save.
+  const store = shot || urlParams.get('save') === 'dev' ? devSeed() : new TrainerStore();
+  const game = new StadiumTDGame();
+  game.init(canvas, uiContainer, store);
+  if (!shot && (import.meta.env.DEV || urlParams.has('dev'))) {
+    new DevPanel(uiContainer, game, store);
+    // Console handle for poking at a live match while developing.
+    (window as unknown as { stadium: StadiumTDGame }).stadium = game;
+  }
+  // XP earned since the last cleared wave survives a closed tab.
+  window.addEventListener('pagehide', () => game.saveProgress());
+
+  const input = new Input(canvas);
   // A stepped shot holds its exact frame instead of drifting with real time.
   let frozenShot = false;
 
@@ -47,9 +75,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (shot!.startsWith('battle_')) {
       // Defenders on each tier and climbers spread along the route, stairs included.
       const terrain = game.arena.terrain;
-      const sites: [keyof typeof TOWER_TEMPLATES, number, number][] = [['pikachu',-6,-25],['charizard',6,-12],['blastoise',-14,17],['venusaur',24,-2]];
+      const sites: [string, number, number][] = [['pikachu',-6,-25],['charmander',6,-12],['squirtle',-14,17],['bulbasaur',24,-2]];
       for (const [id, x, z] of sites) {
-        const tower = new Tower(TOWER_TEMPLATES[id], new THREE.Vector3(x, terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
+        const tower = new Tower(shotPokemon(id, 5), new THREE.Vector3(x, terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
         game.renderer.scene.add(tower.group);
         game.towers.push(tower);
       }
@@ -77,7 +105,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Keep the two equal-height Ghost/Water species adjacent: this makes the
     // extracted-model scale audit visible in the dedicated screenshot.
     const lineup = ['Pidgey', 'Rattata', 'Pikachu', 'Blastoise', 'Haunter', 'Gengar', 'Rhydon', 'Titan Onix', 'Titan Gyarados'];
-    const towers = ['pikachu', 'blastoise', 'venusaur', 'charizard'] as const;
+    const towers = ['pikachu', 'squirtle', 'bulbasaur', 'charmander'] as const;
     lineup.forEach((name, i) => {
       const at = Math.floor(route.length * (0.08 + i * 0.03));
       const titan = name.startsWith('Titan');
@@ -95,9 +123,8 @@ window.addEventListener('DOMContentLoaded', () => {
         .find(p => !game.arena.isBuildable(p.x, p.z, 1.6));
       if (!spot) return;
       const { x, z } = spot;
-      const tower = new Tower(TOWER_TEMPLATES[towers[(i / 2) % towers.length]], new THREE.Vector3(x, game.arena.terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
-      tower.evolve();
-      tower.evolve();
+      // Lv 50 puts every line in its final form.
+      const tower = new Tower(shotPokemon(towers[(i / 2) % towers.length], 50), new THREE.Vector3(x, game.arena.terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
       game.renderer.scene.add(tower.group);
       game.towers.push(tower);
     });
@@ -115,22 +142,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // Populate battle scene for screenshots — free placement means these are
       // just open turf coordinates, chosen clear of the creep lane.
-      const t0 = new Tower(TOWER_TEMPLATES.pikachu, new THREE.Vector3(-8, TOWER_BASE_HEIGHT, -6));
+      // Lv 18: Thunderbolt and Flash are open, Thunder still waits on Lv 26.
+      const t0 = new Tower(shotPokemon('pikachu', 18), new THREE.Vector3(-8, TOWER_BASE_HEIGHT, -6));
       game.renderer.scene.add(t0.group);
       game.towers.push(t0);
 
-      const t1 = new Tower(TOWER_TEMPLATES.charizard, new THREE.Vector3(8, TOWER_BASE_HEIGHT, -6));
-      t1.evolve(); // Charmeleon
-      t1.evolve(); // Charizard!
+      const t1 = new Tower(shotPokemon('charmander', 36), new THREE.Vector3(8, TOWER_BASE_HEIGHT, -6)); // Charizard
       t1.buyUpgrade(0); // Flamethrower
-      t1.buyUpgrade(0); // Fire Blast — unlocked by the final evolution
+      t1.buyUpgrade(0); // Fire Blast — unlocked at Lv 36
       t1.buyUpgrade(2); // Smokescreen
       game.renderer.scene.add(t1.group);
       game.towers.push(t1);
 
-      const t3 = new Tower(TOWER_TEMPLATES.blastoise, new THREE.Vector3(0, TOWER_BASE_HEIGHT, 8));
-      t3.evolve();
-      t3.evolve(); // Blastoise!
+      const t3 = new Tower(shotPokemon('squirtle', 36), new THREE.Vector3(0, TOWER_BASE_HEIGHT, 8)); // Blastoise
       t3.buyUpgrade(1); // Bite
       t3.buyUpgrade(1); // Ice Beam
       game.renderer.scene.add(t3.group);
@@ -139,14 +163,14 @@ window.addEventListener('DOMContentLoaded', () => {
       if (shot === 'placement_preview') {
         // Hover open turf with Bulbasaur armed for placement so visual
         // verification captures both the side roster and its exact range.
-        game.selectedTemplate = TOWER_TEMPLATES.venusaur;
+        game.selectedMember = game.roster.find(member => member.speciesId === 'bulbasaur') ?? null;
         game.arena.group.updateMatrixWorld(true);
         game.camera.camera.updateMatrixWorld(true);
         const projected = new THREE.Vector3(-9, TOWER_BASE_HEIGHT, 6).project(game.camera.camera);
         input.mouseNDC.set(projected.x, projected.y);
       } else {
         // Select Pikachu to showcase the move shop: one line part-bought, one
-        // untouched, and a top tier still locked behind evolution.
+        // untouched, and a top tier still locked behind a level.
         t0.buyUpgrade(0); // Thunderbolt
         t0.buyUpgrade(2); // Thunder Wave
         t0.buyUpgrade(2); // Flash

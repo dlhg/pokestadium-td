@@ -16,7 +16,6 @@ import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumUI, type PlacementStatus } from './StadiumUI';
 import {
   Tower,
-  TowerTemplate,
   TARGET_PRIORITIES,
   TOWER_FOOTPRINT_RADIUS,
   TOWER_BASE_HEIGHT,
@@ -31,12 +30,15 @@ import { HitContext, playInstantDelivery, resolveMoveHit } from './MoveDelivery'
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 import { BallType, CaptureSequence } from './CaptureSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
-import { PokemonModelFactory } from '../stadium/PokemonModels';
+import { speciesForCreepName } from './progression/Species';
+import { createPokemon, displayName, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
+import { MatchProgress, XpAward } from './progression/MatchProgress';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
 type PlacementBlockReason =
   | Exclude<BuildBlockReason, null>
   | 'overlaps_tower'
+  | 'already_deployed'
   | 'too_expensive';
 
 const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
@@ -47,6 +49,7 @@ const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
   water: 'WATER · PLACE ON THE BANK',
   too_steep: 'TOO STEEP · FIND LEVEL GROUND',
   overlaps_tower: 'ANOTHER POKÉMON IS THERE',
+  already_deployed: 'ALREADY ON THE FIELD',
 };
 
 export class StadiumTDGame {
@@ -58,6 +61,8 @@ export class StadiumTDGame {
   public announcer!: StadiumAnnouncer;
   public waveManager!: WaveManager;
   public ui!: StadiumUI;
+  public store!: TrainerStore;
+  private progress!: MatchProgress;
 
   // Economy & Lives
   public money: number = 420;
@@ -76,8 +81,17 @@ export class StadiumTDGame {
   public creeps: Creep[] = [];
   public projectiles: Projectile[] = [];
 
+  /** The team this match was started with, plus anything caught during it. */
+  public roster: OwnedPokemon[] = [];
+  /** True from a match's first frame until its XP and records are banked. */
+  private matchActive = false;
+  /** The nickname prompt holds the match; only it may release the pause it took. */
+  private namingHold = false;
+  /** Dev panel: every throw catches. */
+  public devAlwaysCatch = false;
+
   // Selection states
-  public selectedTemplate: TowerTemplate | null = null;
+  public selectedMember: OwnedPokemon | null = null;
   public selectedTower: Tower | null = null;
   private placementPreview: THREE.Group = new THREE.Group();
   private placementPreviewTemplateId: string | null = null;
@@ -85,14 +99,15 @@ export class StadiumTDGame {
   private selectedBall: BallType | null = null;
   private captureHint: string | null = null;
   private capture: { sequence: CaptureSequence; target: Creep; ball: BallType } | null = null;
-  private capturedTemplates: TowerTemplate[] = [];
   private cinemaDim = 0;
   private cinemaDimApplied = false;
   private cinemaFades = new Map<THREE.Object3D, number>();
   private readonly shotBounds = new THREE.Box3();
   private readonly shotHit = new THREE.Vector3();
 
-  public init(canvas: HTMLCanvasElement, uiContainer: HTMLElement): void {
+  public init(canvas: HTMLCanvasElement, uiContainer: HTMLElement, store: TrainerStore): void {
+    this.store = store;
+    this.progress = new MatchProgress(store);
     this.renderer = new StadiumRenderer(canvas);
     this.camera = new StadiumCamera();
     this.audio = new StadiumAudio();
@@ -106,7 +121,7 @@ export class StadiumTDGame {
     this.renderer.scene.add(this.placementPreview);
 
     this.waveManager = new WaveManager(this.arena.routes, this.announcer, this.map.difficulty);
-    this.ui = new StadiumUI(uiContainer, this.announcer, this.camera);
+    this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
 
     this.bindUIEvents();
 
@@ -128,6 +143,7 @@ export class StadiumTDGame {
       this.audio.playSelect();
     };
     this.ui.onQuitToMenu = () => {
+      const report = this.finishMatch();
       this.clearSelection();
       this.selectedBall = null;
       this.captureHint = null;
@@ -135,16 +151,16 @@ export class StadiumTDGame {
       this.isPaused = true;
       this.ui.setPauseVisible(false);
       this.isChoosingMap = true;
-      this.ui.setMapSelectVisible(true, false);
+      this.ui.showMatchReport(report, this.map.name, () => this.ui.setMapSelectVisible(true, false));
       this.audio.playSelect();
     };
     this.ui.onSelectMap = (map) => this.loadMap(map);
-    this.ui.onSelectTemplate = (template) => {
+    this.ui.onSelectMember = (member) => {
       if (this.selectedTower) {
         this.selectedTower.setSelected(false);
         this.selectedTower = null;
       }
-      this.selectedTemplate = template;
+      this.selectedMember = member;
       this.placementPreviewTemplateId = null;
       this.placementPreview.visible = false;
       this.audio.playSelect();
@@ -172,18 +188,6 @@ export class StadiumTDGame {
       tower.buyUpgrade(lineIdx);
       this.audio.playDeploy();
       this.camera.shake(0.2);
-    };
-
-    this.ui.onEvolveTower = (tower) => {
-      const next = tower.getNextEvolution();
-      if (!next || this.money < next.cost) return;
-
-      this.money -= next.cost;
-      const prevName = tower.name;
-      tower.evolve();
-      this.audio.playDeploy();
-      this.camera.shake(0.35);
-      this.announcer.trigger('tower_evolve', `${prevName} into ${tower.name}`);
     };
 
     this.ui.onDeselectTower = () => {
@@ -230,6 +234,7 @@ export class StadiumTDGame {
   }
 
   public loadMap(map: StadiumMap): void {
+    this.finishMatch();
     this.map = map;
     this.clearSelection();
     this.towers.forEach(tower => this.renderer.scene.remove(tower.group));
@@ -245,12 +250,18 @@ export class StadiumTDGame {
     this.waveManager = new WaveManager(this.arena.routes, this.announcer, this.map.difficulty);
     this.money = 420;
     this.lives = 6;
-    this.balls = { poke: 3, great: 0, ultra: 0 };
+    // A brand-new trainer gets extra balls to build a team with.
+    this.balls = { poke: this.store.data.matchesPlayed === 0 ? 5 : 3, great: 0, ultra: 0 };
     this.selectedBall = null;
     this.captureHint = null;
     this.abortCapture();
-    this.capturedTemplates = [];
-    this.ui.setCapturedTemplates([]);
+    this.roster = [...this.store.team];
+    this.roster.forEach(member => member.record.matches++);
+    this.progress.start(this.roster);
+    this.store.data.matchesPlayed++;
+    this.store.commit();
+    this.matchActive = true;
+    this.ui.setRoster(this.roster);
     this.gameOver = false;
     this.victory = false;
     this.ui.hideDefeat();
@@ -264,6 +275,24 @@ export class StadiumTDGame {
     this.ui.setMapSelectVisible(false);
     this.audio.playSelect();
     this.announcer.trigger('battle_start');
+  }
+
+  /**
+   * Banks the match: course record, XP already applied to the owned Pokémon,
+   * and a save. Idempotent, so every exit path can call it. Returns the report.
+   */
+  private finishMatch() {
+    if (!this.matchActive) return [];
+    this.matchActive = false;
+    // The wave index only advances on a clear, so it is the count of rounds won.
+    this.store.recordMap(this.map.id, this.waveManager.currentWaveIndex, this.victory);
+    this.store.commit();
+    return this.progress.report();
+  }
+
+  /** Saves progress mid-match without ending it — page hide, dev tools. */
+  public saveProgress(): void {
+    this.store.commit();
   }
 
   private removeTower(tower: Tower): void {
@@ -282,7 +311,7 @@ export class StadiumTDGame {
         this.ui.onResumeGame();
         return;
       }
-      const dismissedSelection = Boolean(this.selectedTemplate || this.selectedTower || this.selectedBall);
+      const dismissedSelection = Boolean(this.selectedMember || this.selectedTower || this.selectedBall);
       this.clearSelection();
       this.selectedBall = null;
       this.captureHint = null;
@@ -307,9 +336,9 @@ export class StadiumTDGame {
       return;
     }
 
-    // An armed template owns the cursor — clicks drop it, never select a tower.
-    if (this.selectedTemplate) {
-      this.updatePlacement(this.selectedTemplate, ground, input);
+    // An armed Pokémon owns the cursor — clicks drop it, never select a tower.
+    if (this.selectedMember) {
+      this.updatePlacement(this.selectedMember, ground, input);
       return;
     }
 
@@ -334,7 +363,7 @@ export class StadiumTDGame {
       this.selectedTower.setSelected(false);
       this.selectedTower = null;
     }
-    this.selectedTemplate = null;
+    this.selectedMember = null;
     this.placementStatus = null;
     this.placementPreview.visible = false;
   }
@@ -424,7 +453,11 @@ export class StadiumTDGame {
     const ballBonus: Record<BallType, number> = { poke: 0, great: 0.20, ultra: 0.42 };
     const statusBonus = target.status === 'stun' || target.status === 'freeze' ? 0.22 : target.status !== 'none' ? 0.12 : 0;
     const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
-    const chance = THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty, 0.08, 0.95);
+    // Trainer's luck: every miss since the last catch sweetens the next throw.
+    const luck = this.store.captureLuckBonus;
+    const chance = THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty + luck, 0.08, 0.95);
+    const ballsLeft = this.balls.poke + this.balls.great + this.balls.ultra;
+    const guaranteed = this.devAlwaysCatch || this.store.shouldGuaranteeCatch(ballsLeft, target.threat);
     target.beginCapture();
     const sequence = new CaptureSequence(target, ball, chance, {
       particles: this.particles,
@@ -432,7 +465,7 @@ export class StadiumTDGame {
       audio: this.audio,
       announcer: this.announcer,
       arena: this.arena,
-    });
+    }, guaranteed);
     this.renderer.scene.add(sequence.group);
     this.capture = { sequence, target, ball };
     this.selectedBall = null;
@@ -440,18 +473,22 @@ export class StadiumTDGame {
     this.captureHint = null;
   }
 
-  private finishCapture(success: boolean, target: Creep): void {
+  private finishCapture(success: boolean, target: Creep, ball: BallType): void {
     if (success) {
       this.renderer.scene.remove(target.group);
       this.creeps = this.creeps.filter(creep => creep !== target);
       target.destroy(this.renderer.scene);
-      const unlocked = this.unlockCapturedTower(target);
-      if (unlocked) this.ui.showCaptureTrophy(unlocked);
+      this.store.data.captureLuck = 0;
+      const caught = this.addCaughtPokemon(target, ball);
+      this.store.commit();
       this.money += Math.ceil(target.reward * 1.5);
-      this.captureHint = `CAUGHT ${target.name.toUpperCase()}! TOWER UNLOCKED`;
+      this.captureHint = `CAUGHT ${target.name.replace(/^Titan /, '').toUpperCase()}! READY TO DEPLOY`;
       this.announcer.trigger('capture_success', target.name);
       this.audio.playFanfare();
+      if (caught) this.promptNickname(caught);
     } else {
+      this.store.data.captureLuck++;
+      this.store.commit();
       target.cancelCapture();
       this.captureHint = `${target.name.toUpperCase()} BROKE FREE!`;
       this.announcer.trigger('capture_failed', target.name);
@@ -459,23 +496,34 @@ export class StadiumTDGame {
     }
   }
 
-  /** Returns the new roster entry, or null when this species is already on it. */
-  private unlockCapturedTower(creep: Creep): TowerTemplate | null {
-    const id = `caught_${creep.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
-    if (this.capturedTemplates.some(template => template.id === id)) return null;
-    const fallback = creep.modelType === 'zubat' ? PokemonModelFactory.createZubat
-      : creep.modelType === 'geodude' ? PokemonModelFactory.createGeodude
-      : creep.modelType === 'dragonair' ? PokemonModelFactory.createDragonair
-      : PokemonModelFactory.createRattata;
-    const template: TowerTemplate = {
-      id, name: creep.name.replace(/^Titan /, ''), type: creep.type, cost: Math.max(80, Math.round(creep.reward * 4)),
-      evolutions: [], description: `Captured in the stadium. A quick ${creep.type.toLowerCase()} defender.`,
-      lines: [{ id: 'special', label: 'SPECIAL', tiers: [{ moveId: 'quick_attack', cost: 0 }] }, { id: 'coverage', label: 'COVERAGE', tiers: [{ moveId: 'body_slam', cost: 100 }] }, { id: 'control', label: 'CONTROL', tiers: [{ moveId: 'toxic', cost: 125 }] }],
-      createModel: fallback,
-    };
-    this.capturedTemplates.push(template);
-    this.ui.setCapturedTemplates(this.capturedTemplates);
-    return template;
+  /** The catch joins the collection for good and can be deployed this match as a bonus slot. */
+  private addCaughtPokemon(creep: Creep, ball: BallType): OwnedPokemon | null {
+    const match = speciesForCreepName(creep.name);
+    if (!match) return null;
+    const pokemon = createPokemon(match.speciesId, creep.level, {
+      kind: 'caught', mapId: this.map.id, round: this.waveManager.round, ball, at: Date.now(),
+    }, { stage: match.stage });
+    this.store.add(pokemon);
+    this.roster.push(pokemon);
+    this.progress.track(pokemon, true);
+    this.ui.setRoster(this.roster);
+    return pokemon;
+  }
+
+  /** The trophy card asks for a nickname; the match waits for the answer. */
+  private promptNickname(pokemon: OwnedPokemon): void {
+    if (!this.isPaused) {
+      this.isPaused = true;
+      this.namingHold = true;
+    }
+    this.ui.showCaptureTrophy(pokemon, (name) => {
+      if (name !== null) this.store.rename(pokemon.uid, name);
+      this.ui.setRoster(this.roster);
+      if (this.namingHold) {
+        this.namingHold = false;
+        this.isPaused = false;
+      }
+    });
   }
 
   /** Mesh hit first, then a footprint-sized radius so small models stay clickable. */
@@ -501,7 +549,7 @@ export class StadiumTDGame {
   }
 
   private updatePlacement(
-    template: TowerTemplate,
+    member: OwnedPokemon,
     ground: THREE.Vector3 | null,
     input: Input,
   ): void {
@@ -511,24 +559,26 @@ export class StadiumTDGame {
       return;
     }
 
-    const blocked = this.getPlacementBlock(template, ground.x, ground.z);
+    const blocked = this.getPlacementBlock(member, ground.x, ground.z);
     this.placementStatus = blocked
       ? { valid: false, label: PLACEMENT_BLOCK_LABELS[blocked] }
-      : { valid: true, label: `PLACE ${template.name.toUpperCase()}${this.highGroundNote(ground)} · ESC TO CANCEL` };
+      : { valid: true, label: `PLACE ${displayName(member).toUpperCase()}${this.highGroundNote(ground)} · ESC TO CANCEL` };
 
-    this.updatePlacementPreview(template, ground, !blocked);
+    this.updatePlacementPreview(member, ground, !blocked);
 
     if (input.clicked && !input.clickedOnUI && !blocked) {
-      this.placeTower(template, ground);
+      this.placeTower(member, ground);
     }
   }
 
   private getPlacementBlock(
-    template: TowerTemplate,
+    member: OwnedPokemon,
     x: number,
     z: number,
   ): PlacementBlockReason | null {
-    if (this.money < template.cost) return 'too_expensive';
+    // One tower per owned Pokémon: two Pikachu towers means catching two Pikachu.
+    if (this.isDeployed(member)) return 'already_deployed';
+    if (this.money < speciesOf(member).deployCost) return 'too_expensive';
 
     const arenaBlock = this.arena.isBuildable(x, z, TOWER_FOOTPRINT_RADIUS);
     if (arenaBlock) return arenaBlock;
@@ -539,11 +589,15 @@ export class StadiumTDGame {
     return crowded ? 'overlaps_tower' : null;
   }
 
-  private placeTower(template: TowerTemplate, ground: THREE.Vector3): void {
-    const position = new THREE.Vector3(ground.x, this.padHeight(ground.x, ground.z), ground.z);
-    this.money -= template.cost;
+  public isDeployed(member: OwnedPokemon): boolean {
+    return this.towers.some(tower => tower.pokemon === member);
+  }
 
-    const tower = new Tower(template, position);
+  private placeTower(member: OwnedPokemon, ground: THREE.Vector3): void {
+    const position = new THREE.Vector3(ground.x, this.padHeight(ground.x, ground.z), ground.z);
+    this.money -= speciesOf(member).deployCost;
+
+    const tower = new Tower(member, position);
     this.renderer.scene.add(tower.group);
     this.towers.push(tower);
 
@@ -555,7 +609,7 @@ export class StadiumTDGame {
     this.selectedTower = tower;
     tower.setSelected(true);
 
-    this.selectedTemplate = null;
+    this.selectedMember = null;
     this.placementStatus = null;
     this.placementPreview.visible = false;
   }
@@ -574,14 +628,14 @@ export class StadiumTDGame {
   }
 
   private updatePlacementPreview(
-    template: TowerTemplate,
+    member: OwnedPokemon,
     point: THREE.Vector3,
     valid: boolean,
   ): void {
     const color = valid ? 0x00f0ff : 0xd90429;
-    if (this.placementPreviewTemplateId !== template.id) {
+    if (this.placementPreviewTemplateId !== member.uid) {
       this.placementPreview.clear();
-      const range = MOVES[template.lines[0].tiers[0].moveId].range;
+      const range = MOVES[speciesOf(member).lines[0].tiers[0].moveId].range;
 
       const rangeFill = new THREE.Mesh(
         new THREE.CircleGeometry(range, 64),
@@ -626,7 +680,7 @@ export class StadiumTDGame {
       footprint.position.y = 0.03;
       footprint.renderOrder = 6;
       this.placementPreview.add(footprint);
-      this.placementPreviewTemplateId = template.id;
+      this.placementPreviewTemplateId = member.uid;
     }
 
     this.placementPreview.traverse((object) => {
@@ -688,14 +742,14 @@ export class StadiumTDGame {
         this.audio.playAttack(move.fxType);
 
         if (move.delivery === 'projectile') {
-          this.projectiles.push(new Projectile(move, t.position, target, this.renderer.scene));
+          this.projectiles.push(new Projectile(move, t.position, target, this.renderer.scene, t));
           return;
         }
 
         // Every other archetype lands the moment it is fired: draw the
         // delivery, then resolve the hit once at the target.
         playInstantDelivery(move, t.position, target, this.particles, this.camera);
-        resolveMoveHit(move, target, this.hitContext());
+        resolveMoveHit(move, target, this.hitContext(), t);
       });
     });
 
@@ -730,7 +784,8 @@ export class StadiumTDGame {
           this.announcer.trigger('game_over');
           this.abortCapture();
           this.clearSelection();
-          this.ui.showDefeat(this.map.name, this.waveManager.round, this.waveManager.winRound);
+          const report = this.finishMatch();
+          this.ui.showDefeat(this.map.name, this.waveManager.round, this.waveManager.winRound, report);
         }
       } else if (!c.alive && c.removalReady) {
         c.destroy(this.renderer.scene);
@@ -749,7 +804,7 @@ export class StadiumTDGame {
         const activeCapture = this.capture;
         this.capture = null;
         activeCapture.sequence.dispose(this.renderer.scene);
-        this.finishCapture(result, activeCapture.target);
+        this.finishCapture(result, activeCapture.target, activeCapture.ball);
       }
     }
 
@@ -791,7 +846,8 @@ export class StadiumTDGame {
         gameSpeed: this.gameSpeed,
         cameraMode: this.camera.mode,
         selectedTower: this.selectedTower,
-        selectedTemplate: this.selectedTemplate,
+        selectedMember: this.selectedMember,
+        deployed: new Set(this.towers.map(tower => tower.pokemon.uid)),
         placementStatus: this.placementStatus,
         mapName: this.map.name,
         mapStrategy: this.map.strategy,
@@ -812,6 +868,11 @@ export class StadiumTDGame {
 
   /** Milestone payouts, and the win itself — which never stops the run. */
   private handleRoundCleared(round: number): void {
+    this.applyXp(this.progress.awardWaveClear(this.towers));
+    // Autosave per wave: closing the tab loses at most the wave in progress.
+    this.store.recordMap(this.map.id, round, round >= this.waveManager.winRound);
+    this.store.commit();
+
     const milestone = getMilestone(round, this.waveManager.winRound);
     if (milestone) {
       this.money += milestone.money;
@@ -833,6 +894,7 @@ export class StadiumTDGame {
 
   private handleCreepDefeat(creep: Creep): void {
     this.money += creep.reward;
+    this.applyXp(this.progress.awardKnockout(creep, this.towers));
     this.particles.emitImpact(creep.position, 0xffd700, 20, 6);
 
     if (creep.threat === 'titan') {
@@ -845,6 +907,33 @@ export class StadiumTDGame {
     } else if (Math.random() < 0.25) {
       this.announcer.trigger('creep_faint');
     }
+  }
+
+  /** Level-ups flash on the tower; evolutions swap the model and get the announcer. */
+  private applyXp(awards: XpAward[]): void {
+    for (const { tower, result } of awards) {
+      if (result.levelsGained <= 0) continue;
+      const lift = tower.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+      if (tower.syncProgress()) {
+        this.particles.emitImpact(lift, 0x00f0ff, 40, 8);
+        this.audio.playFanfare();
+        this.camera.shake(0.35);
+        this.announcer.trigger('tower_evolve', (tower.pokemon.nickname ?? result.evolvedFrom!).toUpperCase());
+      } else {
+        this.particles.emitImpact(lift, 0xffd700, 16, 4);
+        this.announcer.trigger('level_up', `${tower.name.toUpperCase()} GREW TO LV ${tower.level}`);
+      }
+    }
+  }
+
+  /** Re-reads every placed tower's owned Pokémon after an out-of-band change (dev panel). */
+  public syncTowers(): void {
+    this.towers.forEach(tower => tower.syncProgress());
+    this.ui.setRoster(this.roster);
+  }
+
+  public get inMatch(): boolean {
+    return this.matchActive;
   }
 
   public render(): void {
