@@ -65,7 +65,47 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  if (shot && shot !== 'map_select' && !courseShot) {
+  // scale_lineup: the size ladder on the narrowest lane, with fully evolved towers
+  // parked as close to the lane as placement allows, so any clipping shows.
+  if (shot?.startsWith('scale_')) {
+    const map = STADIUM_MAPS.reduce((a, b) => (b.laneWidth < a.laneWidth ? b : a));
+    game.loadMap(map);
+    game.announcer.update(60);
+    game.isPaused = true;
+    game.camera.setMode('stadium');
+    const route = game.arena.waypoints;
+    const lineup = ['Pidgey', 'Rattata', 'Pikachu', 'Gengar', 'Rapidash', 'Rhydon', 'Titan Onix', 'Titan Gyarados'];
+    const towers = ['pikachu', 'blastoise', 'venusaur', 'charizard'] as const;
+    lineup.forEach((name, i) => {
+      const at = Math.floor(route.length * (0.08 + i * 0.03));
+      const titan = name.startsWith('Titan');
+      const creep = new Creep({ id: `scale_${i}`, name, type: 'Normal', maxHp: 100, speed: 4, reward: 15,
+        threat: titan ? 'titan' : 'normal', modelType: titan ? 'boss_titan' : 'rattata',
+        titanType: name.endsWith('Gyarados') ? 'Gyarados' : 'Onix' }, route);
+      creep.position.copy(route[at]);
+      creep.group.position.copy(creep.position);
+      game.renderer.scene.add(creep.group);
+      game.creeps.push(creep);
+      if (i % 2) return;
+      const along = route[at + 1].clone().sub(route[at - 1]).setY(0).normalize();
+      const side = new THREE.Vector3(-along.z, 0, along.x).multiplyScalar(map.laneWidth / 2 + 1.6 + 0.01);
+      const spot = [1, -1].map(sign => route[at].clone().addScaledVector(side, sign))
+        .find(p => !game.arena.isBuildable(p.x, p.z, 1.6));
+      if (!spot) return;
+      const { x, z } = spot;
+      const tower = new Tower(TOWER_TEMPLATES[towers[i / 2]], new THREE.Vector3(x, game.arena.terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
+      tower.evolve();
+      tower.evolve();
+      game.renderer.scene.add(tower.group);
+      game.towers.push(tower);
+    });
+    // scale_lineup frames the small end of the ladder, scale_titans the bosses.
+    const focusIndex = shot === 'scale_titans' ? 6 : 2;
+    const focus = game.creeps[focusIndex].position;
+    game.camera.beginCinematic(focus, shot === 'scale_titans' ? 11 : 8, shot === 'scale_titans' ? 8 : 5.5, 0);
+  }
+
+  if (shot && shot !== 'map_select' && !courseShot && !shot.startsWith('scale_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

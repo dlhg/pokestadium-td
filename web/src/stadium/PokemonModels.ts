@@ -13,6 +13,8 @@ export type PokemonAnimationState = 'idle' | 'attack' | 'hit' | 'walk' | 'faint'
 
 export interface AnimatedPokemon {
   mesh: THREE.Group;
+  /** Standing height in world units, when the loader knows it. */
+  height?: number;
   parts: Record<string, THREE.Object3D>;
   mixer?: THREE.AnimationMixer;
   actions?: Record<string, THREE.AnimationAction>;
@@ -23,11 +25,11 @@ export interface AnimatedPokemon {
 export class PokemonModelFactory {
   public static async loadAuthenticModel(
     name: string,
-    targetHeight: number,
+    fitHeight: number | undefined,
     fallbackFn: () => AnimatedPokemon
   ): Promise<AnimatedPokemon> {
     const { GLTFModelLoader } = await import('../engine/GLTFModelLoader');
-    const gltfModel = await GLTFModelLoader.loadPokemonModel(name, targetHeight);
+    const gltfModel = await GLTFModelLoader.loadPokemonModel(name, fitHeight);
     if (gltfModel) return gltfModel;
     return fallbackFn();
   }

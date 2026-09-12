@@ -54,8 +54,9 @@ def find_rom():
 
 # --------------------------------------------------------------- bind extent
 
-def bind_extent(data):
-    """World-space bounding box of the bind pose, used to size the effects."""
+def pose_matrices(data, pose=None):
+    """Per-bone skinning matrices in model space. `pose(i, bone)` returns the
+    (t, r, s) to use for bone i; the bind values are used when it is omitted."""
     def trs(t, r, s):
         S = lambda v: math.sin(v / 32768 * math.pi)
         C = lambda v: math.cos(v / 32768 * math.pi)
@@ -74,31 +75,75 @@ def bind_extent(data):
 
     root = trs([0, 0, 0], [0, 0, 0], data['rootScale'])
     acc, uns, mats = [], [], []
-    for b in data['bones']:
+    for i, b in enumerate(data['bones']):
+        t, r, s = pose(i, b) if pose else (b['t'], b['r'], b['s'])
         pa = acc[b['parent']] if b['parent'] >= 0 else [1.0, 1.0, 1.0]
         pu = uns[b['parent']] if b['parent'] >= 0 else root
-        u = mul(pu, trs([b['t'][k]*pa[k] for k in range(3)], b['r'], [1, 1, 1]))
-        a = [pa[k]*b['s'][k] for k in range(3)]
+        u = mul(pu, trs([t[k]*pa[k] for k in range(3)], r, [1, 1, 1]))
+        a = [pa[k]*s[k] for k in range(3)]
         m = list(u)
         for k in range(4):
             m[k] *= a[0]; m[4+k] *= a[1]; m[8+k] *= a[2]
         acc.append(a); uns.append(u); mats.append(m)
+    return mats
 
-    lo = [1e9]*3; hi = [-1e9]*3
+
+def posed_vertices(data, mats):
+    """Model-space positions of every extracted (non-generated) vertex."""
     for p in data['prims']:
+        if p.get('generated'):
+            continue
         for i, bi in enumerate(p['skin']):
             m = mats[bi]
             x, y, z = p['pos'][i*3:i*3+3]
-            w = (m[0]*x+m[4]*y+m[8]*z+m[12], m[1]*x+m[5]*y+m[9]*z+m[13],
-                 m[2]*x+m[6]*y+m[10]*z+m[14])
-            for k in range(3):
-                lo[k] = min(lo[k], w[k]); hi[k] = max(hi[k], w[k])
+            yield (m[0]*x+m[4]*y+m[8]*z+m[12], m[1]*x+m[5]*y+m[9]*z+m[13],
+                   m[2]*x+m[6]*y+m[10]*z+m[14])
+
+
+def bind_extent(data):
+    """World-space bounding box of the bind pose, used to size the effects."""
+    mats = pose_matrices(data)
+    lo = [1e9]*3; hi = [-1e9]*3
+    for w in posed_vertices(data, mats):
+        for k in range(3):
+            lo[k] = min(lo[k], w[k]); hi[k] = max(hi[k], w[k])
     # height, not the largest dimension: sizing off the max would scale Moltres'
     # flames to its wingspan
     extent = (hi[1] - lo[1]) if lo[0] <= hi[0] else 1.0
     # how much each bone scales its own local space, so effects can compensate
     scales = [math.sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]) for m in mats]
     return extent, scales
+
+
+def idle_size(data, idle_index):
+    """How much room the model needs while it stands around: the vertical span
+    and the ground footprint (twice the farthest horizontal reach from the model
+    origin) over the bind pose and every frame of its idle loop. The game places
+    models by their origin and turns them about Y, so reach from the origin, not
+    box width, is what has to clear a lane edge. Generated effects are excluded."""
+    poses = [None]
+    if 0 <= idle_index < len(data['anims']):
+        anim = data['anims'][idle_index]
+        pick = lambda c, fr: c if isinstance(c, (int, float)) else c[min(fr, len(c) - 1)]
+
+        def at(fr):
+            def pose(i, b):
+                tr = anim['tracks'][i]
+                if not tr:
+                    return b['t'], b['r'], b['s']
+                return ([pick(c, fr) for c in tr['t']], [pick(c, fr) for c in tr['r']],
+                        [pick(c, fr) for c in tr['s']])
+            return pose
+        poses += [at(fr) for fr in range(anim['frames'])]
+
+    reach, lo, hi = 0.0, 1e9, -1e9
+    for pose in poses:
+        for x, y, z in posed_vertices(data, pose_matrices(data, pose)):
+            reach = max(reach, x*x + z*z)
+            lo = min(lo, y); hi = max(hi, y)
+    if lo > hi:
+        return dict(footprint=1.0, height=1.0)
+    return dict(footprint=round(2 * math.sqrt(reach), 2), height=round(hi - lo, 2))
 
 
 # ------------------------------------------------------------ animation names
@@ -240,6 +285,9 @@ def main(argv):
             move_rows[species] = [[rows[e][0], rows[e][1]]
                                   for e in range(battle.N_MOVES)]
             anim_names[species] = [a['name'] for a in data['anims']]
+            # same pick as the web loader: first clip the battle table uses for idle
+            idle = next((i for i, u in enumerate(uses) if 'idle' in u), 0)
+            size = idle_size(data, idle)
         else:
             slug = f'x{fileno:03d}_model'
             data['name'] = EXTRA_NAMES.get(fileno, f'Model {fileno}')
@@ -273,6 +321,7 @@ def main(argv):
             vertices=sum(len(p['pos']) // 3 for p in data['prims']),
             bones=len(data['bones']), textures=len(data['textures']),
             generatedEffects=nfx,
+            **(dict(size=size) if pokemon else {}),
             animations=[dict(
                 index=i, name=a['name'], frames=a['frames'],
                 seconds=round(a['frames'] / 30.0, 3),
