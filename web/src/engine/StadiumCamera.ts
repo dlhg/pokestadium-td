@@ -164,7 +164,13 @@ export class StadiumCamera {
    * on `focus` that ignores player input until releaseCinematic() restores the
    * framing the player had before.
    */
-  public beginCinematic(focus: THREE.Vector3, distance: number = 9, height: number = 3.4, orbitSpeed: number = 0.32): void {
+  public beginCinematic(
+    focus: THREE.Vector3,
+    distance: number = 9,
+    height: number = 3.4,
+    orbitSpeed: number = 0.32,
+    startAngle?: number,
+  ): void {
     this.actionTimer = 0;
     this.actionFocusTarget = null;
     this.cinematic = {
@@ -172,8 +178,9 @@ export class StadiumCamera {
       distance,
       height,
       orbitSpeed,
-      // Start the orbit behind the player's current viewing angle so the push-in reads as a swing.
-      angle: Math.atan2(this.currentPos.x - focus.x, this.currentPos.z - focus.z) - 0.5,
+      // Default to swinging in from behind the player's current viewing angle;
+      // a caller that knows where the clear ground is can override it.
+      angle: startAngle ?? Math.atan2(this.currentPos.x - focus.x, this.currentPos.z - focus.z) - 0.5,
       restore: { pos: this.desiredPos.clone(), target: this.desiredTarget.clone() },
     };
   }
@@ -211,6 +218,15 @@ export class StadiumCamera {
         shot.focus.y + shot.height,
         shot.focus.z + Math.cos(shot.angle) * shot.distance,
       );
+      // The orbit must stay inside the bowl: a set piece near the rim would
+      // otherwise swing the camera into the grandstands and clip through them.
+      const reach = Math.hypot(this.desiredPos.x, this.desiredPos.z);
+      if (reach > this.arenaLimit) {
+        const pullIn = this.arenaLimit / reach;
+        this.desiredPos.x *= pullIn;
+        this.desiredPos.z *= pullIn;
+        this.desiredPos.y += shot.height * 0.35;
+      }
       this.desiredTarget.copy(shot.focus).add(new THREE.Vector3(0, 0.9, 0));
     }
 

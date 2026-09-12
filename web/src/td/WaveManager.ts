@@ -8,6 +8,8 @@
 import * as THREE from 'three';
 import { Creep, CreepConfig } from './Creep';
 import { StadiumAnnouncer } from '../stadium/Announcer';
+import type { MapDifficulty } from './MapCatalog';
+import type { BallType } from './CaptureSequence';
 
 export interface WaveDefinition {
   round: number;
@@ -116,7 +118,7 @@ export class WaveManager {
         },
         {
           config: {
-            id: 'elite_geodude_1', name: 'Granite Captain', type: 'Rock', secondaryType: 'Ground',
+            id: 'elite_geodude_1', name: 'Geodude', type: 'Rock', secondaryType: 'Ground',
             maxHp: 720, speed: 2.35, reward: 100, threat: 'elite', modelType: 'geodude'
           },
           count: 1,
@@ -270,7 +272,7 @@ export class WaveManager {
         },
         {
           config: {
-            id: 'elite_dragonair_1', name: 'Azure Champion', type: 'Dragon',
+            id: 'elite_dragonair_1', name: 'Dragonair', type: 'Dragon',
             maxHp: 1520, speed: 3.7, reward: 185, threat: 'elite', modelType: 'dragonair'
           },
           count: 1,
@@ -321,7 +323,7 @@ export class WaveManager {
         },
         {
           config: {
-            id: 'elite_rhydon_1', name: 'Iron Champion', type: 'Ground', secondaryType: 'Rock',
+            id: 'elite_rhydon_1', name: 'Rhydon', type: 'Ground', secondaryType: 'Rock',
             maxHp: 1920, speed: 2.55, reward: 220, threat: 'elite', modelType: 'geodude'
           },
           count: 1,
@@ -355,24 +357,42 @@ export class WaveManager {
     }
   ];
 
-  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer) {
+  /** Hand-authored cups cover the opening; every later round is generated. */
+  private generated = new Map<number, WaveDefinition>();
+  public readonly winRound: number;
+
+  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer, difficulty: MapDifficulty) {
     if (!routes.length || routes.some(route => route.length < 2)) throw new Error('A course needs a traversable route');
     this.routes = routes;
     this.announcer = announcer;
+    this.winRound = WIN_ROUNDS[difficulty];
   }
 
-  public getCurrentWave(): WaveDefinition | null {
-    return this.waves[this.currentWaveIndex] || null;
+  /** Round number of the wave in play, or the one queued next during an intermission. */
+  public get round(): number { return this.currentWaveIndex + 1; }
+  public get isFreeplay(): boolean { return this.round > this.winRound; }
+
+  public getCurrentWave(): WaveDefinition {
+    return this.getWave(this.round);
   }
 
-  public startNextWave(): boolean {
-    if (this.currentWaveIndex >= this.waves.length) {
-      return false; // All cups completed!
+  /** Rounds never run out: past the authored cups they are built, then cached. */
+  public getWave(round: number): WaveDefinition {
+    if (round <= this.waves.length) return this.waves[round - 1];
+    let wave = this.generated.get(round);
+    if (!wave) {
+      wave = generateWave(round, this.winRound);
+      this.generated.set(round, wave);
     }
+    return wave;
+  }
 
-    const wave = this.waves[this.currentWaveIndex];
+  public startNextWave(): void {
+    const wave = this.getCurrentWave();
     this.inWave = true;
     this.waveCompleted = false;
+    // A manual start skips the rest of the break; don't leave a stale countdown behind.
+    this.intermissionTimer = 0;
     this.spawnQueue = [];
     this.spawnTimer = 0;
     this.nextRoute = this.currentWaveIndex % this.routes.length;
@@ -392,14 +412,13 @@ export class WaveManager {
     } else {
       this.announcer.trigger('round_start', String(wave.round));
     }
-
-    return true;
   }
 
   public update(
     dt: number,
     activeCreeps: Creep[],
-    onSpawn: (creep: Creep) => void
+    onSpawn: (creep: Creep) => void,
+    onRoundCleared: (round: number) => void
   ): void {
     if (!this.inWave) {
       // Intermission countdown
@@ -426,12 +445,164 @@ export class WaveManager {
     } else {
       // Check if all creeps are defeated or reached end
       if (activeCreeps.length === 0) {
+        const cleared = this.round;
         this.inWave = false;
         this.waveCompleted = true;
         this.currentWaveIndex++;
         this.intermissionTimer = 7.0; // 7s break between rounds
         this.announcer.trigger('wave_cleared');
+        onRoundCleared(cleared);
       }
     }
   }
+}
+
+/** The round whose clear wins the map. Play continues afterwards as freeplay. */
+export const WIN_ROUNDS: Record<MapDifficulty, number> = { easy: 40, medium: 60, hard: 80 };
+
+export interface MilestoneReward {
+  round: number;
+  label: string;
+  money: number;
+  balls: Partial<Record<BallType, number>>;
+}
+
+/**
+ * Bonus payouts for landmark clears: every 10th round, bigger ones at each
+ * quarter-century, and the win round itself. Round 100 and each hundred
+ * after it are the long-haul trophies, reachable only in freeplay on easy
+ * and medium courses and just past the finish on hard ones.
+ */
+export function getMilestone(round: number, winRound: number): MilestoneReward | null {
+  if (round % 100 === 0) {
+    return { round, label: `ROUND ${round} LEGEND`, money: 2500 * (round / 100), balls: { ultra: 3 } };
+  }
+  if (round === winRound) {
+    return { round, label: 'STADIUM CHAMPION', money: 1000, balls: { ultra: 2 } };
+  }
+  if (round % 25 === 0) {
+    return { round, label: `ROUND ${round} MILESTONE`, money: 400 + round * 12, balls: { ultra: 1 } };
+  }
+  if (round % 10 === 0) {
+    return { round, label: `ROUND ${round} CLEAR`, money: 150 + round * 6, balls: { great: 1 } };
+  }
+  return null;
+}
+
+// --------------------------------------------------------------------------
+// Generated rounds
+// --------------------------------------------------------------------------
+
+type RosterEntry = Omit<CreepConfig, 'id'>;
+
+/** Rank-and-file lineup for generated rounds, tuned at the Prime Cup baseline. */
+const ROSTER: RosterEntry[] = [
+  { name: 'Raticate', type: 'Normal', maxHp: 300, speed: 5.2, reward: 30, modelType: 'rattata' },
+  { name: 'Golbat', type: 'Poison', secondaryType: 'Flying', maxHp: 280, speed: 5.6, reward: 30, modelType: 'zubat' },
+  { name: 'Haunter', type: 'Ghost', secondaryType: 'Poison', maxHp: 260, speed: 4.6, reward: 32, modelType: 'zubat' },
+  { name: 'Graveler', type: 'Rock', secondaryType: 'Ground', maxHp: 400, speed: 3.2, reward: 36, modelType: 'geodude' },
+  { name: 'Machoke', type: 'Fighting', maxHp: 420, speed: 3.1, reward: 38, modelType: 'geodude' },
+  { name: 'Rapidash', type: 'Fire', maxHp: 330, speed: 5.4, reward: 34, modelType: 'rattata' },
+  { name: 'Gloom', type: 'Grass', secondaryType: 'Poison', maxHp: 350, speed: 4.4, reward: 34, modelType: 'rattata' },
+  { name: 'Golduck', type: 'Water', maxHp: 380, speed: 4.2, reward: 36, modelType: 'rattata' },
+  { name: 'Electrode', type: 'Electric', maxHp: 290, speed: 6.0, reward: 34, modelType: 'rattata' },
+  { name: 'Dragonair', type: 'Dragon', maxHp: 440, speed: 5.0, reward: 40, modelType: 'dragonair' },
+  { name: 'Lapras', type: 'Water', secondaryType: 'Ice', maxHp: 560, speed: 3.1, reward: 46, modelType: 'dragonair' },
+  { name: 'Scyther', type: 'Bug', secondaryType: 'Flying', maxHp: 400, speed: 5.8, reward: 40, modelType: 'zubat' },
+  { name: 'Rhydon', type: 'Ground', secondaryType: 'Rock', maxHp: 520, speed: 3.0, reward: 44, modelType: 'geodude' },
+  { name: 'Kadabra', type: 'Psychic', maxHp: 300, speed: 5.0, reward: 36, modelType: 'rattata' },
+];
+
+const CUP_NAMES = ['GYM LEADER CASTLE', 'ELITE FOUR', 'MASTER CUP', 'CHAMPION LEAGUE'];
+
+/** Deterministic per-round randomness, so round 37 is the same fight every run. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * HP multiplier over the round-10 baseline: a steady climb to the win round,
+ * then a compounding freeplay ramp so endless runs eventually end.
+ */
+function hpScale(round: number, winRound: number): number {
+  const past = round - 10;
+  const base = (1 + 0.08 * past) * Math.pow(1.018, past);
+  return round > winRound ? base * Math.pow(1.045, round - winRound) : base;
+}
+
+function generateWave(round: number, winRound: number): WaveDefinition {
+  const rand = mulberry32(round * 2654435761);
+  const hp = hpScale(round, winRound);
+  // Rewards trail HP so income doesn't outrun the difficulty curve.
+  const pay = Math.sqrt(hp);
+  const freeplay = round > winRound;
+  const cupName = freeplay ? 'FREEPLAY' : CUP_NAMES[Math.floor((round - 11) / 10) % CUP_NAMES.length];
+
+  const scaled = (entry: RosterEntry, id: string, extra: Partial<CreepConfig> = {}): CreepConfig => ({
+    ...entry,
+    id,
+    maxHp: Math.round(entry.maxHp * hp),
+    speed: Math.min(entry.speed * (1 + Math.min(round, 120) * 0.0025), entry.speed * 1.3),
+    reward: Math.round(entry.reward * pay),
+    ...extra,
+  });
+
+  if (round % 10 === 0) {
+    const titanType = round % 20 === 0 ? 'Gyarados' : 'Onix';
+    const escortEntry = ROSTER[Math.floor(rand() * ROSTER.length)];
+    return {
+      round, cupName,
+      name: `${freeplay ? 'Freeplay' : cupName} Final: TITAN ${titanType.toUpperCase()}`,
+      spawns: [
+        {
+          config: {
+            id: `boss_${titanType.toLowerCase()}_${round}`,
+            name: `Titan ${titanType}`,
+            type: titanType === 'Onix' ? 'Rock' : 'Water',
+            secondaryType: titanType === 'Onix' ? 'Ground' : 'Flying',
+            maxHp: Math.round(3600 * hp),
+            speed: titanType === 'Onix' ? 2.3 : 2.8,
+            reward: Math.round(500 * pay),
+            isBoss: true, threat: 'titan', modelType: 'boss_titan', titanType,
+          },
+          count: 1,
+          interval: 1.0,
+        },
+        { config: scaled(escortEntry, `escort_${round}`), count: 4 + Math.floor(round / 15), interval: 0.9 },
+      ],
+    };
+  }
+
+  const groupCount = Math.min(2 + Math.floor(round / 25), 4);
+  const picks = new Set<number>();
+  while (picks.size < groupCount) picks.add(Math.floor(rand() * ROSTER.length));
+  const spawns: WaveDefinition['spawns'] = [...picks].map((index, i) => ({
+    config: scaled(ROSTER[index], `gen_${round}_${i}`),
+    count: Math.min(6 + Math.floor(round / 6) + Math.floor(rand() * 4), 28),
+    interval: Math.max(1.1 - round * 0.006, 0.45),
+  }));
+
+  if (round % 5 === 0) {
+    const eliteEntry = ROSTER[Math.floor(rand() * ROSTER.length)];
+    spawns.push({
+      config: scaled(eliteEntry, `elite_${round}`, {
+        maxHp: Math.round(eliteEntry.maxHp * 4 * hp),
+        reward: Math.round(eliteEntry.reward * 5 * pay),
+        speed: eliteEntry.speed * 0.8,
+        threat: 'elite',
+      }),
+      count: 1 + Math.floor(round / 40),
+      interval: 2.4,
+    });
+  }
+
+  const lead = spawns[0].config.name;
+  return { round, cupName, name: `${cupName}: ${lead} Assault`, spawns };
 }

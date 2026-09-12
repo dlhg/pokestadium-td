@@ -49,6 +49,8 @@ export class StadiumArena {
   private jumbotronCtx: CanvasRenderingContext2D;
   private jumbotronTexture: THREE.CanvasTexture;
   private crowdMaterial: THREE.ShaderMaterial | null = null;
+  private crowdMood: number = 0;
+  private targetCrowdMood: number = 0;
   private crowdBatches: CrowdBatch[] = [];
 
   constructor(map: StadiumMap = DEFAULT_STADIUM_MAP) {
@@ -300,6 +302,8 @@ export class StadiumArena {
       uniforms: {
         atlas0: { value: atlases[0] }, atlas1: { value: atlases[1] }, atlas2: { value: atlases[2] },
         atlas3: { value: atlases[3] }, atlas4: { value: atlases[4] }, time: { value: 0 },
+        // -1 hushes the stands to stillness, +1 whips them into a roar.
+        mood: { value: 0 },
       },
       vertexShader: `
         attribute vec2 atlasCell;
@@ -307,6 +311,7 @@ export class StadiumArena {
         attribute vec3 crowdTint;
         attribute float atlasSet;
         uniform float time;
+        uniform float mood;
         varying vec2 vAtlasUv;
         varying vec3 vTint;
         varying float vAtlasSet;
@@ -316,8 +321,11 @@ export class StadiumArena {
           // head carry the cheer motion. This removes the sliding paper-card
           // seam where the artwork meets the seat.
           float upperBody = smoothstep(-0.82, 0.28, position.y);
-          animatedPosition.y += sin(time * 5.0 + cheerPhase) * 0.065 * upperBody;
-          animatedPosition.x += sin(time * 2.5 + cheerPhase) * 0.016 * upperBody;
+          // A hush stills the stands; a roar makes them bounce out of their seats.
+          float energy = clamp(1.0 + mood, 0.06, 2.6);
+          float rate = 5.0 + mood * 3.0;
+          animatedPosition.y += sin(time * rate + cheerPhase) * 0.065 * upperBody * energy;
+          animatedPosition.x += sin(time * 2.5 + cheerPhase) * 0.016 * upperBody * energy;
           // Four pixel inset inside each 224px cell prevents transparent-edge
           // filtering from sampling art in a neighbouring cell.
           vec2 cellSize = vec2(1.0 / 8.0, 1.0 / 4.0);
@@ -365,8 +373,22 @@ export class StadiumArena {
     return hashed - Math.floor(hashed);
   }
 
-  public update(time: number, cameraPosition: THREE.Vector3): void {
-    if (this.crowdMaterial) this.crowdMaterial.uniforms.time.value = time;
+  /**
+   * Crowd energy from -1 (held breath) through 0 (normal match) to +1 (roar).
+   * Eased toward the requested value so the stands never snap between moods.
+   */
+  public setCrowdMood(mood: number): void {
+    this.targetCrowdMood = THREE.MathUtils.clamp(mood, -1, 1);
+  }
+
+  public update(time: number, cameraPosition: THREE.Vector3, dt: number = 0.016): void {
+    this.crowdMood = THREE.MathUtils.damp(this.crowdMood, this.targetCrowdMood, 5, dt);
+    if (this.crowdMaterial) {
+      this.crowdMaterial.uniforms.time.value = time;
+      this.crowdMaterial.uniforms.mood.value = this.crowdMood;
+    }
+    // A hush leaves almost everyone seated; a roar puts the whole stand up.
+    const cheerThreshold = 0.42 - this.crowdMood * 0.95;
     this.crowdBatches.forEach(({ atlasCell, mesh, members }) => {
       const dummy = new THREE.Object3D();
       members.forEach((member, index) => {
@@ -376,7 +398,7 @@ export class StadiumArena {
         // this pitch-facing coordinate system, so select the opposite side
         // column rather than making spectators turn away from the match.
         const direction = Math.abs(relative) > Math.PI * 0.75 ? 2 : relative > Math.PI * 0.25 ? 3 : relative < -Math.PI * 0.25 ? 1 : 0;
-        const cheering = Math.sin(time * 2.2 + member.phase) > 0.42 ? 1 : 0;
+        const cheering = Math.sin(time * 2.2 + member.phase) > cheerThreshold ? 1 : 0;
         const rowFromTop = Math.floor(member.character / 2) * 2 + cheering;
         atlasCell.setXY(index, (member.character % 2) * 4 + direction, 3 - rowFromTop);
 

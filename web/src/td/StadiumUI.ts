@@ -17,6 +17,7 @@ import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
 import { mapPreview } from './MapPreview';
 import { BallType, CaptureHud } from './CaptureSequence';
+import type { MilestoneReward } from './WaveManager';
 import './map-select.css';
 
 /** What the roster hint says about the spot the cursor is currently over. */
@@ -35,6 +36,9 @@ export interface UIState {
   captureCinema: CaptureHud | null;
   cupName: string;
   round: number;
+  /** The round whose clear wins the course; play continues past it. */
+  winRound: number;
+  freeplay: boolean;
   inWave: boolean;
   intermissionTimer: number;
   gameSpeed: number;
@@ -86,6 +90,7 @@ export class StadiumUI {
   // Callbacks
   private cinemaEl!: HTMLElement;
   private cinemaVerdict: string = '';
+  private trophyTimer: number = 0;
 
   public onSelectTemplate: (template: TowerTemplate | null) => void = () => {};
   public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
@@ -98,6 +103,7 @@ export class StadiumUI {
   public onChangeCamera: (mode: CameraMode) => void = () => {};
   public onOpenMaps: () => void = () => {};
   public onResumeMap: () => void = () => {};
+  public onRetryMap: () => void = () => {};
   public onSelectBall: (ball: BallType | null) => void = () => {};
   public onBuyBall: (ball: BallType) => void = () => {};
   public onSelectMap: (map: StadiumMap) => void = () => {};
@@ -167,6 +173,9 @@ export class StadiumUI {
         .capture-kit { display:flex; gap:4px; align-items:center; }
         .ball-choice { min-width:38px; padding:4px 5px; font-size:11px; }
         .ball-choice.selected { border-color:#fff; box-shadow:0 0 10px #f6c437; background:linear-gradient(180deg,#f6c437,#a85d00); color:#071326; }
+        /* Headless verification freezes single frames; show settled states, not mid-transition ones. */
+        .shot-mode *, .shot-mode *::before, .shot-mode *::after { transition:none !important; animation-duration:0s !important; }
+
         /* ---- Capture cinematic overlay ---- */
         /* Gameplay chrome recedes so the ball owns the screen. */
         #top-bar, #controls-bar, #card-deck, #tower-panel, #course-info, #poke-mart, #capture-hint { transition:opacity .28s ease, filter .28s ease; }
@@ -199,6 +208,65 @@ export class StadiumUI {
         .cine-pip { width:13px; height:13px; border-radius:50%; border:2px solid #7d93b5; background:#0a1428; transition:all .12s ease; }
         .cine-pip.lit { border-color:#fff2a7; background:radial-gradient(circle at 40% 35%,#fff,#f6c437 60%,#a85d00); box-shadow:0 0 12px #f6c437; transform:scale(1.18); }
         /* The caption rides inside the lower bar so it never fights the ball. */
+        /* Release meter: the one input the cutscene takes. */
+        #cine-meter {
+          position:absolute; left:50%; top:calc(13vh + 84px); transform:translateX(-50%) skew(-7deg);
+          width:min(460px,52vw); height:26px; background:linear-gradient(180deg,#0a1428,#060d1c);
+          border:2px solid #7d93b5; box-shadow:0 4px 0 rgba(3,7,16,.7), inset 0 0 18px rgba(0,0,0,.7);
+        }
+        #cine-meter.spent { border-color:#f6c437; }
+        #cine-meter .meter-zone {
+          position:absolute; top:0; bottom:0; background:linear-gradient(180deg,#ffe99a,#f6c437 55%,#a85d00);
+          box-shadow:0 0 16px rgba(246,196,55,.8);
+        }
+        #cine-meter .meter-zone::after {
+          content:''; position:absolute; left:50%; top:0; bottom:0; width:2px; margin-left:-1px; background:rgba(255,255,255,.85);
+        }
+        #cine-meter .meter-marker {
+          position:absolute; top:-5px; bottom:-5px; width:5px; margin-left:-2px; background:#fff;
+          box-shadow:0 0 12px #fff, 0 0 26px #8ee7ff;
+        }
+        #cine-grade {
+          position:absolute; left:50%; top:calc(13vh + 118px); transform:translateX(-50%) skew(-7deg);
+          font-family:'Teko','Impact',sans-serif; font-size:30px; letter-spacing:2px; white-space:nowrap;
+        }
+        #cine-grade.perfect { color:#fff3b0; text-shadow:0 0 16px #f6c437, 2px 3px #7a3d00; }
+        #cine-grade.good { color:#b9f0ff; text-shadow:0 0 14px #00f0ff, 2px 3px #06283d; }
+        #cine-grade.wide { color:#ffb3b3; text-shadow:2px 3px #55070f; }
+
+        /* Trophy card: the payoff beat after the ball locks. */
+        #capture-trophy {
+          position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) skew(-6deg) scale(.85);
+          z-index:62; min-width:330px; padding:16px 22px; opacity:0; pointer-events:none;
+          background:linear-gradient(180deg,#16305a 0%,#07142a 100%);
+          border:3px solid #f6c437; box-shadow:0 10px 0 rgba(3,7,16,.8), 0 0 54px rgba(246,196,55,.5);
+          transition:opacity .25s ease, transform .35s cubic-bezier(.16,1.3,.5,1);
+        }
+        #capture-trophy.shown { opacity:1; transform:translate(-50%,-50%) skew(-6deg) scale(1); }
+        #capture-trophy .trophy-kicker { font-size:11px; font-weight:800; letter-spacing:3px; color:#f6c437; }
+        #capture-trophy .trophy-name { font-family:'Teko','Impact',sans-serif; font-size:44px; line-height:1; color:#fff; text-shadow:3px 4px #08152b; }
+        #capture-trophy .trophy-type { display:inline-block; margin:4px 0 10px; padding:2px 9px; font-size:11px; font-weight:800; letter-spacing:1.4px; border-radius:3px; color:#071326; }
+        #capture-trophy .trophy-moves { display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(246,196,55,.35); padding-top:9px; }
+        #capture-trophy .trophy-move { display:flex; justify-content:space-between; gap:18px; font-size:12px; letter-spacing:.6px; color:#cfe3ff; }
+        #capture-trophy .trophy-move em { color:#8faecf; font-style:normal; font-size:10px; letter-spacing:1.4px; }
+
+        /* Defeat: the only screen that stops a run. */
+        #defeat-screen {
+          position:absolute; inset:0; z-index:70; display:grid; place-items:center;
+          background:radial-gradient(ellipse at 50% 40%, rgba(60,6,14,.72), rgba(3,7,16,.92) 75%);
+        }
+        #defeat-screen[hidden] { display:none; }
+        #defeat-screen .defeat-card {
+          min-width:340px; padding:22px 30px; text-align:center; transform:skew(-6deg);
+          background:linear-gradient(180deg,#16305a 0%,#07142a 100%);
+          border:3px solid #d90429; box-shadow:0 10px 0 rgba(3,7,16,.8), 0 0 54px rgba(217,4,41,.45);
+        }
+        #defeat-screen .defeat-kicker { font-size:11px; font-weight:800; letter-spacing:3px; color:#ff6b7d; }
+        #defeat-screen .defeat-title { font-family:'Teko','Impact',sans-serif; font-size:56px; line-height:1; color:#fff; text-shadow:3px 4px #08152b; margin:4px 0; }
+        #defeat-screen .defeat-detail { font-size:13px; letter-spacing:1px; color:#cfe3ff; margin-bottom:16px; }
+        #defeat-screen .defeat-actions { display:flex; gap:10px; justify-content:center; }
+        #defeat-screen .defeat-actions .stadium-btn { padding:8px 22px; }
+
         #cine-caption {
           position:absolute; left:50%; bottom:calc(6.5vh - 26px); transform:translateX(-50%) skew(-7deg);
           font-family:'Teko','Impact',sans-serif; font-size:40px; letter-spacing:2px; color:#fff;
@@ -994,8 +1062,22 @@ export class StadiumUI {
           <div class="cine-copy"><span id="cine-target">CHALLENGER</span><span id="cine-sub">POKÉ BALL · 0%</span></div>
           <div id="cine-pips"></div>
         </div>
+        <div id="cine-meter"><div class="meter-zone"></div><div class="meter-marker"></div></div>
+        <div id="cine-grade"></div>
         <div id="cine-caption">CAPTURE ATTEMPT</div>
         <div id="cine-verdict"></div>
+      </div>
+      <div id="capture-trophy"></div>
+      <div id="defeat-screen" class="interactive" hidden>
+        <div class="defeat-card">
+          <div class="defeat-kicker">STADIUM HP DEPLETED</div>
+          <div class="defeat-title">DEFEAT</div>
+          <div class="defeat-detail" id="defeat-detail"></div>
+          <div class="defeat-actions">
+            <button class="stadium-btn active" id="btn-defeat-retry">RETRY COURSE</button>
+            <button class="stadium-btn" id="btn-defeat-maps">MAPS</button>
+          </div>
+        </div>
       </div>
       <div id="poke-mart" class="stadium-panel interactive"><strong>POKÉ MART</strong><button class="stadium-btn mart-item" data-buy-ball="poke">BALL $35</button><button class="stadium-btn mart-item" data-buy-ball="great">GREAT $85</button><button class="stadium-btn mart-item" data-buy-ball="ultra">ULTRA $170</button></div>
       <!-- Tower Detail Panel -->
@@ -1092,6 +1174,9 @@ export class StadiumUI {
         });
       });
     });
+    document.getElementById('btn-defeat-retry')!.addEventListener('click', () => this.onRetryMap());
+    document.getElementById('btn-defeat-maps')!.addEventListener('click', () => this.onOpenMaps());
+
     // Wave start button
     document.getElementById('btn-wave')!.addEventListener('click', () => {
       this.onStartWave();
@@ -1328,6 +1413,8 @@ export class StadiumUI {
       `${cinema.ballName} · ${(cinema.chance * 100).toFixed(0)}% CATCH RATE`;
     this.cinemaEl.querySelector<HTMLElement>('#cine-caption')!.innerText = cinema.caption;
 
+    this.renderReleaseMeter(cinema);
+
     const pips = this.cinemaEl.querySelector<HTMLElement>('#cine-pips')!;
     if (pips.children.length !== cinema.totalWobbles) {
       pips.innerHTML = Array.from({ length: cinema.totalWobbles }, () => '<div class="cine-pip"></div>').join('');
@@ -1344,6 +1431,87 @@ export class StadiumUI {
     }
   }
 
+  /**
+   * The release meter: a marker sweeping a bar with a gold window. It freezes
+   * where the player let go and reports the grade, then retires once the ball
+   * is in the air.
+   */
+  private renderReleaseMeter(cinema: CaptureHud): void {
+    const meter = this.cinemaEl.querySelector<HTMLElement>('#cine-meter')!;
+    const grade = this.cinemaEl.querySelector<HTMLElement>('#cine-grade')!;
+    const aim = cinema.aim;
+    // The meter stays up through the throw so the player sees what they hit.
+    const visible = !!aim && (cinema.phase === 'aim' || cinema.phase === 'throw');
+    meter.style.display = visible ? 'block' : 'none';
+    grade.style.display = visible ? 'block' : 'none';
+    if (!visible || !aim) return;
+
+    const zone = meter.querySelector<HTMLElement>('.meter-zone')!;
+    zone.style.left = `${aim.zoneStart * 100}%`;
+    zone.style.width = `${(aim.zoneEnd - aim.zoneStart) * 100}%`;
+    meter.querySelector<HTMLElement>('.meter-marker')!.style.left = `${(aim.released ?? aim.marker) * 100}%`;
+    meter.classList.toggle('spent', aim.released !== null);
+
+    grade.className = aim.grade ?? '';
+    grade.innerText = aim.grade === 'perfect' ? `PERFECT! +${Math.round(aim.bonus * 100)}% ODDS`
+      : aim.grade === 'good' ? `GOOD! +${Math.round(aim.bonus * 100)}% ODDS`
+      : aim.grade === 'wide' ? `WIDE! ${Math.round(aim.bonus * 100)}% ODDS`
+      : 'CLICK OR PRESS SPACE TO THROW';
+  }
+
+  /** Milestone payout card, sharing the trophy card's slot and timing. */
+  public showMilestone(milestone: MilestoneReward): void {
+    const card = document.getElementById('capture-trophy')!;
+    const ballNames: Record<BallType, string> = { poke: 'POKÉ BALL', great: 'GREAT BALL', ultra: 'ULTRA BALL' };
+    const rewards = [
+      `<div class="trophy-move"><span>+$${milestone.money}</span><em>PRIZE MONEY</em></div>`,
+      ...(Object.entries(milestone.balls) as [BallType, number][]).map(([ball, count]) =>
+        `<div class="trophy-move"><span>+${count} ${ballNames[ball]}${count > 1 ? 'S' : ''}</span><em>CAPTURE KIT</em></div>`),
+    ].join('');
+    card.innerHTML = `
+      <div class="trophy-kicker">ROUND ${milestone.round} CLEARED</div>
+      <div class="trophy-name">${milestone.label}</div>
+      <div class="trophy-moves">${rewards}</div>
+    `;
+    card.classList.add('shown');
+    window.clearTimeout(this.trophyTimer);
+    this.trophyTimer = window.setTimeout(() => card.classList.remove('shown'), 4200);
+  }
+
+  public showDefeat(mapName: string, round: number, winRound: number): void {
+    this.renderCaptureCinema(null);
+    document.getElementById('defeat-detail')!.innerText = round > winRound
+      ? `${mapName.toUpperCase()} · FELL IN FREEPLAY ROUND ${round}`
+      : `${mapName.toUpperCase()} · FELL IN ROUND ${round} OF ${winRound}`;
+    document.getElementById('defeat-screen')!.hidden = false;
+  }
+
+  public hideDefeat(): void {
+    document.getElementById('defeat-screen')!.hidden = true;
+  }
+
+  /**
+   * The payoff beat: the newly caught roster entry, named with the move lines
+   * it brings, held on screen before control returns.
+   */
+  public showCaptureTrophy(template: TowerTemplate): void {
+    const card = document.getElementById('capture-trophy')!;
+    const typeColor = TYPE_COLORS[template.type]?.hex || '#ffffff';
+    const moves = template.lines.map(line => {
+      const move = MOVES[line.tiers[0].moveId];
+      return `<div class="trophy-move"><span>${move ? move.name.toUpperCase() : line.label}</span><em>${line.label}</em></div>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="trophy-kicker">ADDED TO YOUR ROSTER</div>
+      <div class="trophy-name">${template.name.toUpperCase()}</div>
+      <div class="trophy-type" style="background:${typeColor}">${template.type.toUpperCase()}</div>
+      <div class="trophy-moves">${moves}</div>
+    `;
+    card.classList.add('shown');
+    window.clearTimeout(this.trophyTimer);
+    this.trophyTimer = window.setTimeout(() => card.classList.remove('shown'), 4200);
+  }
+
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
     document.getElementById('course-name')!.innerText=state.mapName.toUpperCase();
@@ -1353,7 +1521,9 @@ export class StadiumUI {
 
     // Top Bar updates
     document.getElementById('cup-title')!.innerText = state.mapName.toUpperCase();
-    document.getElementById('round-number')!.innerText = `ROUND ${state.round}`;
+    document.getElementById('round-number')!.innerText = state.freeplay
+      ? `ROUND ${state.round} · FREEPLAY`
+      : `ROUND ${state.round} / ${state.winRound}`;
     document.getElementById('prize-money')!.innerText = `$${state.money}`;
 
     // Stadium HP remains the defensive fail-state; balls are capture inventory.

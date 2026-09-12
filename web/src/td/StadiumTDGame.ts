@@ -23,11 +23,12 @@ import {
 } from './Tower';
 import { Creep } from './Creep';
 import { Projectile } from './Projectile';
-import { WaveManager } from './WaveManager';
+import { WaveManager, getMilestone } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
 import { HitContext, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 import { BallType, CaptureSequence } from './CaptureSequence';
+import { setCinemaDim } from '../engine/CinemaDim';
 import { PokemonModelFactory } from '../stadium/PokemonModels';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
@@ -81,6 +82,11 @@ export class StadiumTDGame {
   private captureHint: string | null = null;
   private capture: { sequence: CaptureSequence; target: Creep; ball: BallType } | null = null;
   private capturedTemplates: TowerTemplate[] = [];
+  private cinemaDim = 0;
+  private cinemaDimApplied = false;
+  private cinemaFades = new Map<THREE.Object3D, number>();
+  private readonly shotBounds = new THREE.Box3();
+  private readonly shotHit = new THREE.Vector3();
 
   public init(canvas: HTMLCanvasElement, uiContainer: HTMLElement): void {
     this.renderer = new StadiumRenderer(canvas);
@@ -95,7 +101,7 @@ export class StadiumTDGame {
     this.placementPreview.visible = false;
     this.renderer.scene.add(this.placementPreview);
 
-    this.waveManager = new WaveManager(this.arena.routes, this.announcer);
+    this.waveManager = new WaveManager(this.arena.routes, this.announcer, this.map.difficulty);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera);
 
     this.bindUIEvents();
@@ -106,8 +112,10 @@ export class StadiumTDGame {
     this.ui.onOpenMaps = () => {
       this.clearSelection();
       this.isChoosingMap = true;
-      this.ui.setMapSelectVisible(true, true);
+      // A lost match has nothing to resume.
+      this.ui.setMapSelectVisible(true, !this.gameOver);
     };
+    this.ui.onRetryMap = () => this.loadMap(this.map);
     this.ui.onResumeMap = () => { this.isChoosingMap = false; };
     this.ui.onSelectMap = (map) => this.loadMap(map);
     this.ui.onSelectTemplate = (template) => {
@@ -213,7 +221,7 @@ export class StadiumTDGame {
     this.arena.dispose();
     this.arena = new StadiumArena(map);
     this.renderer.scene.add(this.arena.group);
-    this.waveManager = new WaveManager(this.arena.routes, this.announcer);
+    this.waveManager = new WaveManager(this.arena.routes, this.announcer, this.map.difficulty);
     this.money = 420;
     this.lives = 6;
     this.balls = { poke: 3, great: 0, ultra: 0 };
@@ -224,6 +232,7 @@ export class StadiumTDGame {
     this.ui.setCapturedTemplates([]);
     this.gameOver = false;
     this.victory = false;
+    this.ui.hideDefeat();
     this.isPaused = false;
     this.isChoosingMap = false;
     this.gameSpeed = 1;
@@ -304,6 +313,55 @@ export class StadiumTDGame {
     return nearby.sort((a, b) => a.position.distanceToSquared(ground) - b.position.distanceToSquared(ground))[0] ?? null;
   }
 
+  /**
+   * Everything that is not the capture target fades into the dark for the
+   * duration of the cutscene, then comes back exactly as it was. Bystanders are
+   * darkened rather than hidden so they never teleport when the lights return.
+   */
+  private updateCinemaDim(realDt: number): void {
+    const target = this.capture?.target ?? null;
+    this.cinemaDim = target
+      ? Math.min(0.85, this.cinemaDim + realDt * 2.6)
+      : Math.max(0, this.cinemaDim - realDt * 2.2);
+    if (this.cinemaDim === 0 && !this.cinemaDimApplied) return;
+
+    const eye = this.camera.camera.position;
+    const subject = target ? target.position.clone().setY(0.6) : null;
+    const bystanders = [
+      ...this.creeps.filter(creep => creep !== target).map(creep => creep.group),
+      ...this.towers.map(tower => tower.group),
+    ];
+    const sightline = subject ? new THREE.Ray(eye.clone(), subject.clone().sub(eye).normalize()) : null;
+    const sightDistance = subject ? subject.distanceTo(eye) : 0;
+    bystanders.forEach(root => {
+      const blocking = sightline ? this.blocksShot(root, sightline, sightDistance) : false;
+      const fade = THREE.MathUtils.damp(this.cinemaFades.get(root) ?? 0, blocking ? 1 : 0, 8, realDt);
+      this.cinemaFades.set(root, fade);
+      setCinemaDim(root, this.cinemaDim, fade * (this.cinemaDim / 0.85));
+    });
+    if (target) setCinemaDim(target.group, 0);
+    this.cinemaDimApplied = this.cinemaDim > 0;
+    if (!this.cinemaDimApplied) this.cinemaFades.clear();
+  }
+
+  /**
+   * True when a bystander's body crosses the sightline from the camera to the
+   * subject. Tested against the model's bounds rather than its origin, since a
+   * long-bodied titan can lie across the shot with its root well clear of it.
+   */
+  private blocksShot(root: THREE.Object3D, sightline: THREE.Ray, sightDistance: number): boolean {
+    this.shotBounds.setFromObject(root).expandByScalar(0.25);
+    if (this.shotBounds.containsPoint(sightline.origin)) return true;
+    const hit = sightline.intersectBox(this.shotBounds, this.shotHit);
+    // Anything level with or behind the subject cannot block it.
+    return hit !== null && hit.distanceTo(sightline.origin) < sightDistance - 0.6;
+  }
+
+  /** The capture set piece currently on screen, if any. */
+  public get activeCapture(): CaptureSequence | null {
+    return this.capture?.sequence ?? null;
+  }
+
   /** Tears down a set piece in progress, returning the camera and the house lights. */
   private abortCapture(): void {
     if (this.capture) {
@@ -334,6 +392,7 @@ export class StadiumTDGame {
       camera: this.camera,
       audio: this.audio,
       announcer: this.announcer,
+      arena: this.arena,
     });
     this.renderer.scene.add(sequence.group);
     this.capture = { sequence, target, ball };
@@ -347,7 +406,8 @@ export class StadiumTDGame {
       this.renderer.scene.remove(target.group);
       this.creeps = this.creeps.filter(creep => creep !== target);
       target.destroy(this.renderer.scene);
-      this.unlockCapturedTower(target);
+      const unlocked = this.unlockCapturedTower(target);
+      if (unlocked) this.ui.showCaptureTrophy(unlocked);
       this.money += Math.ceil(target.reward * 1.5);
       this.captureHint = `CAUGHT ${target.name.toUpperCase()}! TOWER UNLOCKED`;
       this.announcer.trigger('capture_success', target.name);
@@ -360,9 +420,10 @@ export class StadiumTDGame {
     }
   }
 
-  private unlockCapturedTower(creep: Creep): void {
+  /** Returns the new roster entry, or null when this species is already on it. */
+  private unlockCapturedTower(creep: Creep): TowerTemplate | null {
     const id = `caught_${creep.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
-    if (this.capturedTemplates.some(template => template.id === id)) return;
+    if (this.capturedTemplates.some(template => template.id === id)) return null;
     const fallback = creep.modelType === 'zubat' ? PokemonModelFactory.createZubat
       : creep.modelType === 'geodude' ? PokemonModelFactory.createGeodude
       : creep.modelType === 'dragonair' ? PokemonModelFactory.createDragonair
@@ -375,6 +436,7 @@ export class StadiumTDGame {
     };
     this.capturedTemplates.push(template);
     this.ui.setCapturedTemplates(this.capturedTemplates);
+    return template;
   }
 
   /** Mesh hit first, then a footprint-sized radius so small models stay clickable. */
@@ -531,11 +593,26 @@ export class StadiumTDGame {
       this.renderer.update(realDt, 0);
       return;
     }
-    if (this.gameOver) return;
+    if (this.gameOver) {
+      // The simulation stops, but the lights, camera and any capture dim still settle.
+      this.renderer.floodlightDim = Math.max(0, this.renderer.floodlightDim - realDt * 1.5);
+      this.updateCinemaDim(realDt);
+      this.announcer.update(realDt);
+      this.camera.update(realDt);
+      this.renderer.update(realDt, 0);
+      return;
+    }
 
     this.camera.handleInput(input, realDt);
-    // A capture set piece owns the screen: no placing, selling, or selecting mid-throw.
-    if (!this.capture) this.handleInput(input);
+    // A capture set piece owns the screen: no placing, selling, or selecting
+    // mid-throw. The one input it does take is the throw itself.
+    if (this.capture) {
+      if (this.capture.sequence.awaitingRelease && (input.clicked || input.isKeyJustPressed('Space'))) {
+        this.capture.sequence.release();
+      }
+    } else {
+      this.handleInput(input);
+    }
 
     // The capture sequence runs in real time while it drags the world into slow motion.
     const captureScale = this.capture ? this.capture.sequence.worldTimeScale : 1;
@@ -548,7 +625,8 @@ export class StadiumTDGame {
       (newCreep) => {
         this.renderer.scene.add(newCreep.group);
         this.creeps.push(newCreep);
-      }
+      },
+      (round) => this.handleRoundCleared(round)
     );
 
     // Update Towers
@@ -598,6 +676,9 @@ export class StadiumTDGame {
           this.lives = 0;
           this.gameOver = true;
           this.announcer.trigger('game_over');
+          this.abortCapture();
+          this.clearSelection();
+          this.ui.showDefeat(this.map.name, this.waveManager.round, this.waveManager.winRound);
         }
       } else if (!c.alive && c.removalReady) {
         c.destroy(this.renderer.scene);
@@ -608,6 +689,7 @@ export class StadiumTDGame {
     this.renderer.floodlightDim = this.capture
       ? this.capture.sequence.floodlightDim
       : Math.max(0, this.renderer.floodlightDim - realDt * 1.5);
+    this.updateCinemaDim(realDt);
 
     if (this.capture) {
       const result = this.capture.sequence.update(realDt);
@@ -623,12 +705,15 @@ export class StadiumTDGame {
     this.particles.update(dt);
     this.announcer.update(realDt);
     this.camera.update(realDt);
-    this.arena.update(performance.now() * 0.001, this.camera.camera.position);
+    this.arena.update(performance.now() * 0.001, this.camera.camera.position, realDt);
     this.renderer.update(realDt, this.waveManager.inWave ? 0.8 : 0.0);
 
     // Update Jumbotron display with current wave
     const currentWave = this.waveManager.getCurrentWave();
-    if (currentWave) {
+    if (this.capture) {
+      const hud = this.capture.sequence.hud;
+      this.arena.updateJumbotron(hud.targetName, 'CAPTURE ATTEMPT', hud.wobbles);
+    } else {
       this.arena.updateJumbotron(
         this.map.name.toUpperCase(),
         currentWave.cupName,
@@ -645,8 +730,10 @@ export class StadiumTDGame {
         selectedBall: this.selectedBall,
         captureHint: this.captureHint,
         captureCinema: this.capture?.sequence.hud ?? null,
-        cupName: currentWave?.cupName || 'POKE CUP',
-        round: currentWave?.round || 1,
+        cupName: currentWave.cupName,
+        round: currentWave.round,
+        winRound: this.waveManager.winRound,
+        freeplay: this.waveManager.isFreeplay,
         inWave: this.waveManager.inWave,
         intermissionTimer: this.waveManager.intermissionTimer,
         gameSpeed: this.gameSpeed,
@@ -669,6 +756,27 @@ export class StadiumTDGame {
       announcer: this.announcer,
       onFaint: (creep) => this.handleCreepDefeat(creep),
     };
+  }
+
+  /** Milestone payouts, and the win itself — which never stops the run. */
+  private handleRoundCleared(round: number): void {
+    const milestone = getMilestone(round, this.waveManager.winRound);
+    if (milestone) {
+      this.money += milestone.money;
+      for (const [ball, count] of Object.entries(milestone.balls) as [BallType, number][]) {
+        this.balls[ball] += count;
+      }
+      this.ui.showMilestone(milestone);
+    }
+
+    if (round === this.waveManager.winRound) {
+      this.victory = true;
+      this.announcer.trigger('victory');
+      this.audio.playFanfare();
+      this.camera.shake(0.6);
+    } else if (milestone) {
+      this.audio.playFanfare();
+    }
   }
 
   private handleCreepDefeat(creep: Creep): void {
