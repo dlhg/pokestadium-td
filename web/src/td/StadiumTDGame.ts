@@ -27,6 +27,8 @@ import { WaveManager } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
 import { HitContext, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
+import { BallType, CaptureSequence } from './CaptureSequence';
+import { PokemonModelFactory } from '../stadium/PokemonModels';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
 type PlacementBlockReason =
@@ -56,6 +58,7 @@ export class StadiumTDGame {
   // Economy & Lives
   public money: number = 420;
   public lives: number = 6;
+  public balls: Record<BallType, number> = { poke: 3, great: 0, ultra: 0 };
   public gameSpeed: number = 1.0;
   public isPaused: boolean = false;
   public gameOver: boolean = false;
@@ -74,6 +77,10 @@ export class StadiumTDGame {
   private placementPreview: THREE.Group = new THREE.Group();
   private placementPreviewTemplateId: string | null = null;
   private placementStatus: PlacementStatus | null = null;
+  private selectedBall: BallType | null = null;
+  private captureHint: string | null = null;
+  private capture: { sequence: CaptureSequence; target: Creep; ball: BallType } | null = null;
+  private capturedTemplates: TowerTemplate[] = [];
 
   public init(canvas: HTMLCanvasElement, uiContainer: HTMLElement): void {
     this.renderer = new StadiumRenderer(canvas);
@@ -111,6 +118,19 @@ export class StadiumTDGame {
       this.selectedTemplate = template;
       this.placementPreviewTemplateId = null;
       this.placementPreview.visible = false;
+      this.audio.playSelect();
+    };
+    this.ui.onSelectBall = (ball) => {
+      this.clearSelection();
+      this.selectedBall = ball;
+      this.captureHint = ball ? `CAPTURE MODE · CLICK A GOLD CATCH! RING · ESC TO CANCEL` : null;
+      this.audio.playSelect();
+    };
+    this.ui.onBuyBall = (ball) => {
+      const cost: Record<BallType, number> = { poke: 35, great: 85, ultra: 170 };
+      if (this.waveManager.inWave || this.money < cost[ball]) return;
+      this.money -= cost[ball];
+      this.balls[ball]++;
       this.audio.playSelect();
     };
 
@@ -196,6 +216,12 @@ export class StadiumTDGame {
     this.waveManager = new WaveManager(this.arena.routes, this.announcer);
     this.money = 420;
     this.lives = 6;
+    this.balls = { poke: 3, great: 0, ultra: 0 };
+    this.selectedBall = null;
+    this.captureHint = null;
+    this.capture = null;
+    this.capturedTemplates = [];
+    this.ui.setCapturedTemplates([]);
     this.gameOver = false;
     this.victory = false;
     this.isPaused = false;
@@ -221,10 +247,17 @@ export class StadiumTDGame {
     if (input.isKeyJustPressed('Space')) this.isPaused = !this.isPaused;
     if (input.isKeyJustPressed('Escape') || input.rightClicked) {
       this.clearSelection();
+      this.selectedBall = null;
+      this.captureHint = null;
     }
 
     // Free placement: the cursor's spot on the pitch is the candidate site.
     const ground = input.raycastGround(this.camera.camera, 0);
+
+    if (this.selectedBall) {
+      if (input.clicked && !input.clickedOnUI) this.tryCapture(this.pickCreep(input, ground));
+      return;
+    }
 
     // An armed template owns the cursor — clicks drop it, never select a tower.
     if (this.selectedTemplate) {
@@ -256,6 +289,76 @@ export class StadiumTDGame {
     this.selectedTemplate = null;
     this.placementStatus = null;
     this.placementPreview.visible = false;
+  }
+
+  private pickCreep(input: Input, ground: THREE.Vector3 | null): Creep | null {
+    const hit = input.raycast(this.camera.camera, this.creeps.map(creep => creep.group));
+    for (const intersection of hit) {
+      for (let node: THREE.Object3D | null = intersection.object; node; node = node.parent) {
+        const creep = this.creeps.find(candidate => candidate.group === node);
+        if (creep) return creep;
+      }
+    }
+    if (!ground) return null;
+    const nearby = this.creeps.filter(c => c.alive && !c.captureLocked && c.position.distanceToSquared(ground) <= 5.1);
+    return nearby.sort((a, b) => a.position.distanceToSquared(ground) - b.position.distanceToSquared(ground))[0] ?? null;
+  }
+
+  private tryCapture(target: Creep | null): void {
+    const ball = this.selectedBall;
+    if (!ball || !target || target.captureLocked) return;
+    if (target.hpFraction > 0.35) {
+      this.captureHint = `WEAKEN ${target.name.toUpperCase()} UNTIL ITS HP BAR SAYS CATCH!`;
+      return;
+    }
+    if (this.balls[ball] <= 0) return;
+    this.balls[ball]--;
+    const ballBonus: Record<BallType, number> = { poke: 0, great: 0.20, ultra: 0.42 };
+    const statusBonus = target.status === 'stun' || target.status === 'freeze' ? 0.22 : target.status !== 'none' ? 0.12 : 0;
+    const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
+    const chance = THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty, 0.08, 0.95);
+    target.beginCapture();
+    const sequence = new CaptureSequence(target, ball, chance);
+    this.renderer.scene.add(sequence.group);
+    this.capture = { sequence, target, ball };
+    this.selectedBall = null;
+    this.captureHint = `${ball.toUpperCase()} BALL · ${(chance * 100).toFixed(0)}% CAPTURE CHANCE`;
+    this.camera.shake(0.18);
+  }
+
+  private finishCapture(success: boolean, target: Creep): void {
+    if (success) {
+      this.renderer.scene.remove(target.group);
+      this.creeps = this.creeps.filter(creep => creep !== target);
+      target.destroy(this.renderer.scene);
+      this.unlockCapturedTower(target);
+      this.money += Math.ceil(target.reward * 1.5);
+      this.captureHint = `CAUGHT ${target.name.toUpperCase()}! TOWER UNLOCKED`;
+      this.announcer.trigger('capture_success', target.name);
+      this.audio.playDeploy();
+    } else {
+      target.cancelCapture();
+      this.captureHint = `${target.name.toUpperCase()} BROKE FREE!`;
+      this.announcer.trigger('capture_failed', target.name);
+      this.audio.playHit(false);
+    }
+  }
+
+  private unlockCapturedTower(creep: Creep): void {
+    const id = `caught_${creep.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+    if (this.capturedTemplates.some(template => template.id === id)) return;
+    const fallback = creep.modelType === 'zubat' ? PokemonModelFactory.createZubat
+      : creep.modelType === 'geodude' ? PokemonModelFactory.createGeodude
+      : creep.modelType === 'dragonair' ? PokemonModelFactory.createDragonair
+      : PokemonModelFactory.createRattata;
+    const template: TowerTemplate = {
+      id, name: creep.name.replace(/^Titan /, ''), type: creep.type, cost: Math.max(80, Math.round(creep.reward * 4)),
+      evolutions: [], description: `Captured in the stadium. A quick ${creep.type.toLowerCase()} defender.`,
+      lines: [{ id: 'special', label: 'SPECIAL', tiers: [{ moveId: 'quick_attack', cost: 0 }] }, { id: 'coverage', label: 'COVERAGE', tiers: [{ moveId: 'body_slam', cost: 100 }] }, { id: 'control', label: 'CONTROL', tiers: [{ moveId: 'toxic', cost: 125 }] }],
+      createModel: fallback,
+    };
+    this.capturedTemplates.push(template);
+    this.ui.setCapturedTemplates(this.capturedTemplates);
   }
 
   /** Mesh hit first, then a footprint-sized radius so small models stay clickable. */
@@ -483,6 +586,16 @@ export class StadiumTDGame {
       }
     }
 
+    if (this.capture) {
+      const result = this.capture.sequence.update(realDt);
+      if (result !== null) {
+        const activeCapture = this.capture;
+        this.capture = null;
+        activeCapture.sequence.dispose(this.renderer.scene);
+        this.finishCapture(result, activeCapture.target);
+      }
+    }
+
     // Update Subsystems
     this.particles.update(dt);
     this.announcer.update(realDt);
@@ -505,6 +618,9 @@ export class StadiumTDGame {
       {
         money: this.money,
         lives: this.lives,
+        balls: this.balls,
+        selectedBall: this.selectedBall,
+        captureHint: this.captureHint,
         cupName: currentWave?.cupName || 'POKE CUP',
         round: currentWave?.round || 1,
         inWave: this.waveManager.inWave,

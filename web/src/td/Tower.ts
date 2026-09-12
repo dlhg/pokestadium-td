@@ -490,7 +490,7 @@ export class Tower {
     let bestMetric = -Infinity;
 
     for (const creep of creeps) {
-      if (!creep.alive) continue;
+      if (!creep.alive || creep.captureLocked) continue;
       const dist = this.position.distanceTo(creep.position);
       if (dist > range) continue;
 
