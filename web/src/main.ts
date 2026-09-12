@@ -11,6 +11,7 @@ import { Input } from './engine/Input';
 import { TOWER_TEMPLATES, Tower, TOWER_BASE_HEIGHT } from './td/Tower';
 import { Creep } from './td/Creep';
 import { STADIUM_MAPS } from './td/MapCatalog';
+import { getMilestone } from './td/WaveManager';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('stadium-canvas') as HTMLCanvasElement;
@@ -32,7 +33,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // A stepped shot holds its exact frame instead of drifting with real time.
   let frozenShot = false;
 
-  if (shot) game.announcer.setVoiceEnabled(false);
+  if (shot) {
+    game.announcer.setVoiceEnabled(false);
+    uiContainer.classList.add('shot-mode');
+  }
   const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}`);
   if (courseShot) {
     game.loadMap(courseShot);
@@ -134,7 +138,7 @@ window.addEventListener('DOMContentLoaded', () => {
       game.creeps.push(c3);
 
       const c4 = new Creep({
-        id: 'demo_elite', name: 'Granite Captain', type: 'Rock', secondaryType: 'Ground',
+        id: 'demo_elite', name: 'Geodude', type: 'Rock', secondaryType: 'Ground',
         maxHp: 720, speed: 2.4, reward: 100, threat: 'elite', modelType: 'geodude'
       }, game.arena.waypoints);
       c4.position.copy(game.arena.waypoints[16]);
@@ -146,20 +150,40 @@ window.addEventListener('DOMContentLoaded', () => {
         game.camera.setMode('stadium');
       } else if (shot === 'action_cam') {
         game.camera.setMode('action');
-      } else if (shot === 'capture_cinema' || shot === 'capture_gotcha') {
-        // Stage a live capture attempt and step it to a chosen beat:
-        // the first wobble, or the moment the ball locks shut.
-        c1.hp = c1.maxHp * 0.15;
-        game.balls.ultra = 1;
-        game.ui.onSelectBall('ultra');
-        const gotcha = shot === 'capture_gotcha';
-        const realRandom = Math.random;
-        if (gotcha) Math.random = () => 0; // Force the roll to succeed.
-        game.tryCapture(c1);
-        Math.random = realRandom;
-        const frames = gotcha ? 340 : 180;
-        for (let frame = 0; frame < frames; frame++) game.update(1 / 60, input);
-        frozenShot = true;
+      } else if (shot === 'round_milestone') {
+        // Park on the easy course's win round to show the payout card and HUD counter.
+        game.waveManager.currentWaveIndex = game.waveManager.winRound;
+        game.ui.showMilestone(getMilestone(game.waveManager.winRound, game.waveManager.winRound)!);
+      } else if (shot === 'defeat') {
+        game.waveManager.currentWaveIndex = 16;
+        game.gameOver = true;
+        game.ui.showDefeat(game.map.name, game.waveManager.round, game.waveManager.winRound);
+      } else if (shot?.startsWith('capture_')) {
+        // Stage a live capture attempt and step it to a chosen beat: the
+        // release meter, the first wobble, the lock, or the trophy card after it.
+        // Wait for the async GLB models first, or they swap in undimmed after
+        // the frame has already been frozen.
+        window.setTimeout(() => {
+          c1.hp = c1.maxHp * 0.15;
+          game.balls.ultra = 1;
+          game.ui.onSelectBall('ultra');
+          game.tryCapture(c1);
+          const step = (frames: number) => {
+            for (let frame = 0; frame < frames; frame++) game.update(1 / 60, input);
+          };
+          if (shot === 'capture_aim') {
+            step(40);
+          } else {
+            step(26); // Let the marker sweep partway before releasing.
+            const realRandom = Math.random;
+            const forceCatch = shot === 'capture_gotcha' || shot === 'capture_trophy';
+            if (forceCatch) Math.random = () => 0; // Force the roll to succeed.
+            game.activeCapture?.release();
+            Math.random = realRandom;
+            step(shot === 'capture_trophy' ? 460 : forceCatch ? 310 : 150);
+          }
+          frozenShot = true;
+        }, 1200);
       }
   }
 
