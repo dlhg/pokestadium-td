@@ -374,6 +374,7 @@ export class StadiumTDGame {
   public update(realDt: number, input: Input): void {
     if (this.gameOver) return;
 
+    this.camera.handleInput(input, realDt);
     this.handleInput(input);
 
     const dt = this.isPaused ? 0 : realDt * this.gameSpeed;
