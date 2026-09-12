@@ -487,6 +487,7 @@ export class StadiumTDGame {
     this.particles.update(dt);
     this.announcer.update(realDt);
     this.camera.update(realDt);
+    this.arena.update(performance.now() * 0.001, this.camera.camera.position);
     this.renderer.update(realDt, this.waveManager.inWave ? 0.8 : 0.0);
 
     // Update Jumbotron display with current wave
