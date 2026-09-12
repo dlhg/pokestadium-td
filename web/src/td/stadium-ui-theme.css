@@ -619,34 +619,6 @@
   font-size: 15px;
 }
 
-#course-info {
-  padding: 9px 12px;
-  border: 4px solid transparent;
-  border-radius: 10px;
-  background:
-    linear-gradient(rgba(4, 14, 44, .91), rgba(3, 10, 30, .95)) padding-box,
-    linear-gradient(180deg, #f5cf36, #bb6c0c) border-box;
-  box-shadow: 0 0 0 2px var(--broadcast-ink), 4px 5px 0 rgba(0, 0, 0, .54);
-}
-
-#course-info::before {
-  content: 'CURRENT COURSE';
-  display: block;
-  margin-bottom: 2px;
-  color: #9db7ef;
-  font: 800 8px/1 'Trebuchet MS', sans-serif;
-  letter-spacing: 1.4px;
-}
-
-#course-info strong {
-  color: #ffe15b;
-  font-size: 21px;
-}
-
-#course-strategy {
-  color: #d5e1ff;
-}
-
 #capture-hint {
   border: 4px solid transparent;
   border-radius: 9px;
