@@ -116,6 +116,8 @@ export interface TrainerSave {
   team: (string | null)[];       // 6 uids
   maps: Record<string, { cleared: boolean; bestRound: number }>;
   pokedex: { seen: string[]; caught: string[] };
+  captureLuck: number;           // failed attempts since the last catch
+  unlocks: string[];             // e.g. 'exp_all'; empty in v1
 }
 ```
 
@@ -144,8 +146,8 @@ gain(t)   = pool * share(t) * levelScale(t.level, creepLevel)
 - **`levelScale`** uses the Gen 5 scaled-XP formula,
   `((2L_c + 10) / (L_c + L_t + 10))^2.5`. An over-leveled team earns little on easy
   maps, so the anti-grind rule is built in.
-- **Wave clear:** every placed tower gets 10% of the wave's total pool (Exp. Share).
-  Bench members get nothing.
+- **Wave clear:** every placed tower gets 10% of the wave's total pool. Bench members
+  get nothing unless Exp. All is unlocked (see Later).
 - **Curve:** medium-fast, `xp(level) = level³`. Soft cap at Lv 50 for now.
 
 **Creep levels** go on `CreepConfig.level`. All maps share one wave list, so the map's
@@ -183,7 +185,7 @@ Elites get +3 levels and titans +8. A caught Pokémon keeps the level of the cre
 ## UI
 
 1. **Starter select** (first launch only): Bulbasaur, Charmander or Squirtle at Lv 5,
-   plus a gift Pikachu.
+   plus a gift Pikachu. Nickname prompt for each.
 2. **Team select**: a new step between map select and match start.
    - Six slots on top, collection grid below.
    - Shows the map's threat types, taken from the wave list.
@@ -223,19 +225,39 @@ Each phase leaves the game playable.
 4. **Persistent catches.**
    - Species defs for creeps, and `OwnedPokemon` created on capture.
    - Nickname prompt, bonus slot during the match.
+   - Capture safety net (trainer's luck, guaranteed early catch).
 5. **Collection & presentation.**
    - Summary screen, rename, match results screen, announcer nickname lines.
 6. **Tuning.**
    - Adjust XP pool, level offsets, stat multiplier curve and starting team size.
 
-## Open questions
+## Capture safety net
 
-- **Starting team size.** One starter plus a gift may be too few to beat the
-  first map with one tower per Pokémon, even with 420 starting cash. Options: give
-  more gifts, give more Poké Balls on the first map, or make the first map easier.
-- **Deploy cost vs. level.** Should a Lv 40 Pokémon cost more to place than a Lv 5?
-  (Proposed: no, level already raises the ceiling.)
-- **Bench XP.** Should members on the team but not placed earn a trickle?
-  (Proposed: no.)
-- **Items later.** Evolution stones, TMs, rare candy bought with prize money that
-  lasts between matches. Kept out of v1.
+A new player starts with two Pokémon and has to catch the rest. Bad luck must
+never leave them with empty hands. Throwing at a creep that isn't weakened enough
+is already refused (`hpFraction > 0.35`), so a ball is only spent on a real attempt.
+On top of that:
+
+- **Trainer's luck:** a persistent counter in `TrainerSave`. Each failed catch adds
+  +12% to the next attempt. It resets to 0 on a success and applies to every ball type.
+- **Guaranteed early catch:** while the collection has fewer than 4 Pokémon, the
+  **last ball in hand always catches**. The capture sequence still plays in full
+  (release meter, wobbles), but the verdict is fixed to success. Titans are the only
+  exception.
+- **Starting balls:** 5 Poké Balls on the player's first match, then 3 as today.
+
+With both rules, running out of balls always gets you at least one catch. You can
+still lose streaks, so catching stays tense.
+
+## Decisions
+
+- **Starting team:** choose Bulbasaur, Charmander or Squirtle at Lv 5, plus a gift
+  Pikachu at Lv 5. Everything else is caught.
+- **Deploy cost is the same at every level.** Level already raises the ceiling.
+- **No bench XP by default.** Later it becomes an unlockable item: **Exp. All**
+  (the Gen 1 item) shares a portion of XP with team members that aren't placed.
+
+## Later
+
+- Items bought with prize money that lasts between matches: Exp. All, evolution
+  stones, TMs, Rare Candy. Kept out of v1.
