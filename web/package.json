@@ -4,10 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "python3 tools/extract_stadium_announcer.py --if-missing && vite",
+    "build": "python3 tools/extract_stadium_announcer.py --if-missing && tsc && vite build",
     "preview": "vite preview",
-    "extract:stadium": "python3 tools/extract_stadium_assets.py"
+    "extract:stadium": "python3 tools/extract_stadium_assets.py && python3 tools/extract_stadium_announcer.py --if-missing"
   },
   "dependencies": {
     "three": "^0.160.0"
