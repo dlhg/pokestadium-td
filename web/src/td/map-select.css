@@ -46,7 +46,8 @@
 .map-legend span::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: #96f3b1; }
 .map-legend span:last-child::before { background: #fa8e76; }
 .map-select-open > #top-bar, .map-select-open > #controls-bar, .map-select-open > #announcer-banner,
-.map-select-open > #card-deck, .map-select-open > #tower-panel, .map-select-open > #course-info { visibility: hidden; }
+.map-select-open > #card-deck, .map-select-open > #tower-panel, .map-select-open > #course-info,
+.map-select-open > #poke-mart, .map-select-open > #capture-hint { visibility: hidden; }
 #course-info { position: absolute; left: 20px; bottom: 18px; max-width: 420px; padding: 10px 12px; background: #07182fdc; border-left: 3px solid #e1c16b; }
 #course-info strong { color: #ffe082; font: 19px 'Teko', sans-serif; letter-spacing: 1px; }
 #course-strategy { display: block; margin-top: 3px; color: #c6d8e6; font-size: 12px; }

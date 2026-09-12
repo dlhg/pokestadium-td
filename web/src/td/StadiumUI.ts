@@ -162,8 +162,9 @@ export class StadiumUI {
         .capture-kit { display:flex; gap:4px; align-items:center; }
         .ball-choice { min-width:38px; padding:4px 5px; font-size:11px; }
         .ball-choice.selected { border-color:#fff; box-shadow:0 0 10px #f6c437; background:linear-gradient(180deg,#f6c437,#a85d00); color:#071326; }
-        #capture-hint { position:absolute; bottom:78px; left:18px; color:#fff2a7; font-weight:800; letter-spacing:.8px; text-shadow:0 2px 3px #000; z-index:31; background:rgba(9,25,51,.88); border-left:3px solid #f6c437; padding:6px 10px; }
-        #poke-mart { position:absolute; left:18px; bottom:14px; z-index:30; padding:8px 10px; display:flex; gap:7px; align-items:center; }
+        #capture-hint { position:absolute; bottom:136px; left:18px; color:#fff2a7; font-weight:800; letter-spacing:.8px; text-shadow:0 2px 3px #000; z-index:31; background:rgba(9,25,51,.88); border-left:3px solid #f6c437; padding:6px 10px; }
+        #capture-hint:empty { display:none; }
+        #poke-mart { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:flex; gap:7px; align-items:center; }
         #poke-mart strong { color:#f6c437; font-family:'Impact',sans-serif; letter-spacing:1px; }
         .mart-item { font-size:11px; padding:4px 7px; }
 
@@ -899,7 +900,11 @@ export class StadiumUI {
         </div>
         <div class="stat-badge">
           <span class="stat-label">CAPTURE BALLS</span>
-          <div class="capture-kit" id="capture-kit"></div>
+          <div class="capture-kit" id="capture-kit">
+            <button class="stadium-btn ball-choice" data-ball-type="poke" title="Poké Ball" aria-pressed="false">POKÉ 3</button>
+            <button class="stadium-btn ball-choice" data-ball-type="great" title="Great Ball" aria-pressed="false" disabled>GREAT 0</button>
+            <button class="stadium-btn ball-choice" data-ball-type="ultra" title="Ultra Ball" aria-pressed="false" disabled>ULTRA 0</button>
+          </div>
         </div>
         <button class="stadium-btn active" id="btn-wave">START MATCH</button>
       </div>
@@ -935,8 +940,8 @@ export class StadiumUI {
 
     this.bindEvents();
     this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => button.addEventListener('click', () => this.onBuyBall(button.dataset.buyBall as BallType)));
-    // The inventory contents are redrawn every frame. Delegate from the stable
-    // tray so a press cannot lose its button before the browser emits `click`.
+    // Both the tray and its buttons persist across frames, including while a
+    // pointer is held down. Delegation alone cannot rescue a removed target.
     this.container.querySelector<HTMLElement>('#capture-kit')!.addEventListener('click', (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-ball-type]');
       if (!button || button.disabled) return;
@@ -959,7 +964,7 @@ export class StadiumUI {
     const chooser=this.container.querySelector<HTMLElement>('#map-select')!;
     chooser.style.display=visible?'grid':'none';
     this.container.classList.toggle('map-select-open',visible);
-    ['top-bar','controls-bar','card-deck','tower-panel','course-info'].forEach(id=>{
+    ['top-bar','controls-bar','card-deck','tower-panel','course-info','poke-mart','capture-hint'].forEach(id=>{
       this.container.querySelector<HTMLElement>(`#${id}`)!.inert=visible;
     });
     this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
@@ -1244,17 +1249,14 @@ export class StadiumUI {
     }
 
     const captureKit = document.getElementById('capture-kit')!;
-    captureKit.innerHTML = '';
-    const ballLabels: Record<BallType, string> = { poke: '●', great: 'G', ultra: 'U' };
-    (Object.keys(ballLabels) as BallType[]).forEach(type => {
-      const button = document.createElement('button');
-      button.className = `stadium-btn ball-choice ${state.selectedBall === type ? 'selected' : ''}`;
-      button.title = `${type === 'poke' ? 'Poké' : type === 'great' ? 'Great' : 'Ultra'} Ball`;
-      button.dataset.ballType = type;
+    captureKit.querySelectorAll<HTMLButtonElement>('[data-ball-type]').forEach(button => {
+      const type = button.dataset.ballType as BallType;
+      button.classList.toggle('selected', state.selectedBall === type);
+      button.setAttribute('aria-pressed', String(state.selectedBall === type));
       const name = type === 'poke' ? 'POKÉ' : type === 'great' ? 'GREAT' : 'ULTRA';
-      button.innerText = state.selectedBall === type ? `THROW ${name}` : `${name} ${state.balls[type]}`;
+      const label = state.selectedBall === type ? `THROW ${name}` : `${name} ${state.balls[type]}`;
+      if (button.textContent !== label) button.textContent = label;
       button.disabled = state.balls[type] <= 0;
-      captureKit.appendChild(button);
     });
     const captureHint = document.getElementById('capture-hint')!;
     captureHint.innerText = state.captureHint || '';
