@@ -43,6 +43,18 @@ export class StadiumCamera {
   private actionFocusTarget: THREE.Vector3 | null = null;
   private actionTimer: number = 0;
 
+  // Held cinematic shot (capture set piece): owns the camera until released.
+  private cinematic: {
+    focus: THREE.Vector3;
+    distance: number;
+    height: number;
+    orbitSpeed: number;
+    angle: number;
+    restore: { pos: THREE.Vector3; target: THREE.Vector3 };
+  } | null = null;
+  private readonly baseFov = 45;
+  private fovOffset: number = 0;
+
   constructor() {
     this.camera = new THREE.PerspectiveCamera(
       45,
@@ -100,6 +112,8 @@ export class StadiumCamera {
 
   /** Moves the focal point, zooms, and orbits without bypassing camera smoothing. */
   public handleInput(input: Input, dt: number): void {
+    // A held cinematic set piece owns the camera; player input resumes after it.
+    if (this.cinematic) return;
     const forwardPressed = input.isKeyDown('KeyW') || input.isKeyDown('ArrowUp');
     const backPressed = input.isKeyDown('KeyS') || input.isKeyDown('ArrowDown');
     const leftPressed = input.isKeyDown('KeyA') || input.isKeyDown('ArrowLeft');
@@ -145,11 +159,68 @@ export class StadiumCamera {
     this.updateDesiredPositionFromOrbit();
   }
 
+  /**
+   * Takes the camera for a set piece: a low, close, slowly orbiting hero shot
+   * on `focus` that ignores player input until releaseCinematic() restores the
+   * framing the player had before.
+   */
+  public beginCinematic(focus: THREE.Vector3, distance: number = 9, height: number = 3.4, orbitSpeed: number = 0.32): void {
+    this.actionTimer = 0;
+    this.actionFocusTarget = null;
+    this.cinematic = {
+      focus: focus.clone(),
+      distance,
+      height,
+      orbitSpeed,
+      // Start the orbit behind the player's current viewing angle so the push-in reads as a swing.
+      angle: Math.atan2(this.currentPos.x - focus.x, this.currentPos.z - focus.z) - 0.5,
+      restore: { pos: this.desiredPos.clone(), target: this.desiredTarget.clone() },
+    };
+  }
+
+  /** Re-frames a live cinematic without restarting its orbit. */
+  public setCinematicFraming(distance: number, height: number): void {
+    if (!this.cinematic) return;
+    this.cinematic.distance = distance;
+    this.cinematic.height = height;
+  }
+
+  public releaseCinematic(): void {
+    if (!this.cinematic) return;
+    this.desiredPos.copy(this.cinematic.restore.pos);
+    this.desiredTarget.copy(this.cinematic.restore.target);
+    this.cinematic = null;
+    this.syncOrbitFromDesired();
+  }
+
+  /** Snap zoom that decays back to the resting field of view. */
+  public punchZoom(amount: number): void {
+    this.fovOffset = Math.min(this.fovOffset + amount, 18);
+  }
+
   public shake(amount: number): void {
     this.shakeIntensity = Math.min(this.shakeIntensity + amount, 1.2);
   }
 
   public update(dt: number): void {
+    if (this.cinematic) {
+      const shot = this.cinematic;
+      shot.angle += shot.orbitSpeed * dt;
+      this.desiredPos.set(
+        shot.focus.x + Math.sin(shot.angle) * shot.distance,
+        shot.focus.y + shot.height,
+        shot.focus.z + Math.cos(shot.angle) * shot.distance,
+      );
+      this.desiredTarget.copy(shot.focus).add(new THREE.Vector3(0, 0.9, 0));
+    }
+
+    // Field-of-view punch decays back to rest.
+    if (this.fovOffset !== 0) {
+      this.fovOffset = Math.max(0, this.fovOffset - dt * 24);
+      this.camera.fov = this.baseFov - this.fovOffset;
+      this.camera.updateProjectionMatrix();
+    }
+
     // Handle action cam expiration
     if (this.actionTimer > 0) {
       this.actionTimer -= dt;
@@ -173,7 +244,7 @@ export class StadiumCamera {
     }
 
     // Smooth camera lerp (spring-like damping)
-    const lerpSpeed = dt * 4.5;
+    const lerpSpeed = dt * (this.cinematic ? 3.0 : 4.5);
     this.currentPos.lerp(this.desiredPos, lerpSpeed);
     this.currentTarget.lerp(this.desiredTarget, lerpSpeed);
 

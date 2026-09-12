@@ -29,6 +29,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // Automated Headless Setup for Visual Verification
   const urlParams = new URLSearchParams(window.location.search);
   const shot = urlParams.get('shot');
+  // A stepped shot holds its exact frame instead of drifting with real time.
+  let frozenShot = false;
 
   if (shot) game.announcer.setVoiceEnabled(false);
   const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}`);
@@ -144,6 +146,20 @@ window.addEventListener('DOMContentLoaded', () => {
         game.camera.setMode('stadium');
       } else if (shot === 'action_cam') {
         game.camera.setMode('action');
+      } else if (shot === 'capture_cinema' || shot === 'capture_gotcha') {
+        // Stage a live capture attempt and step it to a chosen beat:
+        // the first wobble, or the moment the ball locks shut.
+        c1.hp = c1.maxHp * 0.15;
+        game.balls.ultra = 1;
+        game.ui.onSelectBall('ultra');
+        const gotcha = shot === 'capture_gotcha';
+        const realRandom = Math.random;
+        if (gotcha) Math.random = () => 0; // Force the roll to succeed.
+        game.tryCapture(c1);
+        Math.random = realRandom;
+        const frames = gotcha ? 340 : 180;
+        for (let frame = 0; frame < frames; frame++) game.update(1 / 60, input);
+        frozenShot = true;
       }
   }
 
@@ -153,7 +169,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
     lastTime = currentTime;
 
-    game.update(dt, input);
+    if (!frozenShot) game.update(dt, input);
     game.render();
     input.update();
 

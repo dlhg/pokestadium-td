@@ -284,6 +284,131 @@ export class StadiumAudio {
     osc.stop(now + (isSuperEffective ? 0.25 : 0.15));
   }
 
+  /**
+   * Crowd level relative to its resting ambiance: below 1 hushes the stadium
+   * (the held breath during a capture), above 1 swells it into a roar.
+   */
+  public duckCrowd(level: number, seconds: number = 0.4): void {
+    if (!this.ctx || !this.crowdGain) return;
+    const now = this.ctx.currentTime;
+    this.crowdGain.gain.cancelScheduledValues(now);
+    this.crowdGain.gain.setValueAtTime(this.crowdGain.gain.value, now);
+    this.crowdGain.gain.linearRampToValueAtTime(0.08 * Math.max(0.01, level), now + seconds);
+  }
+
+  /** Filtered noise burst shared by the whoosh, land, and break cues. */
+  private noiseBurst(duration: number, fromHz: number, toHz: number, peak: number, delay: number = 0): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime + delay;
+    const frames = Math.ceil(this.ctx.sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, frames, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 1.1;
+    filter.frequency.setValueAtTime(fromHz, now);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(40, toHz), now + duration);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(peak, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    source.start(now);
+    source.stop(now + duration);
+  }
+
+  /** Single tone helper for the capture cues. */
+  private tone(type: OscillatorType, fromHz: number, toHz: number, duration: number, peak: number, delay: number = 0): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(fromHz, now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, toHz), now + duration);
+    gain.gain.setValueAtTime(peak, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+
+  /** Rising riser as the lights drop and the world slows. */
+  public playCaptureWindup(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_windup')) return;
+    this.tone('sine', 140, 520, 0.55, 0.16);
+    this.noiseBurst(0.5, 300, 2600, 0.1);
+  }
+
+  public playCaptureThrow(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_throw')) return;
+    this.noiseBurst(0.34, 1800, 320, 0.26);
+  }
+
+  /** Bright suck-in shimmer as the target streams into the ball. */
+  public playCaptureAbsorb(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_absorb')) return;
+    this.tone('sawtooth', 1400, 180, 0.5, 0.2);
+    this.tone('sine', 900, 240, 0.45, 0.14, 0.04);
+    this.noiseBurst(0.4, 2400, 260, 0.18);
+  }
+
+  public playCaptureLand(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_land')) return;
+    this.tone('triangle', 180, 70, 0.18, 0.24);
+    this.noiseBurst(0.16, 900, 200, 0.12);
+  }
+
+  /** Mechanical click per wobble, pitched up so the tension escalates. */
+  public playCaptureWobble(index: number): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative(`capture_wobble_${index + 1}`, 'capture_wobble')) return;
+    const base = 620 + index * 130;
+    this.tone('square', base, base * 0.55, 0.07, 0.16);
+    this.tone('square', base * 1.3, base * 0.7, 0.05, 0.1, 0.07);
+    // Heartbeat under the click: a double thump that gets heavier each time.
+    this.tone('sine', 82, 46, 0.2, 0.2 + index * 0.05, 0.12);
+    this.tone('sine', 74, 42, 0.22, 0.16 + index * 0.05, 0.34);
+  }
+
+  /** Confirming lock: a hard click and a short original three-note flourish. */
+  public playCaptureLock(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_lock')) return;
+    this.tone('square', 980, 420, 0.08, 0.22);
+    [659.25, 880, 1174.66].forEach((freq, idx) => {
+      this.tone('triangle', freq, freq, 0.3, 0.2, 0.14 + idx * 0.11);
+    });
+  }
+
+  /** The ball bursting open on a failed attempt. */
+  public playCaptureBreak(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_break')) return;
+    this.noiseBurst(0.45, 400, 3200, 0.3);
+    this.tone('sawtooth', 320, 1200, 0.28, 0.18);
+    this.tone('square', 220, 90, 0.3, 0.16, 0.05);
+  }
+
   public playFanfare(): void {
     this.initContext();
     if (!this.ctx || !this.enabled) return;

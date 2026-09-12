@@ -219,7 +219,7 @@ export class StadiumTDGame {
     this.balls = { poke: 3, great: 0, ultra: 0 };
     this.selectedBall = null;
     this.captureHint = null;
-    this.capture = null;
+    this.abortCapture();
     this.capturedTemplates = [];
     this.ui.setCapturedTemplates([]);
     this.gameOver = false;
@@ -304,7 +304,18 @@ export class StadiumTDGame {
     return nearby.sort((a, b) => a.position.distanceToSquared(ground) - b.position.distanceToSquared(ground))[0] ?? null;
   }
 
-  private tryCapture(target: Creep | null): void {
+  /** Tears down a set piece in progress, returning the camera and the house lights. */
+  private abortCapture(): void {
+    if (this.capture) {
+      this.capture.sequence.dispose(this.renderer.scene);
+      this.capture.target.cancelCapture();
+      this.capture = null;
+    }
+    this.renderer.floodlightDim = 0;
+  }
+
+  /** Public so the headless shot harness can stage a capture set piece. */
+  public tryCapture(target: Creep | null): void {
     const ball = this.selectedBall;
     if (!ball || !target || target.captureLocked) return;
     if (target.hpFraction > 0.35) {
@@ -318,12 +329,17 @@ export class StadiumTDGame {
     const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
     const chance = THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty, 0.08, 0.95);
     target.beginCapture();
-    const sequence = new CaptureSequence(target, ball, chance);
+    const sequence = new CaptureSequence(target, ball, chance, {
+      particles: this.particles,
+      camera: this.camera,
+      audio: this.audio,
+      announcer: this.announcer,
+    });
     this.renderer.scene.add(sequence.group);
     this.capture = { sequence, target, ball };
     this.selectedBall = null;
-    this.captureHint = `${ball.toUpperCase()} BALL · ${(chance * 100).toFixed(0)}% CAPTURE CHANCE`;
-    this.camera.shake(0.18);
+    // The cinematic overlay carries the read-out from here; the corner hint returns with the verdict.
+    this.captureHint = null;
   }
 
   private finishCapture(success: boolean, target: Creep): void {
@@ -335,7 +351,7 @@ export class StadiumTDGame {
       this.money += Math.ceil(target.reward * 1.5);
       this.captureHint = `CAUGHT ${target.name.toUpperCase()}! TOWER UNLOCKED`;
       this.announcer.trigger('capture_success', target.name);
-      this.audio.playDeploy();
+      this.audio.playFanfare();
     } else {
       target.cancelCapture();
       this.captureHint = `${target.name.toUpperCase()} BROKE FREE!`;
@@ -518,9 +534,12 @@ export class StadiumTDGame {
     if (this.gameOver) return;
 
     this.camera.handleInput(input, realDt);
-    this.handleInput(input);
+    // A capture set piece owns the screen: no placing, selling, or selecting mid-throw.
+    if (!this.capture) this.handleInput(input);
 
-    const dt = this.isPaused ? 0 : realDt * this.gameSpeed;
+    // The capture sequence runs in real time while it drags the world into slow motion.
+    const captureScale = this.capture ? this.capture.sequence.worldTimeScale : 1;
+    const dt = this.isPaused ? 0 : realDt * this.gameSpeed * captureScale;
 
     // Update Wave Manager
     if (dt > 0) this.waveManager.update(
@@ -586,6 +605,10 @@ export class StadiumTDGame {
       }
     }
 
+    this.renderer.floodlightDim = this.capture
+      ? this.capture.sequence.floodlightDim
+      : Math.max(0, this.renderer.floodlightDim - realDt * 1.5);
+
     if (this.capture) {
       const result = this.capture.sequence.update(realDt);
       if (result !== null) {
@@ -621,6 +644,7 @@ export class StadiumTDGame {
         balls: this.balls,
         selectedBall: this.selectedBall,
         captureHint: this.captureHint,
+        captureCinema: this.capture?.sequence.hud ?? null,
         cupName: currentWave?.cupName || 'POKE CUP',
         round: currentWave?.round || 1,
         inWave: this.waveManager.inWave,
