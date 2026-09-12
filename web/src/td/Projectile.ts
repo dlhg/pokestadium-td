@@ -1,17 +1,16 @@
 /**
- * Projectile.ts — 3D Animated Projectile & Damage Resolution
+ * Projectile.ts — 3D Animated Projectile
  *
- * Handles projectile physics, homing trajectories, elemental particle trails,
- * collision detection, area splash, and type damage calculation.
+ * Implements the `projectile` delivery archetype: a mesh that homes onto one
+ * creep, trailing elemental particles, then hands off to the shared hit
+ * resolver on contact. Every other archetype lands instantly and is drawn by
+ * `MoveDelivery.playInstantDelivery` instead.
  */
 
 import * as THREE from 'three';
 import { MoveDefinition } from '../stadium/MoveDatabase';
-import { TYPE_COLORS, getCombinedEffectiveness } from '../stadium/TypeMatrix';
 import { Creep } from './Creep';
-import { ParticleSystem } from '../engine/ParticleSystem';
-import { StadiumAudio } from '../engine/StadiumAudio';
-import { StadiumAnnouncer } from '../stadium/Announcer';
+import { HitContext, moveColor, resolveMoveHit } from './MoveDelivery';
 
 export class Projectile {
   public id: string;
@@ -22,7 +21,6 @@ export class Projectile {
   public mesh: THREE.Mesh;
 
   private speed: number;
-  private splashRadius: number;
 
   constructor(
     move: MoveDefinition,
@@ -35,10 +33,9 @@ export class Projectile {
     this.position = startPos.clone().add(new THREE.Vector3(0, 1.5, 0));
     this.target = target;
     this.speed = move.projectileSpeed;
-    this.splashRadius = move.splashRadius;
 
-    // Create 3D projectile geometry based on move type
-    const colorHex = TYPE_COLORS[move.type]?.num || 0xffffff;
+    // Silhouette follows the move's element, so a bolt never reads as a leaf.
+    const colorHex = moveColor(move);
 
     let geo: THREE.BufferGeometry;
     let mat: THREE.Material;
@@ -57,6 +54,12 @@ export class Projectile {
       mat = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
     } else if (move.fxType === 'blizzard') {
       geo = new THREE.OctahedronGeometry(0.45);
+      mat = new THREE.MeshBasicMaterial({ color: colorHex, wireframe: true });
+    } else if (move.fxType === 'shadow_ball') {
+      geo = new THREE.IcosahedronGeometry(0.55, 0);
+      mat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.85 });
+    } else if (move.fxType === 'psychic_wave') {
+      geo = new THREE.TorusGeometry(0.42, 0.16, 6, 12);
       mat = new THREE.MeshBasicMaterial({ color: colorHex, wireframe: true });
     } else if (move.fxType === 'spore_cloud') {
       geo = new THREE.SphereGeometry(0.65, 6, 6);
@@ -77,14 +80,8 @@ export class Projectile {
     scene.add(this.mesh);
   }
 
-  public update(
-    dt: number,
-    creeps: Creep[],
-    particles: ParticleSystem,
-    audio: StadiumAudio,
-    announcer: StadiumAnnouncer,
-    onCreepFaint: (creep: Creep) => void
-  ): boolean {
+  /** Advances one step. Returns false once it has landed and should be reaped. */
+  public update(dt: number, ctx: HitContext): boolean {
     if (!this.active) return false;
 
     // Target point (center mass of creep)
@@ -95,13 +92,11 @@ export class Projectile {
     const dist = this.position.distanceTo(targetPos);
     const step = this.speed * dt;
 
-    // Emit trail particle
-    const colHex = TYPE_COLORS[this.move.type]?.num || 0xffffff;
-    particles.emitTrail(this.position, colHex, 0.8);
+    ctx.particles.emitTrail(this.position, moveColor(this.move), 0.8);
 
+    // Landing on a dead target still detonates, so splash is never wasted.
     if (dist <= step || !this.target.alive) {
-      // Impact!
-      this.resolveImpact(creeps, particles, audio, announcer, onCreepFaint);
+      resolveMoveHit(this.move, this.target, ctx);
       this.active = false;
       return false;
     }
@@ -113,59 +108,6 @@ export class Projectile {
     this.mesh.lookAt(targetPos);
 
     return true;
-  }
-
-  private resolveImpact(
-    creeps: Creep[],
-    particles: ParticleSystem,
-    audio: StadiumAudio,
-    announcer: StadiumAnnouncer,
-    onCreepFaint: (creep: Creep) => void
-  ): void {
-    const impactPos = this.target.position.clone().add(new THREE.Vector3(0, 1.0, 0));
-    const colHex = TYPE_COLORS[this.move.type]?.num || 0xffffff;
-
-    // Visual impact burst
-    particles.emitImpact(impactPos, colHex, this.splashRadius > 0 ? 30 : 18, 7);
-
-    // Calculate targets in damage radius
-    const hitList: Creep[] = [];
-    if (this.splashRadius > 0) {
-      for (const c of creeps) {
-        if (c.alive && c.position.distanceTo(this.target.position) <= this.splashRadius) {
-          hitList.push(c);
-        }
-      }
-    } else {
-      if (this.target.alive) {
-        hitList.push(this.target);
-      }
-    }
-
-    let hasSuperEffective = false;
-
-    for (const victim of hitList) {
-      const mult = this.move.ignoresType ? 1 : getCombinedEffectiveness(this.move.type, victim.types);
-      if (mult >= 2.0) hasSuperEffective = true;
-
-      const damage = Math.floor(this.move.basePower * mult);
-      const died = victim.takeDamage(damage);
-
-      // Status effect chance
-      if (this.move.statusEffect !== 'none' && Math.random() < this.move.statusChance) {
-        victim.applyStatus(this.move.statusEffect, this.move.statusDuration);
-      }
-
-      if (died) {
-        onCreepFaint(victim);
-      }
-    }
-
-    audio.playHit(hasSuperEffective);
-
-    if (hasSuperEffective && Math.random() < 0.4) {
-      announcer.trigger('super_effective');
-    }
   }
 
   public destroy(scene: THREE.Scene): void {
