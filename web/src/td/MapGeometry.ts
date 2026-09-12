@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import type { MapPoint, StadiumMap } from './MapCatalog';
+import { LANE_RIDE_HEIGHT, landformHeight, type MapTerrain } from './MapTerrain';
 
 /** One sampled centreline drives the preview, rendered lane, movement and collision. */
 export function sampleMapRoutes(map: StadiumMap): THREE.Vector3[][] {
   return map.routes.map(points => {
-    const curve = new THREE.CatmullRomCurve3(points.map(([x,z]) => new THREE.Vector3(x,0.5,z)), false, 'centripetal');
+    const controls = points.map(([x,z,y]) => new THREE.Vector3(x,(y ?? landformHeight(map,x,z)) + LANE_RIDE_HEIGHT,z));
+    const curve = new THREE.CatmullRomCurve3(controls, false, 'centripetal');
     curve.arcLengthDivisions = 1200;
     return curve.getSpacedPoints(Math.ceil(curve.getLength() / 0.45));
   });
@@ -27,8 +29,11 @@ export function touchesPolygon(x: number, z: number, radius: number, points: Map
   return inside;
 }
 
-export type MapBuildBlock = 'out_of_bounds' | 'on_lane' | 'restricted' | 'water' | null;
-export function mapBuildBlock(map: StadiumMap, routes: THREE.Vector3[][], x: number, z: number, radius: number): MapBuildBlock {
+/** Tallest step a tower pad can bridge. Gentle slopes build; cliff faces do not. */
+export const MAX_FOOTPRINT_RELIEF = 0.75;
+
+export type MapBuildBlock = 'out_of_bounds' | 'on_lane' | 'restricted' | 'water' | 'too_steep' | null;
+export function mapBuildBlock(map: StadiumMap, routes: THREE.Vector3[][], x: number, z: number, radius: number, terrain?: MapTerrain): MapBuildBlock {
   if (Math.hypot(x,z) > map.buildableRadius-radius) return 'out_of_bounds';
   for (const route of routes) {
     for (let i=1; i<route.length; i++) {
@@ -38,5 +43,9 @@ export function mapBuildBlock(map: StadiumMap, routes: THREE.Vector3[][], x: num
   }
   if (map.water.some(region => touchesPolygon(x,z,radius,region.points))) return 'water';
   if (map.obstacles.some(zone => Math.hypot(x-zone.x,z-zone.z) < zone.radius+radius)) return 'restricted';
+  if (terrain && !terrain.flat) {
+    const { low, high } = terrain.footprint(x,z,radius);
+    if (high - low > MAX_FOOTPRINT_RELIEF) return 'too_steep';
+  }
   return null;
 }

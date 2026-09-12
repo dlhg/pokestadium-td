@@ -37,11 +37,32 @@ window.addEventListener('DOMContentLoaded', () => {
     game.announcer.setVoiceEnabled(false);
     uiContainer.classList.add('shot-mode');
   }
-  const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}`);
+  // map_<id> is the tactical course view; map3d_<id> frames the same course from the stands.
+  const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}` || shot === `map3d_${map.id}` || shot === `battle_${map.id}`);
   if (courseShot) {
     game.loadMap(courseShot);
     game.announcer.update(60);
     game.isPaused = true;
+    if (!shot!.startsWith('map_')) game.camera.setMode('stadium');
+    if (shot!.startsWith('battle_')) {
+      // Defenders on each tier and climbers spread along the route, stairs included.
+      const terrain = game.arena.terrain;
+      const sites: [keyof typeof TOWER_TEMPLATES, number, number][] = [['pikachu',-6,-25],['charizard',6,-12],['blastoise',-14,17],['venusaur',24,-2]];
+      for (const [id, x, z] of sites) {
+        const tower = new Tower(TOWER_TEMPLATES[id], new THREE.Vector3(x, terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
+        game.renderer.scene.add(tower.group);
+        game.towers.push(tower);
+      }
+      const route = game.arena.waypoints;
+      [0.12, 0.3, 0.36, 0.55, 0.63, 0.9].forEach((at, i) => {
+        const creep = new Creep({ id: `climber_${i}`, name: i === 2 ? 'Geodude' : 'Rattata', type: i === 2 ? 'Rock' : 'Normal',
+          maxHp: 100, speed: 4, reward: 15, modelType: i === 2 ? 'geodude' : 'rattata' }, route);
+        creep.position.copy(route[Math.floor(route.length * at)]);
+        creep.group.position.copy(creep.position);
+        game.renderer.scene.add(creep.group);
+        game.creeps.push(creep);
+      });
+    }
   }
 
   if (shot && shot !== 'map_select' && !courseShot) {

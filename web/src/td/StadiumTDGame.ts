@@ -20,7 +20,9 @@ import {
   TARGET_PRIORITIES,
   TOWER_FOOTPRINT_RADIUS,
   TOWER_BASE_HEIGHT,
+  highGroundRangeScale,
 } from './Tower';
+import { LANE_RIDE_HEIGHT } from './MapTerrain';
 import { Creep } from './Creep';
 import { Projectile } from './Projectile';
 import { WaveManager, getMilestone } from './WaveManager';
@@ -43,6 +45,7 @@ const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
   on_lane: 'TOO CLOSE TO THE LANE',
   restricted: 'NO-BUILD ZONE',
   water: 'WATER · PLACE ON THE BANK',
+  too_steep: 'TOO STEEP · FIND LEVEL GROUND',
   overlaps_tower: 'ANOTHER POKÉMON IS THERE',
 };
 
@@ -261,7 +264,7 @@ export class StadiumTDGame {
     }
 
     // Free placement: the cursor's spot on the pitch is the candidate site.
-    const ground = input.raycastGround(this.camera.camera, 0);
+    const ground = this.arena.terrain.raycast(input.pointerRay(this.camera.camera));
 
     if (this.selectedBall) {
       if (input.clicked && !input.clickedOnUI) this.tryCapture(this.pickCreep(input, ground));
@@ -326,7 +329,7 @@ export class StadiumTDGame {
     if (this.cinemaDim === 0 && !this.cinemaDimApplied) return;
 
     const eye = this.camera.camera.position;
-    const subject = target ? target.position.clone().setY(0.6) : null;
+    const subject = target ? target.position.clone().add(new THREE.Vector3(0, 0.1, 0)) : null;
     const bystanders = [
       ...this.creeps.filter(creep => creep !== target).map(creep => creep.group),
       ...this.towers.map(tower => tower.group),
@@ -475,7 +478,7 @@ export class StadiumTDGame {
     const blocked = this.getPlacementBlock(template, ground.x, ground.z);
     this.placementStatus = blocked
       ? { valid: false, label: PLACEMENT_BLOCK_LABELS[blocked] }
-      : { valid: true, label: `PLACE ${template.name.toUpperCase()} · ESC TO CANCEL` };
+      : { valid: true, label: `PLACE ${template.name.toUpperCase()}${this.highGroundNote(ground)} · ESC TO CANCEL` };
 
     this.updatePlacementPreview(template, ground, !blocked);
 
@@ -501,7 +504,7 @@ export class StadiumTDGame {
   }
 
   private placeTower(template: TowerTemplate, ground: THREE.Vector3): void {
-    const position = new THREE.Vector3(ground.x, TOWER_BASE_HEIGHT, ground.z);
+    const position = new THREE.Vector3(ground.x, this.padHeight(ground.x, ground.z), ground.z);
     this.money -= template.cost;
 
     const tower = new Tower(template, position);
@@ -519,6 +522,19 @@ export class StadiumTDGame {
     this.selectedTemplate = null;
     this.placementStatus = null;
     this.placementPreview.visible = false;
+  }
+
+  /** A pad rests on the highest ground under its footprint; its footing fills the rest. */
+  private padHeight(x: number, z: number): number {
+    return this.arena.terrain.footprint(x, z, TOWER_FOOTPRINT_RADIUS).high + TOWER_BASE_HEIGHT;
+  }
+
+  /** Tells the player what a raised site is worth against the lowest stretch of lane. */
+  private highGroundNote(point: THREE.Vector3): string {
+    if (this.arena.terrain.flat) return '';
+    const laneFloor = Math.min(...this.arena.routes.flat().map(p => p.y - LANE_RIDE_HEIGHT));
+    const bonus = Math.round((highGroundRangeScale(this.padHeight(point.x, point.z) - TOWER_BASE_HEIGHT, laneFloor) - 1) * 100);
+    return bonus >= 5 ? ` · HIGH GROUND +${bonus}% RANGE BELOW` : '';
   }
 
   private updatePlacementPreview(
@@ -583,7 +599,7 @@ export class StadiumTDGame {
       }
     });
     // Same clearance as the tower range ring: above the lane ribbon at y = 0.5.
-    this.placementPreview.position.set(point.x, TOWER_BASE_HEIGHT + 0.35, point.z);
+    this.placementPreview.position.set(point.x, this.padHeight(point.x, point.z) + 0.35, point.z);
     this.placementPreview.visible = true;
   }
 

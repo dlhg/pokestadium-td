@@ -1,13 +1,31 @@
 /** Authored courses: routes, terrain and collision all share these definitions. */
 export type MapDifficulty = 'easy' | 'medium' | 'hard';
 export type MapPoint = readonly [x: number, z: number];
-export type ObstacleStyle = 'rock' | 'tree' | 'generator';
+/** A route control point. Height defaults to the terrace beneath it; give one to pin a stair landing. */
+export type RoutePoint = readonly [x: number, z: number, y?: number];
+export type ObstacleStyle = 'rock' | 'tree' | 'generator' | 'pine' | 'boulder' | 'pillar' | 'brick' | 'center';
 
 export interface MapObstacle {
   x: number; z: number; radius: number; label: string; style: ObstacleStyle;
 }
-export interface WaterRegion { points: MapPoint[]; }
+/** Water surface sits at `height` (default 0), so springs can pool on a terrace. */
+export interface WaterRegion { points: MapPoint[]; height?: number; }
 export interface MapBridge { x: number; z: number; width: number; depth: number; }
+
+/** A flat-topped terrace. Outside its outline the ground falls away as a cliff. */
+export interface MapPlateau { points: MapPoint[]; height: number; label: string; }
+export interface MapTerrainSpec {
+  plateaus: MapPlateau[];
+}
+
+/** Set dressing that tells the course's story without changing the rules. */
+export type MapDecor =
+  | { kind: 'waterfall'; x: number; z: number; angle: number; width: number; top: number; drop: number; }
+  | { kind: 'torch'; x: number; z: number; }
+  | { kind: 'cave'; x: number; z: number; angle: number; }
+  | { kind: 'flowers'; x: number; z: number; radius: number; }
+  | { kind: 'arch'; x: number; z: number; angle: number; span: number; text: string; };
+
 export interface StadiumMap {
   id: string;
   name: string;
@@ -15,15 +33,21 @@ export interface StadiumMap {
   difficulty: MapDifficulty;
   description: string;
   strategy: string;
-  theme: 'garden' | 'canyon' | 'river' | 'industrial';
+  theme: 'garden' | 'canyon' | 'river' | 'industrial' | 'plateau';
   palette: { ground: string; patch: string; path: string; edge: string; accent: string };
   buildableRadius: number;
   laneWidth: number;
-  routes: MapPoint[][];
+  routes: RoutePoint[][];
   obstacles: MapObstacle[];
   water: WaterRegion[];
   bridges: MapBridge[];
+  /** Omitted on flat courses. */
+  terrain?: MapTerrainSpec;
+  decor?: MapDecor[];
 }
+
+// Victory Road → Indigo Plateau tiers. Outlines run past the arena rim; the rim trims them.
+const TIER_ROUTE_23 = 3, TIER_BADGE_CHECK = 6, TIER_SUMMIT = 9;
 
 export const STADIUM_MAPS: StadiumMap[] = [
   {
@@ -96,6 +120,68 @@ export const STADIUM_MAPS: StadiumMap[] = [
       {x:4,z:-21,radius:2.8,label:'Cooling tower',style:'generator'},
       {x:-4,z:21,radius:2.8,label:'Cooling tower',style:'generator'},
     ], water:[], bridges:[],
+  },
+  {
+    id:'indigo-plateau', name:'Indigo Plateau', venue:'VICTORY ROAD ASCENT', difficulty:'hard',
+    description:'Challengers leave Victory Road and climb three terraces to the League gate. The stairs slow every climber.',
+    strategy:'High ground reaches further down. Stairs are kill zones, but terraces are small. Pick your ledges carefully.',
+    theme:'plateau',
+    palette:{ ground:'#6f9c52', patch:'#86b35f', path:'#dcb77e', edge:'#9a6b45', accent:'#f2c65a' },
+    buildableRadius:31, laneWidth:3,
+    terrain:{ plateaus:[
+      { label:'Route 23 terrace', height:TIER_ROUTE_23,
+        points:[[-40,9],[-24,8],[-12,9.5],[-2,8],[8,8.5],[18,7],[28,10],[40,10],[40,-40],[-40,-40]] },
+      // Sentinel Rock: a lone buildable mesa in the meadow, above the entry trail.
+      { label:'Sentinel Rock', height:TIER_ROUTE_23,
+        points:[[-18.5,14.5],[-15,13.5],[-11.5,15],[-11.5,18.5],[-14.5,20.5],[-18,19.5]] },
+      // The east lookout spur hangs over the first stair.
+      { label:'Badge-check terrace', height:TIER_BADGE_CHECK,
+        points:[[-40,-4],[-24,-5],[-14,-5.5],[-4,-4.5],[8,-4],[18,-4.5],[20,4],[23,6.5],[27,5],[29,-3],[40,-4],[40,-40],[-40,-40]] },
+      { label:'Indigo summit', height:TIER_SUMMIT,
+        points:[[-13,-23],[-5,-22.2],[5,-22.2],[13,-23],[15,-40],[-15,-40]] },
+    ]},
+    routes:[[
+      [-28,18],[-21,24],[-9,27],[3,27],[13,24],[19,18],
+      [15,11,0],[12,4,TIER_ROUTE_23],                  // first stair, cut through the terrace cliff
+      [2,2.5],[-10,2.5],[-17,0.5],
+      [-19,-3,TIER_ROUTE_23],[-15,-9,TIER_BADGE_CHECK], // second stair
+      [-6,-8],[6,-8],[14,-9],[19,-13],[15,-17],[6,-16.5],[2,-16.5],
+      [0,-19,TIER_BADGE_CHECK],[0,-26,TIER_SUMMIT],     // the grand Indigo stair
+      [0,-29.5],
+    ]],
+    water:[
+      { points:[[-6,9],[-2,9],[-1,15],[1,21],[0.5,30],[1.5,37],[-5,37],[-5,30],[-4.5,22],[-6.5,15]] },
+      { height:TIER_ROUTE_23, points:[[-6.4,5.4],[-4.5,4.8],[-2.6,5.2],[-1.8,6.8],[-2.2,8.4],[-6.4,8.4],[-7,6.8]] },
+    ],
+    bridges:[{ x:-2, z:27, width:9, depth:3.8 }],
+    obstacles:[
+      { x:-24, z:12, radius:2.6, label:'Viridian pines', style:'pine' },
+      { x:7, z:17, radius:2.3, label:'Strength boulder', style:'boulder' },
+      { x:7, z:21.6, radius:1, label:'Badge check', style:'brick' },
+      { x:9.8, z:29.2, radius:1, label:'Badge check', style:'brick' },
+      { x:-23.5, z:3.2, radius:2.8, label:'Pokémon Center', style:'center' },
+      { x:-8.5, z:19, radius:1.6, label:'Fallen rockslide', style:'rock' },
+      { x:10, z:-12.3, radius:1.2, label:'Strength boulder', style:'boulder' },
+      { x:-3, z:-12.5, radius:1.3, label:'Victory Road rubble', style:'rock' },
+      { x:-22, z:-15, radius:3, label:'Plateau pines', style:'pine' },
+      { x:-10, z:-17, radius:2.2, label:'Plateau pines', style:'pine' },
+      { x:25, z:-17, radius:2.2, label:'Plateau pines', style:'pine' },
+      { x:-3.6, z:-28, radius:0.9, label:'Indigo pillar', style:'pillar' },
+      { x:3.6, z:-28, radius:0.9, label:'Indigo pillar', style:'pillar' },
+      { x:-10, z:-27, radius:1.8, label:'Summit pines', style:'pine' },
+      { x:10, z:-27, radius:1.8, label:'Summit pines', style:'pine' },
+    ],
+    decor:[
+      { kind:'cave', x:-30, z:16.3, angle:0.86 },
+      { kind:'waterfall', x:-4.2, z:8.4, angle:0, width:3.4, top:TIER_ROUTE_23, drop:TIER_ROUTE_23 },
+      { kind:'arch', x:8.4, z:25.4, angle:-1.218, span:8.1, text:'BADGE CHECK' },
+      { kind:'arch', x:0, z:-28, angle:0, span:7.2, text:'INDIGO PLATEAU' },
+      { kind:'torch', x:-12.5, z:-5.8 }, { kind:'torch', x:-17.8, z:-11.5 },
+      { kind:'torch', x:2.6, z:-20.5 }, { kind:'torch', x:-2.6, z:-20.5 },
+      { kind:'torch', x:2.4, z:-25.5 }, { kind:'torch', x:-2.4, z:-25.5 },
+      { kind:'flowers', x:-12, z:22, radius:2 }, { kind:'flowers', x:14, z:14.5, radius:1.6 },
+      { kind:'flowers', x:-26, z:-8, radius:1.8 }, { kind:'flowers', x:6, z:-24.5, radius:1.4 },
+    ],
   },
 ];
 

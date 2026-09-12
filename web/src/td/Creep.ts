@@ -10,6 +10,9 @@ import { AnimatedPokemon, PokemonModelFactory } from '../stadium/PokemonModels';
 import { PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
 import { StatusEffectType } from '../stadium/MoveDatabase';
 
+/** A 0.4 grade stair roughly halves a creep's pace. */
+const CLIMB_SLOWDOWN = 2.6;
+
 export interface CreepConfig {
   id: string;
   name: string;
@@ -337,10 +340,13 @@ export class Creep {
     while (this.currentWpIdx < this.waypoints.length) {
       const targetWp = this.waypoints[this.currentWpIdx];
       const dist = this.position.distanceTo(targetWp);
+      // Climbing stairs costs pace: a stair's slope turns into a natural choke point.
+      const climb = dist > 1e-4 ? Math.max(0, targetWp.y - this.position.y) / dist : 0;
+      const pace = 1 / (1 + climb * CLIMB_SLOWDOWN);
 
-      if (dist <= step) {
+      if (dist <= step * pace) {
         this.position.copy(targetWp);
-        step -= dist;
+        step -= dist / pace;
         this.currentWpIdx++;
 
         if (this.currentWpIdx >= this.waypoints.length) {
@@ -350,7 +356,7 @@ export class Creep {
         }
       } else {
         const dir = new THREE.Vector3().subVectors(targetWp, this.position).normalize();
-        this.position.addScaledVector(dir, step);
+        this.position.addScaledVector(dir, step * pace);
 
         // Smooth look-at facing
         const lookPos = targetWp.clone();

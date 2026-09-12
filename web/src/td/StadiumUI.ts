@@ -1011,7 +1011,7 @@ export class StadiumUI {
               ${mapPreview(map)}
               <span class="map-difficulty ${map.difficulty}">${map.difficulty.toUpperCase()}</span>
               <span class="map-card-body"><strong class="map-name">${map.name}</strong><span class="map-venue">${map.venue}</span>
-              <span class="map-description">${map.description}</span><span class="map-obstacles">${map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
+              <span class="map-description">${map.description}</span><span class="map-obstacles">${map.terrain?'3 TERRACES · HIGH GROUND':map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
             </button>`).join('')}
           </div>
           <div class="map-select-footer"><div class="map-legend"><span>Entrance</span><span>Exit</span></div><span>Choose a course to start a fresh match.</span><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>

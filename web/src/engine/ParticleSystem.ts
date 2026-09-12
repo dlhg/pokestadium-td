@@ -246,7 +246,8 @@ export class ParticleSystem {
       const spd = radius * (0.6 + Math.random() * 0.7);
 
       this.spawn({
-        position: new THREE.Vector3(pos.x, 0.15, pos.z),
+        // Callers pass a creep's centreline, which rides 0.5 above its ground.
+        position: new THREE.Vector3(pos.x, pos.y - 0.35, pos.z),
         velocity: new THREE.Vector3(
           Math.cos(angle) * spd,
           2.2 + Math.random() * 2.6,
@@ -283,7 +284,7 @@ export class ParticleSystem {
 
     const mesh = new THREE.Mesh(geom, mat);
     // Just clear of the lane ribbon so the wave stays readable over the track.
-    mesh.position.set(center.x, 0.55, center.z);
+    mesh.position.set(center.x, center.y + 0.05, center.z);
     mesh.scale.setScalar(0.12);
     mesh.renderOrder = 3;
 

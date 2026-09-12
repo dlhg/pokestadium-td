@@ -12,6 +12,7 @@ import { AnimatedPokemon, PokemonModelFactory } from '../stadium/PokemonModels';
 import { MoveDefinition, MOVES } from '../stadium/MoveDatabase';
 import { PokemonType } from '../stadium/TypeMatrix';
 import { Creep } from './Creep';
+import { LANE_RIDE_HEIGHT } from './MapTerrain';
 
 export type TargetPriority = 'first' | 'last' | 'strongest' | 'weakest';
 
@@ -22,6 +23,13 @@ export const TOWER_FOOTPRINT_RADIUS = 1.6;
 
 /** Height of the deploy pad a tower stands on, and so the tower's ground Y. */
 export const TOWER_BASE_HEIGHT = 0.3;
+
+/** Range gained per unit a tower stands above its target, up to a summit-sized drop. */
+export const HIGH_GROUND_RANGE_PER_UNIT = 0.04;
+const HIGH_GROUND_MAX_DROP = 9;
+export function highGroundRangeScale(towerGround: number, targetGround: number): number {
+  return 1 + THREE.MathUtils.clamp(towerGround - targetGround, 0, HIGH_GROUND_MAX_DROP) * HIGH_GROUND_RANGE_PER_UNIT;
+}
 
 /** One purchasable step within a move line. */
 export interface MoveTier {
@@ -282,6 +290,9 @@ export class Tower {
 
     // Instantiate 3D Model
     this.animPokemon = template.createModel();
+    // The procedural stand-in is much larger than the normalized GLB that
+    // replaces it a few frames later, so keep it hidden until the load settles.
+    this.animPokemon.mesh.visible = false;
     this.group.add(this.animPokemon.mesh);
 
     // Range Ring Visual Indicator (Hidden until selected)
@@ -322,6 +333,15 @@ export class Tower {
     disc.receiveShadow = true;
     disc.castShadow = true;
     pad.add(disc);
+
+    // A stone footing sinks into the ground so a pad on a slope never floats.
+    const footing = new THREE.Mesh(
+      new THREE.CylinderGeometry(TOWER_FOOTPRINT_RADIUS, TOWER_FOOTPRINT_RADIUS * 1.08, 1.6, 20),
+      new THREE.MeshLambertMaterial({ color: 0x8a8272, flatShading: true })
+    );
+    footing.position.y = -TOWER_BASE_HEIGHT / 2 - 0.8;
+    footing.receiveShadow = true;
+    pad.add(footing);
 
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(TOWER_FOOTPRINT_RADIUS * 0.9, 0.07, 8, 24),
@@ -419,6 +439,9 @@ export class Tower {
         this.animPokemon = loaded;
         this.group.add(this.animPokemon.mesh);
       }
+      this.animPokemon.mesh.visible = true;
+    }).catch(() => {
+      if (generation === this.modelLoadGeneration) this.animPokemon.mesh.visible = true;
     });
   }
 
@@ -491,8 +514,10 @@ export class Tower {
 
     for (const creep of creeps) {
       if (!creep.alive || creep.captureLocked) continue;
-      const dist = this.position.distanceTo(creep.position);
-      if (dist > range) continue;
+      // Reach is measured across the ground; standing above the lane extends it.
+      const dist = Math.hypot(this.position.x - creep.position.x, this.position.z - creep.position.z);
+      const towerGround = this.position.y - TOWER_BASE_HEIGHT;
+      if (dist > range * highGroundRangeScale(towerGround, creep.position.y - LANE_RIDE_HEIGHT)) continue;
 
       let metric = 0;
       switch (this.targetPriority) {

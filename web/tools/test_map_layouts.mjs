@@ -5,17 +5,18 @@ import { fileURLToPath } from 'node:url';
 // Bundle TypeScript in memory; no test dependencies or generated files needed.
 const result = await build({
   stdin: {
-    contents: "export * from './src/td/MapCatalog.ts'; export * from './src/td/MapGeometry.ts';",
+    contents: "export * from './src/td/MapCatalog.ts'; export * from './src/td/MapGeometry.ts'; export * from './src/td/MapTerrain.ts';",
     resolveDir: fileURLToPath(new URL('../', import.meta.url)),
   },
   bundle: true, write: false, format: 'esm', platform: 'node',
 });
-const { STADIUM_MAPS, sampleMapRoutes, mapBuildBlock, segmentDistance, touchesPolygon } =
+const { STADIUM_MAPS, sampleMapRoutes, mapBuildBlock, segmentDistance, touchesPolygon, MapTerrain, LANE_RIDE_HEIGHT } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`);
 
 const signatures = new Set();
 for (const map of STADIUM_MAPS) {
   const routes = sampleMapRoutes(map);
+  const terrain = new MapTerrain(map, routes);
   signatures.add(JSON.stringify(map.routes));
   for (const [index, route] of routes.entries()) {
     const first = map.routes[index][0], last = map.routes[index].at(-1);
@@ -39,16 +40,47 @@ for (const map of STADIUM_MAPS) {
   }
   let buildSites=0;
   for(let x=-30;x<=30;x+=2) for(let z=-30;z<=30;z+=2) {
-    if(mapBuildBlock(map,routes,x,z,1.6)===null) buildSites++;
+    if(mapBuildBlock(map,routes,x,z,1.6,terrain)===null) buildSites++;
   }
   assert.ok(buildSites>100,`${map.id}: insufficient usable terrain`);
   assert.equal(mapBuildBlock(map,routes,32,0,1.6),'out_of_bounds');
+  if(map.id==='cerulean-crossing') assert.equal(mapBuildBlock(map,routes,0,0,1.6),'water');
   if(map.water.length) {
-    assert.equal(mapBuildBlock(map,routes,0,0,1.6),'water');
     // Every actual river crossing must have a visible bridge deck beneath it.
     for(const route of routes) for(const p of route) {
       if(!map.water.some(w=>touchesPolygon(p.x,p.z,0,w.points))) continue;
       assert.ok(map.bridges.some(b=>Math.abs(p.x-b.x)<=b.width/2 && Math.abs(p.z-b.z)<=b.depth/2),`${map.id}: unbridged river crossing`);
+    }
+  }
+  if(map.terrain) {
+    for(const route of routes) for(let i=1;i<route.length;i++) {
+      const p=route[i];
+      // The lane is cut into the hillside: creeps never float or sink.
+      assert.ok(Math.abs(terrain.heightAt(p.x,p.z)-(p.y-LANE_RIDE_HEIGHT))<0.12,`${map.id}: lane leaves the ground at ${p.x.toFixed(1)},${p.z.toFixed(1)}`);
+      const run=Math.hypot(p.x-route[i-1].x,p.z-route[i-1].z);
+      assert.ok(Math.abs(p.y-route[i-1].y)/run<0.6,`${map.id}: stair too steep at ${p.x.toFixed(1)},${p.z.toFixed(1)} (${(Math.abs(p.y-route[i-1].y)/run).toFixed(2)})`);
+    }
+    for(const obstacle of map.obstacles) {
+      const {low,high}=terrain.footprint(obstacle.x,obstacle.z,obstacle.radius*0.8);
+      assert.ok(high-low<0.6,`${map.id}: ${obstacle.label} straddles a cliff`);
+    }
+    // Every terrace must offer real build sites, or it is only scenery.
+    for(const plateau of map.terrain.plateaus) {
+      let sites=0;
+      for(let x=-30;x<=30;x+=1) for(let z=-30;z<=30;z+=1) {
+        if(Math.abs(terrain.heightAt(x,z)-plateau.height)<0.05 && touchesPolygon(x,z,0,plateau.points)
+          && mapBuildBlock(map,routes,x,z,1.6,terrain)===null) sites++;
+      }
+      assert.ok(sites>=6,`${map.id}: ${plateau.label} has only ${sites} build sites`);
+      console.log(`  ${plateau.label} (${plateau.height}): ${sites} build sites`);
+    }
+    assert.equal(mapBuildBlock(map,routes,-20,8.6,1.6,terrain),'too_steep');
+    // Picking from the tactical camera lands on the terrace the player sees, not the plane below it.
+    const THREE = await import('three');
+    for (const [x,z] of [[-6,-25],[24,-2],[-14,17],[6,-12]]) {
+      const target = new THREE.Vector3(x, terrain.heightAt(x,z), z), eye = new THREE.Vector3(4,82,42);
+      const hit = terrain.raycast(new THREE.Ray(eye, target.clone().sub(eye).normalize()));
+      assert.ok(hit && hit.distanceTo(target) < 0.15, `${map.id}: ground pick missed ${x},${z}`);
     }
   }
   console.log(`${map.name}: ${routes.length} route(s), ${buildSites} legal sample sites, lane / obstacle / water checks passed`);
