@@ -26,6 +26,7 @@ import { Projectile } from './Projectile';
 import { WaveManager } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
 import { HitContext, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
+import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
 type PlacementBlockReason =
@@ -58,6 +59,7 @@ export class StadiumTDGame {
   public isPaused: boolean = false;
   public gameOver: boolean = false;
   public victory: boolean = false;
+  public map: StadiumMap = DEFAULT_STADIUM_MAP;
 
   // Entities
   public towers: Tower[] = [];
@@ -76,7 +78,7 @@ export class StadiumTDGame {
     this.camera = new StadiumCamera();
     this.audio = new StadiumAudio();
     this.particles = new ParticleSystem();
-    this.arena = new StadiumArena();
+    this.arena = new StadiumArena(this.map);
     this.announcer = new StadiumAnnouncer();
 
     this.renderer.scene.add(this.arena.group);
@@ -96,6 +98,7 @@ export class StadiumTDGame {
   }
 
   private bindUIEvents(): void {
+    this.ui.onSelectMap = (map) => this.loadMap(map);
     this.ui.onSelectTemplate = (template) => {
       if (this.selectedTower) {
         this.selectedTower.setSelected(false);
@@ -171,6 +174,27 @@ export class StadiumTDGame {
       this.camera.setMode(mode);
       this.audio.playSelect();
     };
+  }
+
+  private loadMap(map: StadiumMap): void {
+    this.map = map;
+    this.clearSelection();
+    this.towers.forEach(tower => this.renderer.scene.remove(tower.group));
+    this.creeps.forEach(creep => creep.destroy(this.renderer.scene));
+    this.projectiles.forEach(projectile => projectile.destroy(this.renderer.scene));
+    this.towers = [];
+    this.creeps = [];
+    this.projectiles = [];
+    this.renderer.scene.remove(this.arena.group);
+    this.arena = new StadiumArena(map);
+    this.renderer.scene.add(this.arena.group);
+    this.waveManager = new WaveManager(this.arena.waypoints, this.announcer);
+    this.money = 420;
+    this.lives = 6;
+    this.gameOver = false;
+    this.victory = false;
+    this.audio.playSelect();
+    this.announcer.trigger('battle_start');
   }
 
   private removeTower(tower: Tower): void {
@@ -473,6 +497,7 @@ export class StadiumTDGame {
         selectedTower: this.selectedTower,
         selectedTemplate: this.selectedTemplate,
         placementStatus: this.placementStatus,
+        mapName: this.map.name,
       }
     );
   }
