@@ -112,6 +112,14 @@ export class WaveManager {
           },
           count: 5,
           interval: 1.55
+        },
+        {
+          config: {
+            id: 'elite_geodude_1', name: 'Granite Captain', type: 'Rock', secondaryType: 'Ground',
+            maxHp: 720, speed: 2.35, reward: 100, threat: 'elite', modelType: 'geodude'
+          },
+          count: 1,
+          interval: 2.4
         }
       ]
     },
@@ -172,6 +180,7 @@ export class WaveManager {
             speed: 2.2,
             reward: 250,
             isBoss: true,
+            threat: 'titan',
             modelType: 'boss_titan',
             titanType: 'Onix'
           },
@@ -257,6 +266,14 @@ export class WaveManager {
           },
           count: 5,
           interval: 1.5
+        },
+        {
+          config: {
+            id: 'elite_dragonair_1', name: 'Azure Champion', type: 'Dragon',
+            maxHp: 1520, speed: 3.7, reward: 185, threat: 'elite', modelType: 'dragonair'
+          },
+          count: 1,
+          interval: 2.6
         }
       ]
     },
@@ -300,6 +317,14 @@ export class WaveManager {
           },
           count: 8,
           interval: 0.85
+        },
+        {
+          config: {
+            id: 'elite_rhydon_1', name: 'Iron Champion', type: 'Ground', secondaryType: 'Rock',
+            maxHp: 1920, speed: 2.55, reward: 220, threat: 'elite', modelType: 'geodude'
+          },
+          count: 1,
+          interval: 2.8
         }
       ]
     },
@@ -318,6 +343,7 @@ export class WaveManager {
             speed: 2.8,
             reward: 500,
             isBoss: true,
+            threat: 'titan',
             modelType: 'boss_titan',
             titanType: 'Gyarados'
           },
@@ -359,8 +385,6 @@ export class WaveManager {
 
     if (wave.spawns.some(s => s.config.isBoss)) {
       this.announcer.trigger('boss_spawn', wave.name);
-    } else {
-      this.announcer.trigger('battle_start');
     }
 
     return true;
@@ -390,6 +414,7 @@ export class WaveManager {
         this.spawnTimer = next.delay;
         const creep = new Creep(next.config, this.waypoints);
         onSpawn(creep);
+        if (creep.threat === 'elite') this.announcer.trigger('elite_spawn', creep.name);
       }
     } else {
       // Check if all creeps are defeated or reached end

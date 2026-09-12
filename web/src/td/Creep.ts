@@ -19,6 +19,7 @@ export interface CreepConfig {
   speed: number;
   reward: number;
   isBoss?: boolean;
+  threat?: 'normal' | 'elite' | 'titan';
   modelType: 'rattata' | 'zubat' | 'geodude' | 'dragonair' | 'boss_titan';
   modelName?: string;
   titanType?: 'Onix' | 'Gyarados';
@@ -35,6 +36,7 @@ export class Creep {
   public speed: number;
   public reward: number;
   public isBoss: boolean;
+  public threat: 'normal' | 'elite' | 'titan';
   public alive: boolean = true;
   public reachedEnd: boolean = false;
   public removalReady: boolean = false;
@@ -61,6 +63,7 @@ export class Creep {
   private hpCtx: CanvasRenderingContext2D;
   private hpTexture: THREE.CanvasTexture;
   private hpSprite: THREE.Sprite;
+  private threatAura: THREE.Mesh | null = null;
 
   constructor(config: CreepConfig, waypoints: THREE.Vector3[]) {
     this.id = `creep_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -72,7 +75,8 @@ export class Creep {
     this.baseSpeed = config.speed;
     this.speed = config.speed;
     this.reward = config.reward;
-    this.isBoss = !!config.isBoss;
+    this.threat = config.threat || (config.isBoss ? 'titan' : 'normal');
+    this.isBoss = this.threat === 'titan' || !!config.isBoss;
     this.waypoints = waypoints;
 
     // Instantiate Model
@@ -97,11 +101,18 @@ export class Creep {
     }
 
     this.group.add(this.animPokemon.mesh);
+    if (this.threat === 'elite') {
+      this.group.scale.setScalar(1.35);
+      this.addThreatAura(0x8ee7ff);
+    } else if (this.threat === 'titan') {
+      this.group.scale.setScalar(1.8);
+      this.addThreatAura(0xffc52b);
+    }
 
     // Asynchronously load authentic GLB model & animations
     const modelName = (config.modelName || config.name).toLowerCase()
       .replace('titan ', '').replace('boss ', '').trim();
-    const targetHeight = config.isBoss ? 4.5 : 1.6;
+    const targetHeight = this.threat === 'titan' ? 2.5 : 1.6;
     PokemonModelFactory.loadAuthenticModel(modelName, targetHeight, () => this.animPokemon).then((loaded) => {
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
         this.group.remove(this.animPokemon.mesh);
@@ -129,9 +140,9 @@ export class Creep {
       depthTest: false,
     });
     this.hpSprite = new THREE.Sprite(spriteMat);
-    const barHeight = this.isBoss ? 4.5 : 2.6;
+    const barHeight = this.threat === 'titan' ? 3.8 : this.threat === 'elite' ? 2.9 : 2.6;
     this.hpSprite.position.set(0, barHeight, 0);
-    this.hpSprite.scale.set(this.isBoss ? 4.0 : 2.5, this.isBoss ? 1.0 : 0.65, 1);
+    this.hpSprite.scale.set(this.threat === 'titan' ? 4.0 : this.threat === 'elite' ? 3.0 : 2.5, this.isBoss ? 1.0 : 0.65, 1);
     this.group.add(this.hpSprite);
 
     this.updateHpBar();
@@ -167,7 +178,7 @@ export class Creep {
     ctx.clearRect(0, 0, w, h);
 
     // Background dark border box
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillStyle = this.threat === 'titan' ? 'rgba(78, 35, 0, 0.9)' : this.threat === 'elite' ? 'rgba(20, 49, 78, 0.9)' : 'rgba(0, 0, 0, 0.75)';
     ctx.fillRect(0, 4, w, h - 8);
 
     // HP Bar Fill
@@ -183,9 +194,16 @@ export class Creep {
     ctx.fillRect(4, 7, (w - 8) * pct, h - 14);
 
     // Outline
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = this.threat === 'titan' ? '#FFD34D' : this.threat === 'elite' ? '#8EE7FF' : '#FFFFFF';
     ctx.lineWidth = 2;
     ctx.strokeRect(4, 7, w - 8, h - 14);
+
+    if (this.threat !== 'normal') {
+      ctx.fillStyle = this.threat === 'titan' ? '#FFD34D' : '#8EE7FF';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(this.threat.toUpperCase(), w - 6, 14);
+    }
 
     // Type badge color indicator dot
     const typeColor = TYPE_COLORS[this.type]?.hex || '#FFFFFF';
@@ -205,6 +223,11 @@ export class Creep {
 
   public update(dt: number, onDeath: (creep: Creep) => void): void {
     const time = performance.now() * 0.001;
+    if (this.threatAura) {
+      const pulse = 1 + Math.sin(time * (this.threat === 'titan' ? 4 : 3)) * 0.12;
+      this.threatAura.scale.setScalar(pulse);
+      (this.threatAura.material as THREE.MeshBasicMaterial).opacity = this.threat === 'titan' ? 0.58 : 0.42;
+    }
     if (!this.alive) {
       if (!this.reachedEnd) {
         this.animPokemon.update(time, dt, 'faint');
@@ -297,5 +320,18 @@ export class Creep {
     scene.remove(this.group);
     this.hpTexture.dispose();
     this.hpSprite.material.dispose();
+    this.threatAura?.geometry.dispose();
+    (this.threatAura?.material as THREE.Material | undefined)?.dispose();
+  }
+
+  private addThreatAura(color: number): void {
+    const aura = new THREE.Mesh(
+      new THREE.TorusGeometry(this.threat === 'titan' ? 1.25 : 0.88, 0.05, 6, 24),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false })
+    );
+    aura.rotation.x = Math.PI / 2;
+    aura.position.y = 0.08;
+    this.group.add(aura);
+    this.threatAura = aura;
   }
 }

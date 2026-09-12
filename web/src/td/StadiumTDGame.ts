@@ -491,10 +491,13 @@ export class StadiumTDGame {
     this.money += creep.reward;
     this.particles.emitImpact(creep.position, 0xffd700, 20, 6);
 
-    if (creep.isBoss) {
+    if (creep.threat === 'titan') {
       this.announcer.trigger('boss_defeat');
       this.audio.playFanfare();
       this.camera.shake(0.8);
+    } else if (creep.threat === 'elite') {
+      this.announcer.trigger('elite_defeat', creep.name);
+      this.camera.shake(0.35);
     } else if (Math.random() < 0.25) {
       this.announcer.trigger('creep_faint');
     }
