@@ -707,6 +707,139 @@ export class StadiumUI {
           #tower-panel { right: 172px; width: 272px; }
           .tp-line { grid-template-columns: 12px 1fr 84px; }
         }
+
+        /* ------------------------------------------------------------------
+           Stadium menu skin
+
+           The original presentation leans on physical broadcast hardware:
+           pale metal edging, a deep blue enamel field, gold title strips and
+           red confirmation keys.  These rules intentionally sit on top of
+           the TD layout above so the information architecture stays intact.
+           ------------------------------------------------------------------ */
+        .stadium-panel {
+          --plate-dark: #07152c;
+          --plate-blue: #123c73;
+          --plate-mid: #1b5c9e;
+          --plate-light: #c5d7e7;
+          --plate-gold: #f6c437;
+          --plate-red: #b41927;
+          position: relative;
+          border: 2px solid #d0e0eb;
+          border-radius: 0;
+          background:
+            linear-gradient(135deg, rgba(255,255,255,.16), transparent 22%),
+            repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px),
+            linear-gradient(180deg, #1a4e86 0%, #0b2b59 9%, #081d42 10%, #07172f 100%);
+          box-shadow:
+            0 0 0 2px #173c65,
+            0 0 0 4px rgba(3, 10, 25, .88),
+            4px 6px 0 rgba(0, 0, 0, .52),
+            inset 0 1px 0 rgba(255,255,255,.65),
+            inset 0 -2px 0 rgba(0,0,0,.55);
+        }
+
+        .stadium-panel::after {
+          content: '';
+          position: absolute;
+          inset: 5px;
+          pointer-events: none;
+          border-top: 1px solid rgba(255,255,255,.20);
+          border-bottom: 1px solid rgba(0,0,0,.35);
+        }
+
+        .gold-glow { text-shadow: 1px 2px 0 #75410b, 0 0 7px rgba(246,196,55,.5); }
+        .cyan-glow { text-shadow: 1px 2px 0 #063345, 0 0 7px rgba(83,224,255,.5); }
+
+        #top-bar {
+          gap: 19px;
+          min-height: 61px;
+          padding: 7px 13px 7px 18px;
+          clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+        }
+
+        #top-bar::before, #card-deck::before, #tower-panel::before {
+          content: '';
+          position: absolute;
+          z-index: 1;
+          width: 5px;
+          height: 5px;
+          top: 5px;
+          left: 5px;
+          background: #f8e7a5;
+          border-radius: 50%;
+          box-shadow: calc(100% + 0px) 0 #f8e7a5, 0 calc(100% + 0px) #f8e7a5;
+        }
+
+        .stat-badge { position: relative; z-index: 2; min-width: 64px; }
+        .stat-label { color: #d9eafa; font-family: 'Teko', sans-serif; font-size: 12px; line-height: .9; letter-spacing: 1.15px; text-shadow: 1px 1px #102344; }
+        .stat-value { font-family: 'Teko', 'Impact', sans-serif; font-size: 29px; line-height: .92; letter-spacing: .65px; }
+
+        .pokeball-tray { padding: 3px 5px; background: #061126; border: 1px solid #476f99; box-shadow: inset 0 1px 2px #000; }
+        .ui-pokeball { width: 17px; height: 17px; border: 1px solid #e3e7e8; box-shadow: 0 1px 0 #000, inset 0 1px 1px rgba(255,255,255,.5); }
+
+        #controls-bar { gap: 5px; }
+        .stadium-btn {
+          position: relative;
+          border: 1px solid #c5d7e7;
+          border-radius: 0;
+          padding: 5px 11px;
+          background: linear-gradient(180deg, #4c85b9 0 12%, #1b548e 14%, #113969 52%, #0a2348 100%);
+          box-shadow: 0 0 0 1px #10294e, 2px 3px 0 rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.45);
+          color: #fff;
+          font-family: 'Teko', sans-serif;
+          font-size: 17px;
+          line-height: 1;
+          letter-spacing: .8px;
+          text-shadow: 1px 1px #061428;
+        }
+        .stadium-btn:hover { background: linear-gradient(180deg, #77afdf, #276ca8 50%, #113f72); border-color: #fff; box-shadow: 0 0 0 1px #f6c437, 2px 3px 0 rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.6); }
+        .stadium-btn.active { background: linear-gradient(180deg, #ffdd59 0 12%, #f5b928 14%, #d97a16 58%, #a8430e 100%); border-color: #fff4b4; color: #18233b; text-shadow: 1px 1px rgba(255,255,255,.45); }
+        #btn-wave { margin-left: 4px; background: linear-gradient(180deg, #ef5961 0 12%, #c52c35 14%, #921522 60%, #64101c 100%); color: #fff9db; border-color: #ffd2a5; text-shadow: 1px 1px #4e0710; }
+
+        #card-deck { width: 154px; padding: 8px; border-color: #c8d7e5; }
+        .tower-rail-header { position: relative; z-index: 2; padding: 3px 5px 8px; border-bottom: 2px solid #e2b533; background: linear-gradient(90deg, #b47c13, #f1c83c 42%, #b67b10); }
+        .tower-rail-title { color: #102442; font-family: 'Teko', sans-serif; font-size: 16px; line-height: .9; letter-spacing: .2px; white-space: nowrap; text-shadow: 1px 1px rgba(255,255,255,.55); }
+        #placement-hint { color: #172f4e; font-size: 8px; line-height: 1.2; letter-spacing: .55px; }
+        .tower-card {
+          min-height: 69px;
+          flex-basis: 69px;
+          border: 1px solid #9fc2df;
+          border-radius: 0;
+          background: linear-gradient(135deg, rgba(255,255,255,.16), transparent 32%), linear-gradient(180deg, #245d96, #0d2d59 55%, #071a37);
+          box-shadow: 2px 3px 0 rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.32);
+        }
+        .tower-card:hover { transform: translateX(-4px); border-color: #ffe06a; box-shadow: 2px 3px 0 rgba(0,0,0,.42), 0 0 0 2px #b77d15; }
+        .tower-card.selected { border-color: #fff1a5; background: linear-gradient(135deg, rgba(255,255,255,.35), transparent 36%), linear-gradient(180deg, #356fa7, #16477e 55%, #0b2852); box-shadow: 2px 3px 0 rgba(0,0,0,.42), 0 0 0 2px #f1bf36; transform: translateX(-5px); }
+        .tower-card.selected::before { left: -6px; width: 4px; border-radius: 0; background: #f6c437; box-shadow: none; }
+        .card-type-tag { border-radius: 0; border: 1px solid rgba(255,255,255,.7); padding: 1px 5px; font-family: 'Teko', sans-serif; font-size: 12px; line-height: 1; letter-spacing: .5px; }
+        .card-name { font-family: 'Teko', 'Impact', sans-serif; font-size: 18px; line-height: .9; letter-spacing: .2px; text-shadow: 1px 2px #07162e; }
+        .card-cost { font-family: 'Teko', sans-serif; font-size: 19px; line-height: 1; color: #ffdc48; text-shadow: 1px 2px #583606; }
+
+        .banner-inner { border: 2px solid #ffe786; border-left: 0; border-right: 0; border-radius: 0; background: linear-gradient(90deg, transparent 0%, #9d1626 11%, #d02d32 22%, #d02d32 78%, #9d1626 89%, transparent 100%); box-shadow: 0 3px 0 rgba(53,7,15,.75), inset 0 1px rgba(255,255,255,.45); font-family: 'Teko', 'Impact', sans-serif; font-size: 35px; line-height: .9; letter-spacing: 1.4px; text-shadow: 2px 3px #560915; transform: skew(-6deg); }
+
+        #tower-panel { border-color: #d6e5ee; clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px); }
+        .tp-header { padding: 7px 10px; border-bottom: 2px solid #e5b934; background: linear-gradient(180deg, #f5d15a 0 8%, #b77d16 10%, #563d1d 13%, #183f73 16%, #0e2852 100%); }
+        .tp-title { font-family: 'Teko', 'Impact', sans-serif; font-size: 25px; line-height: .9; color: #fff9d7; letter-spacing: .7px; text-shadow: 2px 2px #07162f; }
+        .tp-stage-pip { width: 8px; height: 8px; background: #07182f; border-color: #a4c5dd; }
+        .tp-stage-pip.on { background: #f6c437; border-color: #fff4b0; box-shadow: 0 0 4px #f6c437; }
+        .tp-close, .tp-arrow { border-radius: 0; border-color: #b9d1e2; background: linear-gradient(#3974a9, #12365f); color: #fff; }
+        .tp-crest { border-radius: 0; border-color: #9dc0dc; box-shadow: inset 0 1px rgba(255,255,255,.28); }
+        .tp-crest-mark { border-color: #fff0ad; box-shadow: 0 0 0 2px rgba(13,37,69,.75); }
+        .tp-target { border-radius: 0; border-color: #739dc1; background: linear-gradient(180deg, #173e70, #0a2246); }
+        .tp-target-label { font-family: 'Teko', 'Impact', sans-serif; font-size: 19px; line-height: .8; color: #ffe057; }
+        .tp-target-cap, .tp-line-label, .tp-line-stats, .tp-buy-note, .tp-evolve-sub, .tp-sell-value span { font-family: 'Teko', sans-serif; font-size: 11px; line-height: .85; letter-spacing: .85px; color: #bcd7ec; }
+        .tp-line { border-radius: 0; border-color: #4778a7; background: linear-gradient(135deg, rgba(255,255,255,.08), transparent 35%), #0a2348; }
+        .tp-pip { border-radius: 0; border-color: #5f91bd; }
+        .tp-pip.on { background: #f6c437; border-color: #fff4af; }
+        .tp-line-move { font-family: 'Teko', 'Impact', sans-serif; font-size: 19px; line-height: .85; letter-spacing: .45px; }
+        .tp-buy { border-radius: 0; border-color: #b9d1e2; background: linear-gradient(180deg, #3b75aa, #11345f); box-shadow: inset 0 1px rgba(255,255,255,.28); }
+        .tp-buy.maxed, .tp-evolve.final { border-color: #f1c43f; background: linear-gradient(180deg, #77541a, #38270e); }
+        .tp-evolve { border-radius: 0; border-color: #f4ca42; background: linear-gradient(180deg, #3e82a1, #0d4260 60%, #092d49); box-shadow: inset 0 1px rgba(255,255,255,.3); }
+        .tp-evolve-label { font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .8; color: #fff0a3; }
+        .tp-evolve-cost { font-family: 'Teko', sans-serif; font-size: 23px; line-height: .8; color: #ffe052; }
+        .tp-footer { border-top-color: #d8b33a; background: linear-gradient(180deg, #14396b, #071a35); }
+        .tp-sell-value { font-family: 'Teko', sans-serif; font-size: 22px; line-height: .85; }
+        .tp-sell-btn { border-radius: 0; border-color: #ffd099; background: linear-gradient(180deg, #e34c50 0 10%, #b81e2a 13%, #7b101c 100%); font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .85; box-shadow: 2px 2px 0 rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.35); }
       </style>
 
       <!-- Top Bar -->

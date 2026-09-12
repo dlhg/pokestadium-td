@@ -18,6 +18,7 @@ export class StadiumAnnouncer {
   private lastSpeakTime: number = 0;
   private static readonly speechPolicy: Partial<Record<string, { cooldown: number; chance: number }>> = {
     battle_start: { cooldown: 0, chance: 1 },
+    round_start: { cooldown: 6_000, chance: 1 },
     boss_spawn: { cooldown: 0, chance: 1 }, boss_defeat: { cooldown: 0, chance: 1 },
     elite_spawn: { cooldown: 12_000, chance: 1 }, elite_defeat: { cooldown: 12_000, chance: 0.7 },
     victory: { cooldown: 0, chance: 1 }, game_over: { cooldown: 0, chance: 1 },
@@ -80,6 +81,11 @@ export class StadiumAnnouncer {
           { text: "WELCOME TO POKÉMON STADIUM! LET THE BATTLE BEGIN!", intensity: 'epic' },
           { text: "WHAT A MATCH WE HAVE IN STORE TODAY!", intensity: 'epic' },
           { text: "THE CROWD IS ON THEIR FEET! HERE WE GO!", intensity: 'high' }
+        ];
+      case 'round_start':
+        return [
+          { text: `ROUND ${detail || ''}! LET THE BATTLE CONTINUE!`, intensity: 'high' },
+          { text: `${detail || 'THE NEXT ROUND'} IS UNDERWAY!`, intensity: 'high' }
         ];
       case 'super_effective':
         return [

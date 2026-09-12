@@ -385,6 +385,8 @@ export class WaveManager {
 
     if (wave.spawns.some(s => s.config.isBoss)) {
       this.announcer.trigger('boss_spawn', wave.name);
+    } else {
+      this.announcer.trigger('round_start', String(wave.round));
     }
 
     return true;
