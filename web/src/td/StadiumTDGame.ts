@@ -24,8 +24,8 @@ import {
 import { Creep } from './Creep';
 import { Projectile } from './Projectile';
 import { WaveManager } from './WaveManager';
-import { getCombinedEffectiveness } from '../stadium/TypeMatrix';
 import { MOVES } from '../stadium/MoveDatabase';
+import { HitContext, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
 type PlacementBlockReason =
@@ -393,36 +393,22 @@ export class StadiumTDGame {
         // Fire attack!
         this.audio.playAttack(move.fxType);
 
-        if (move.fxType === 'hyper_beam') {
-          // Instant beam attack
-          const start = t.position.clone().add(new THREE.Vector3(0, 1.5, 0));
-          const end = target.position.clone().add(new THREE.Vector3(0, 1.0, 0));
-          this.particles.emitBeam(start, end, 0xffffff, 0.6, 0.35);
-          this.camera.triggerActionCam(target.position, 1.6);
-          const multiplier = move.ignoresType ? 1 : getCombinedEffectiveness(move.type, target.types);
-          const died = target.takeDamage(Math.floor(move.basePower * multiplier));
-          if (died) this.handleCreepDefeat(target);
-          this.audio.playHit(multiplier >= 2);
-          if (multiplier >= 2) this.announcer.trigger('super_effective');
-        } else {
-          // Projectile attack
-          const proj = new Projectile(move, t.position, target, this.renderer.scene);
-          this.projectiles.push(proj);
+        if (move.delivery === 'projectile') {
+          this.projectiles.push(new Projectile(move, t.position, target, this.renderer.scene));
+          return;
         }
+
+        // Every other archetype lands the moment it is fired: draw the
+        // delivery, then resolve the hit once at the target.
+        playInstantDelivery(move, t.position, target, this.particles, this.camera);
+        resolveMoveHit(move, target, this.hitContext());
       });
     });
 
     // Update Projectiles
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
-      const stillActive = p.update(
-        dt,
-        this.creeps,
-        this.particles,
-        this.audio,
-        this.announcer,
-        (deadCreep) => this.handleCreepDefeat(deadCreep)
-      );
+      const stillActive = p.update(dt, this.hitContext());
       if (!stillActive) {
         p.destroy(this.renderer.scene);
         this.projectiles.splice(i, 1);
@@ -487,6 +473,17 @@ export class StadiumTDGame {
         placementStatus: this.placementStatus,
       }
     );
+  }
+
+  /** Everything the shared hit resolver needs to apply a move and react to it. */
+  private hitContext(): HitContext {
+    return {
+      creeps: this.creeps,
+      particles: this.particles,
+      audio: this.audio,
+      announcer: this.announcer,
+      onFaint: (creep) => this.handleCreepDefeat(creep),
+    };
   }
 
   private handleCreepDefeat(creep: Creep): void {

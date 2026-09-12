@@ -22,6 +22,18 @@ export type ParticleFXType =
   | 'earthquake'
   | 'impact';
 
+/**
+ * How a move reaches what it hits. Drives presentation and timing only —
+ * damage and status resolution are identical across archetypes.
+ *
+ * projectile  a travelling mesh that homes onto one creep, then resolves
+ * beam        an instant line from caster to target
+ * cone        an instant spray fanning out from the caster
+ * field       an instant ground-centred shockwave; no travel, shakes the arena
+ * aura        an instant effect blooming on the target; the control-move look
+ */
+export type DeliveryType = 'projectile' | 'beam' | 'cone' | 'field' | 'aura';
+
 export interface MoveDefinition {
   id: string;
   name: string;
@@ -35,6 +47,7 @@ export interface MoveDefinition {
   statusChance: number; // 0.0 - 1.0
   statusDuration: number; // In seconds
   fxType: ParticleFXType;
+  delivery: DeliveryType;
   description: string;
   ignoresType?: boolean;
 }
@@ -42,12 +55,14 @@ export interface MoveDefinition {
 export const MOVES: Record<string, MoveDefinition> = {
   lick: {
     id: 'lick', name: 'Lick', type: 'Ghost', basePower: 18, attackSpeed: 1.7,
+    delivery: 'projectile',
     range: 9, projectileSpeed: 26, splashRadius: 0,
     statusEffect: 'paralyze', statusChance: 0.3, statusDuration: 2.0,
     fxType: 'shadow_ball', description: 'A close ghost strike that may paralyze its target.',
   },
   night_shade: {
     id: 'night_shade', name: 'Night Shade', type: 'Ghost', basePower: 48, attackSpeed: 1.25,
+    delivery: 'beam',
     range: 15, projectileSpeed: 25, splashRadius: 2.5,
     statusEffect: 'none', statusChance: 0, statusDuration: 0,
     fxType: 'shadow_ball', ignoresType: true,
@@ -55,18 +70,21 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   confusion: {
     id: 'confusion', name: 'Confusion', type: 'Psychic', basePower: 22, attackSpeed: 1.5,
+    delivery: 'projectile',
     range: 14, projectileSpeed: 30, splashRadius: 0,
     statusEffect: 'stun', statusChance: 0.15, statusDuration: 0.8,
     fxType: 'psychic_wave', description: 'A psychic pulse that can briefly disorient its target.',
   },
   psybeam: {
     id: 'psybeam', name: 'Psybeam', type: 'Psychic', basePower: 49, attackSpeed: 1.3,
+    delivery: 'beam',
     range: 18, projectileSpeed: 36, splashRadius: 3.0,
     statusEffect: 'stun', statusChance: 0.25, statusDuration: 1.3,
     fxType: 'psychic_wave', description: 'A focused psychic ray that strikes a clustered lane.',
   },
   thundershock: {
     id: 'thundershock',
+    delivery: 'projectile',
     name: 'ThunderShock',
     type: 'Electric',
     basePower: 18,
@@ -82,6 +100,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   thunderbolt: {
     id: 'thunderbolt',
+    delivery: 'projectile',
     name: 'Thunderbolt',
     type: 'Electric',
     basePower: 45,
@@ -97,6 +116,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   thunder: {
     id: 'thunder',
+    delivery: 'field',
     name: 'Thunder',
     type: 'Electric',
     basePower: 110,
@@ -112,6 +132,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   ember: {
     id: 'ember',
+    delivery: 'projectile',
     name: 'Ember',
     type: 'Fire',
     basePower: 16,
@@ -127,6 +148,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   flamethrower: {
     id: 'flamethrower',
+    delivery: 'cone',
     name: 'Flamethrower',
     type: 'Fire',
     basePower: 52,
@@ -142,6 +164,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   fire_blast: {
     id: 'fire_blast',
+    delivery: 'field',
     name: 'Fire Blast',
     type: 'Fire',
     basePower: 130,
@@ -157,6 +180,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   water_gun: {
     id: 'water_gun',
+    delivery: 'projectile',
     name: 'Water Gun',
     type: 'Water',
     basePower: 20,
@@ -172,6 +196,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   hydro_pump: {
     id: 'hydro_pump',
+    delivery: 'beam',
     name: 'Hydro Pump',
     type: 'Water',
     basePower: 68,
@@ -187,6 +212,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   vine_whip: {
     id: 'vine_whip',
+    delivery: 'projectile',
     name: 'Vine Whip',
     type: 'Grass',
     basePower: 22,
@@ -202,6 +228,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   razor_leaf: {
     id: 'razor_leaf',
+    delivery: 'cone',
     name: 'Razor Leaf',
     type: 'Grass',
     basePower: 48,
@@ -217,6 +244,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   solar_beam: {
     id: 'solar_beam',
+    delivery: 'beam',
     name: 'SolarBeam',
     type: 'Grass',
     basePower: 140,
@@ -232,6 +260,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   shadow_ball: {
     id: 'shadow_ball',
+    delivery: 'projectile',
     name: 'Shadow Ball',
     type: 'Ghost',
     basePower: 55,
@@ -247,6 +276,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   psychic: {
     id: 'psychic',
+    delivery: 'field',
     name: 'Psychic',
     type: 'Psychic',
     basePower: 65,
@@ -262,6 +292,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   hyper_beam: {
     id: 'hyper_beam',
+    delivery: 'beam',
     name: 'Hyper Beam',
     type: 'Normal',
     basePower: 160,
@@ -282,36 +313,42 @@ export const MOVES: Record<string, MoveDefinition> = {
   // ---------------------------------------------------------------------------
   quick_attack: {
     id: 'quick_attack', name: 'Quick Attack', type: 'Normal', basePower: 15, attackSpeed: 2.4,
+    delivery: 'projectile',
     range: 10, projectileSpeed: 45, splashRadius: 0,
     statusEffect: 'none', statusChance: 0, statusDuration: 0,
     fxType: 'impact', description: 'A blindingly fast tackle that always strikes first.',
   },
   bite: {
     id: 'bite', name: 'Bite', type: 'Normal', basePower: 26, attackSpeed: 1.8,
+    delivery: 'projectile',
     range: 10, projectileSpeed: 34, splashRadius: 0,
     statusEffect: 'stun', statusChance: 0.1, statusDuration: 0.5,
     fxType: 'impact', description: 'A savage bite that can make the target flinch.',
   },
   wing_attack: {
     id: 'wing_attack', name: 'Wing Attack', type: 'Flying', basePower: 30, attackSpeed: 1.7,
+    delivery: 'projectile',
     range: 13, projectileSpeed: 38, splashRadius: 0,
     statusEffect: 'none', statusChance: 0, statusDuration: 0,
     fxType: 'impact', description: 'A sweeping strike with spread wings, strong against Grass.',
   },
   sludge: {
     id: 'sludge', name: 'Sludge', type: 'Poison', basePower: 42, attackSpeed: 1.3,
+    delivery: 'projectile',
     range: 14, projectileSpeed: 28, splashRadius: 3.0,
     statusEffect: 'poison', statusChance: 0.4, statusDuration: 5.0,
     fxType: 'spore_cloud', description: 'Hurled toxic sludge that lingers on everything it splatters.',
   },
   dig: {
     id: 'dig', name: 'Dig', type: 'Ground', basePower: 58, attackSpeed: 1.0,
+    delivery: 'field',
     range: 12, projectileSpeed: 40, splashRadius: 2.5,
     statusEffect: 'stun', statusChance: 0.2, statusDuration: 1.0,
     fxType: 'earthquake', description: 'Burrows and erupts underfoot — the answer to Ground immunity.',
   },
   seismic_toss: {
     id: 'seismic_toss', name: 'Seismic Toss', type: 'Fighting', basePower: 45, attackSpeed: 1.2,
+    delivery: 'projectile',
     range: 11, projectileSpeed: 30, splashRadius: 0,
     statusEffect: 'none', statusChance: 0, statusDuration: 0,
     fxType: 'impact', ignoresType: true,
@@ -319,30 +356,35 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   ice_beam: {
     id: 'ice_beam', name: 'Ice Beam', type: 'Ice', basePower: 62, attackSpeed: 1.25,
+    delivery: 'beam',
     range: 17, projectileSpeed: 38, splashRadius: 2.5,
     statusEffect: 'freeze', statusChance: 0.45, statusDuration: 3.0,
     fxType: 'blizzard', description: 'A frozen beam that chills runners to a crawl.',
   },
   body_slam: {
     id: 'body_slam', name: 'Body Slam', type: 'Normal', basePower: 55, attackSpeed: 1.15,
+    delivery: 'projectile',
     range: 11, projectileSpeed: 36, splashRadius: 2.0,
     statusEffect: 'paralyze', statusChance: 0.35, statusDuration: 2.5,
     fxType: 'impact', description: 'A full-body crush that frequently paralyzes on contact.',
   },
   surf: {
     id: 'surf', name: 'Surf', type: 'Water', basePower: 55, attackSpeed: 1.2,
+    delivery: 'field',
     range: 16, projectileSpeed: 30, splashRadius: 5.0,
     statusEffect: 'freeze', statusChance: 0.3, statusDuration: 2.0,
     fxType: 'water_stream', description: 'A rolling wave that washes across the whole lane.',
   },
   earthquake: {
     id: 'earthquake', name: 'Earthquake', type: 'Ground', basePower: 95, attackSpeed: 0.8,
+    delivery: 'field',
     range: 13, projectileSpeed: 60, splashRadius: 7.0,
     statusEffect: 'stun', statusChance: 0.25, statusDuration: 1.2,
     fxType: 'earthquake', description: 'Shakes the colosseum floor, hitting everything grounded nearby.',
   },
   blizzard: {
     id: 'blizzard', name: 'Blizzard', type: 'Ice', basePower: 105, attackSpeed: 0.7,
+    delivery: 'cone',
     range: 18, projectileSpeed: 32, splashRadius: 6.5,
     statusEffect: 'freeze', statusChance: 0.7, statusDuration: 4.0,
     fxType: 'blizzard', description: 'A howling whiteout that nearly halts an entire wave.',
@@ -353,78 +395,91 @@ export const MOVES: Record<string, MoveDefinition> = {
   // ---------------------------------------------------------------------------
   thunder_wave: {
     id: 'thunder_wave', name: 'Thunder Wave', type: 'Electric', basePower: 6, attackSpeed: 1.5,
+    delivery: 'aura',
     range: 13, projectileSpeed: 40, splashRadius: 0,
     statusEffect: 'paralyze', statusChance: 1.0, statusDuration: 4.0,
     fxType: 'lightning', description: 'A weak current that always paralyzes what it touches.',
   },
   flash: {
     id: 'flash', name: 'Flash', type: 'Normal', basePower: 8, attackSpeed: 1.2,
+    delivery: 'aura',
     range: 12, projectileSpeed: 34, splashRadius: 4.0,
     statusEffect: 'stun', statusChance: 0.55, statusDuration: 1.2,
     fxType: 'psychic_wave', description: 'A blinding burst that leaves a cluster reeling.',
   },
   smokescreen: {
     id: 'smokescreen', name: 'Smokescreen', type: 'Normal', basePower: 5, attackSpeed: 1.4,
+    delivery: 'cone',
     range: 12, projectileSpeed: 26, splashRadius: 4.5,
     statusEffect: 'stun', statusChance: 0.5, statusDuration: 1.0,
     fxType: 'spore_cloud', description: 'A choking cloud of soot that stalls the front of a wave.',
   },
   fire_spin: {
     id: 'fire_spin', name: 'Fire Spin', type: 'Fire', basePower: 22, attackSpeed: 1.5,
+    delivery: 'field',
     range: 13, projectileSpeed: 28, splashRadius: 3.0,
     statusEffect: 'burn', statusChance: 0.75, statusDuration: 5.0,
     fxType: 'flamethrower', description: 'A whirling vortex of flame that traps and steadily burns.',
   },
   toxic: {
     id: 'toxic', name: 'Toxic', type: 'Poison', basePower: 4, attackSpeed: 0.9,
+    delivery: 'aura',
     range: 15, projectileSpeed: 30, splashRadius: 0,
     statusEffect: 'poison', statusChance: 1.0, statusDuration: 10.0,
     fxType: 'spore_cloud', description: 'Guaranteed long-lasting poison — the answer to armored bosses.',
   },
   bubble: {
     id: 'bubble', name: 'Bubble', type: 'Water', basePower: 12, attackSpeed: 1.9,
+    delivery: 'cone',
     range: 12, projectileSpeed: 28, splashRadius: 2.5,
     statusEffect: 'freeze', statusChance: 0.5, statusDuration: 2.0,
     fxType: 'water_stream', description: 'A rapid spray of bubbles that reliably slows a group.',
   },
   clamp: {
     id: 'clamp', name: 'Clamp', type: 'Water', basePower: 30, attackSpeed: 1.0,
+    delivery: 'aura',
     range: 10, projectileSpeed: 26, splashRadius: 0,
     statusEffect: 'stun', statusChance: 0.6, statusDuration: 2.0,
     fxType: 'water_stream', description: 'Clamps a single runner in place for a long beat.',
   },
   stun_spore: {
     id: 'stun_spore', name: 'Stun Spore', type: 'Grass', basePower: 5, attackSpeed: 1.3,
+    delivery: 'cone',
     range: 13, projectileSpeed: 24, splashRadius: 4.0,
     statusEffect: 'paralyze', statusChance: 0.85, statusDuration: 3.5,
     fxType: 'spore_cloud', description: 'Scatters paralyzing spores over a wide stretch of track.',
   },
   sleep_powder: {
     id: 'sleep_powder', name: 'Sleep Powder', type: 'Grass', basePower: 3, attackSpeed: 1.0,
+    delivery: 'cone',
     range: 14, projectileSpeed: 22, splashRadius: 4.5,
     statusEffect: 'stun', statusChance: 0.7, statusDuration: 2.6,
     fxType: 'spore_cloud', description: 'Puts a whole cluster to sleep where they stand.',
   },
   leech_seed: {
     id: 'leech_seed', name: 'Leech Seed', type: 'Grass', basePower: 10, attackSpeed: 1.1,
+    delivery: 'projectile',
     range: 15, projectileSpeed: 26, splashRadius: 0,
     statusEffect: 'poison', statusChance: 1.0, statusDuration: 12.0,
     fxType: 'spore_cloud', description: 'Plants a seed that drains the target for the rest of its run.',
   },
   hypnosis: {
     id: 'hypnosis', name: 'Hypnosis', type: 'Psychic', basePower: 4, attackSpeed: 1.0,
+    delivery: 'aura',
     range: 15, projectileSpeed: 30, splashRadius: 3.0,
     statusEffect: 'stun', statusChance: 0.75, statusDuration: 2.8,
     fxType: 'psychic_wave', description: 'Lulls approaching invaders into a dead stop.',
   },
   confuse_ray: {
     id: 'confuse_ray', name: 'Confuse Ray', type: 'Ghost', basePower: 14, attackSpeed: 1.3,
+    delivery: 'aura',
     range: 15, projectileSpeed: 28, splashRadius: 3.5,
     statusEffect: 'stun', statusChance: 0.5, statusDuration: 2.0,
     fxType: 'shadow_ball', description: 'A sinister light that leaves a group staggering in place.',
   },
   disable: {
     id: 'disable', name: 'Disable', type: 'Normal', basePower: 6, attackSpeed: 1.4,
+    delivery: 'aura',
     range: 14, projectileSpeed: 32, splashRadius: 0,
     statusEffect: 'stun', statusChance: 0.8, statusDuration: 1.8,
     fxType: 'psychic_wave', description: 'Locks a single target down almost every time it lands.',
