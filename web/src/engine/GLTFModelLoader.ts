@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimatedPokemon, PokemonAnimationState } from '../stadium/PokemonModels';
-import { SIZE_REFERENCE_SPECIES, worldScaleFor } from '../stadium/PokemonScale';
+import { worldScaleFor } from '../stadium/PokemonScale';
 
 interface ManifestAnimation {
   index: number;
@@ -94,11 +94,10 @@ export class GLTFModelLoader {
 
       let bounds = new THREE.Box3().setFromObject(clonedScene);
       const boundsHeight = Math.max(bounds.getSize(new THREE.Vector3()).y, 0.001);
-      const reference = manifest!.pokemon.find((pokemon) => pokemon.name === SIZE_REFERENCE_SPECIES)?.size;
       let scale: number;
       let height: number;
-      if (fitHeight === undefined && entry.size && reference) {
-        scale = worldScaleFor(entry.size.footprint, reference.footprint);
+      if (fitHeight === undefined && entry.size) {
+        scale = worldScaleFor(entry.size.footprint, entry.size.height, entry.species);
         height = entry.size.height * scale;
       } else {
         if (fitHeight === undefined) {
