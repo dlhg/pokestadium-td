@@ -46,6 +46,11 @@ export function setCinemaDim(root: THREE.Object3D, dim: number, fade: number = 0
         : holder.material.clone();
       object.userData[OWN_MATERIAL] = true;
     }
+    // Never stamp base values onto a shared material: a later clone copies
+    // userData through JSON, turning the saved Color into a bare hex number
+    // that `Color.copy` reads as NaN, leaving that model permanently black.
+    // An object that was never dimmed has nothing to restore anyway.
+    if (!object.userData[OWN_MATERIAL]) return;
     const materials = Array.isArray(holder.material) ? holder.material : [holder.material];
     const isSprite = object instanceof THREE.Sprite;
     materials.forEach(material => {

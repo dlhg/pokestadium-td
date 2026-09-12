@@ -74,7 +74,9 @@ window.addEventListener('DOMContentLoaded', () => {
     game.isPaused = true;
     game.camera.setMode('stadium');
     const route = game.arena.waypoints;
-    const lineup = ['Pidgey', 'Rattata', 'Pikachu', 'Gengar', 'Rapidash', 'Rhydon', 'Titan Onix', 'Titan Gyarados'];
+    // Keep the two equal-height Ghost/Water species adjacent: this makes the
+    // extracted-model scale audit visible in the dedicated screenshot.
+    const lineup = ['Pidgey', 'Rattata', 'Pikachu', 'Blastoise', 'Haunter', 'Gengar', 'Rhydon', 'Titan Onix', 'Titan Gyarados'];
     const towers = ['pikachu', 'blastoise', 'venusaur', 'charizard'] as const;
     lineup.forEach((name, i) => {
       const at = Math.floor(route.length * (0.08 + i * 0.03));
@@ -93,7 +95,7 @@ window.addEventListener('DOMContentLoaded', () => {
         .find(p => !game.arena.isBuildable(p.x, p.z, 1.6));
       if (!spot) return;
       const { x, z } = spot;
-      const tower = new Tower(TOWER_TEMPLATES[towers[i / 2]], new THREE.Vector3(x, game.arena.terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
+      const tower = new Tower(TOWER_TEMPLATES[towers[(i / 2) % towers.length]], new THREE.Vector3(x, game.arena.terrain.footprint(x, z, 1.6).high + TOWER_BASE_HEIGHT, z));
       tower.evolve();
       tower.evolve();
       game.renderer.scene.add(tower.group);
