@@ -6,7 +6,7 @@
  * - Map-specific lanes sharing geometry with navigation and placement tests
  * - Free-placement build rules: arena bounds, lane clearance, keep-out zones
  * - Stadium grandstands, animated spectator crowd, and perimeter walls
- * - Floodlight towers and giant stadium jumbotrons
+ * - Giant stadium jumbotron
  */
 
 import * as THREE from 'three';
@@ -82,8 +82,7 @@ export class StadiumArena {
     this.environmentGroup.add(buildMapGround(this.map,this.terrain,this.routes));
     this.buildTrackPath();
     this.buildGrandstands();
-    this.buildFloodlightTowers();
-    this.buildJumbotrons();
+    this.buildJumbotron();
 
     const wall = new THREE.Mesh(
       new THREE.CylinderGeometry(35.6,35.6,1.1,64,1,true),
@@ -229,10 +228,15 @@ export class StadiumArena {
    */
   private addCrowdTier(tier: { rInner: number; rOuter: number; y: number; height: number }): void {
     const rows = this.crowdRowCount(tier);
-    const crowdPerRow = 48;
-    const crowdCount = rows * crowdPerRow;
     const rowDepth = (tier.rOuter - tier.rInner) / rows;
     const rowRise = 0.42;
+    // Seat by circumference so outer rows pack as tightly as the front ones.
+    // A card is ~1.7 units wide, so this spacing lets shoulders just overlap.
+    const seatSpacing = 1.3;
+    const rowRadius = (row: number) => tier.rInner + row * rowDepth + 0.58;
+    const seatsPerRow = Array.from({ length: rows }, (_, row) =>
+      Math.round((Math.PI * 2 * rowRadius(row)) / seatSpacing));
+    const crowdCount = seatsPerRow.reduce((sum, seats) => sum + seats, 0);
     const geometry = new THREE.PlaneGeometry(1.9, 1.9);
     const atlasCell = new Float32Array(crowdCount * 2);
     const cheerPhase = new Float32Array(crowdCount);
@@ -243,12 +247,12 @@ export class StadiumArena {
     const dummy = new THREE.Object3D();
     const color = new THREE.Color();
 
-    for (let i = 0; i < crowdCount; i++) {
-      const row = i % rows;
-      const placeInRow = Math.floor(i / rows);
+    for (let i = 0, row = 0, placeInRow = 0; i < crowdCount; i++, placeInRow++) {
+      if (placeInRow >= seatsPerRow[row]) { row++; placeInRow = 0; }
       const seed = this.crowdNoise(i + tier.rInner * 10);
-      const angle = ((placeInRow + (row % 2) * 0.5) / crowdPerRow) * Math.PI * 2 + (seed - 0.5) * 0.022;
-      const radius = tier.rInner + row * rowDepth + 0.58 + (seed - 0.5) * 0.16;
+      const seatAngle = (Math.PI * 2) / seatsPerRow[row];
+      const angle = (placeInRow + (row % 2) * 0.5) * seatAngle + (seed - 0.5) * seatAngle * 0.25;
+      const radius = rowRadius(row) + (seed - 0.5) * 0.16;
       const seatY = tier.y + row * rowRise;
       dummy.position.set(Math.cos(angle) * radius, seatY + 0.92, Math.sin(angle) * radius);
       dummy.lookAt(0, dummy.position.y, 0);
@@ -424,70 +428,22 @@ export class StadiumArena {
     return Math.atan2(Math.sin(angle), Math.cos(angle));
   }
 
-  private buildFloodlightTowers(): void {
-    const corners = [
-      { x: -28, z: -28 },
-      { x: 28, z: -28 },
-      { x: 28, z: 28 },
-      { x: -28, z: 28 },
-    ];
+  private buildJumbotron(): void {
+    // Single screen on the far side, facing the default camera.
+    const frameGeo = new THREE.BoxGeometry(18, 9, 1.5);
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x111b24 });
+    const frame = new THREE.Mesh(frameGeo, frameMat);
+    frame.position.set(0, 16, -38);
 
-    corners.forEach(c => {
-      // Truss pylon pole
-      const pylonGeo = new THREE.CylinderGeometry(0.6, 1.2, 32, 8);
-      const pylonMat = new THREE.MeshStandardMaterial({
-        color: 0x556677,
-        metalness: 0.8,
-        roughness: 0.3,
-      });
-      const pylon = new THREE.Mesh(pylonGeo, pylonMat);
-      pylon.position.set(c.x, 16, c.z);
-      this.environmentGroup.add(pylon);
-
-      // Spotlight head cluster
-      const headGeo = new THREE.BoxGeometry(4, 2.5, 2);
-      const headMat = new THREE.MeshStandardMaterial({
-        color: 0x222222,
-        metalness: 0.9,
-      });
-      const head = new THREE.Mesh(headGeo, headMat);
-      head.position.set(c.x, 32, c.z);
-      head.lookAt(0, 0, 0);
-
-      // Glowing lens surfaces
-      const lensGeo = new THREE.PlaneGeometry(3.6, 2.1);
-      const lensMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const lens = new THREE.Mesh(lensGeo, lensMat);
-      lens.position.z = 1.01;
-      head.add(lens);
-
-      this.environmentGroup.add(head);
+    const screenGeo = new THREE.PlaneGeometry(16.5, 7.5);
+    const screenMat = new THREE.MeshBasicMaterial({
+      map: this.jumbotronTexture,
     });
-  }
+    const screen = new THREE.Mesh(screenGeo, screenMat);
+    screen.position.z = 0.8;
+    frame.add(screen);
 
-  private buildJumbotrons(): void {
-    const screens = [
-      { z: -38, rotY: 0 },
-      { z: 38, rotY: Math.PI },
-    ];
-
-    screens.forEach(s => {
-      const frameGeo = new THREE.BoxGeometry(18, 9, 1.5);
-      const frameMat = new THREE.MeshStandardMaterial({ color: 0x111b24 });
-      const frame = new THREE.Mesh(frameGeo, frameMat);
-      frame.position.set(0, 16, s.z);
-      frame.rotation.y = s.rotY;
-
-      const screenGeo = new THREE.PlaneGeometry(16.5, 7.5);
-      const screenMat = new THREE.MeshBasicMaterial({
-        map: this.jumbotronTexture,
-      });
-      const screen = new THREE.Mesh(screenGeo, screenMat);
-      screen.position.z = 0.8;
-      frame.add(screen);
-
-      this.environmentGroup.add(frame);
-    });
+    this.environmentGroup.add(frame);
 
     this.updateJumbotron(this.map.name.toUpperCase(), this.map.venue, 1);
   }
