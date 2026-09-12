@@ -162,18 +162,57 @@ export class StadiumArena {
     ];
 
     tiers.forEach((t) => {
-      const standGeo = new THREE.RingGeometry(t.rInner, t.rOuter, 36);
-      const standMat = new THREE.MeshLambertMaterial({
-        color: 0x22334d,
-        side: THREE.DoubleSide,
-      });
-      const stand = new THREE.Mesh(standGeo, standMat);
-      stand.rotation.x = -Math.PI / 2;
-      stand.position.y = t.y;
-      this.environmentGroup.add(stand);
-
+      this.addBleacherTier(t);
       this.addCrowdTier(t);
     });
+  }
+
+  /** Builds shallow stepped seating with a low fascia masking each card's waist. */
+  private addBleacherTier(tier: { rInner: number; rOuter: number; y: number; height: number }): void {
+    const rows = this.crowdRowCount(tier);
+    const rowDepth = (tier.rOuter - tier.rInner) / rows;
+    const rowRise = 0.42;
+    const treadMaterials = [0x263b55, 0x20334b].map(color => new THREE.MeshLambertMaterial({
+      color,
+      side: THREE.DoubleSide,
+    }));
+    const fasciaMaterial = new THREE.MeshLambertMaterial({ color: 0x17283d, side: THREE.DoubleSide });
+    const railMaterial = new THREE.MeshBasicMaterial({ color: 0x58718e });
+
+    for (let row = 0; row < rows; row++) {
+      const inner = tier.rInner + row * rowDepth;
+      const outer = inner + rowDepth;
+      const seatY = tier.y + row * rowRise;
+      const tread = new THREE.Mesh(
+        new THREE.RingGeometry(inner, outer, 64),
+        treadMaterials[row % treadMaterials.length],
+      );
+      tread.rotation.x = -Math.PI / 2;
+      tread.position.y = seatY;
+      tread.name = 'bleacher-tread';
+      this.environmentGroup.add(tread);
+
+      // The fascia sits between the match and the spectator. Besides making
+      // the stands read as real stepped bleachers, it hides the flat bottom
+      // of the waist-up artwork behind a deliberate architectural edge.
+      const fascia = new THREE.Mesh(
+        new THREE.CylinderGeometry(inner, inner, 0.44, 64, 1, true),
+        fasciaMaterial,
+      );
+      fascia.position.y = seatY + 0.22;
+      fascia.name = 'bleacher-front-fascia';
+      this.environmentGroup.add(fascia);
+
+      const rail = new THREE.Mesh(new THREE.TorusGeometry(inner, 0.055, 4, 64), railMaterial);
+      rail.rotation.x = Math.PI / 2;
+      rail.position.y = seatY + 0.45;
+      rail.name = 'bleacher-front-rail';
+      this.environmentGroup.add(rail);
+    }
+  }
+
+  private crowdRowCount(tier: { rInner: number; rOuter: number }): number {
+    return Math.max(3, Math.round((tier.rOuter - tier.rInner) / 2));
   }
 
   /**
@@ -182,7 +221,11 @@ export class StadiumArena {
    * and has a different cheer phase so the stands do not bob in lockstep.
    */
   private addCrowdTier(tier: { rInner: number; rOuter: number; y: number; height: number }): void {
-    const crowdCount = 144;
+    const rows = this.crowdRowCount(tier);
+    const crowdPerRow = 48;
+    const crowdCount = rows * crowdPerRow;
+    const rowDepth = (tier.rOuter - tier.rInner) / rows;
+    const rowRise = 0.42;
     const geometry = new THREE.PlaneGeometry(1.9, 1.9);
     const atlasCell = new Float32Array(crowdCount * 2);
     const cheerPhase = new Float32Array(crowdCount);
@@ -194,10 +237,13 @@ export class StadiumArena {
     const color = new THREE.Color();
 
     for (let i = 0; i < crowdCount; i++) {
+      const row = i % rows;
+      const placeInRow = Math.floor(i / rows);
       const seed = this.crowdNoise(i + tier.rInner * 10);
-      const angle = (i / crowdCount) * Math.PI * 2 + (seed - 0.5) * 0.024;
-      const radius = tier.rInner + 0.65 + seed * Math.max(0.25, tier.rOuter - tier.rInner - 1.4);
-      dummy.position.set(Math.cos(angle) * radius, tier.y + 0.92, Math.sin(angle) * radius);
+      const angle = ((placeInRow + (row % 2) * 0.5) / crowdPerRow) * Math.PI * 2 + (seed - 0.5) * 0.022;
+      const radius = tier.rInner + row * rowDepth + 0.58 + (seed - 0.5) * 0.16;
+      const seatY = tier.y + row * rowRise;
+      dummy.position.set(Math.cos(angle) * radius, seatY + 0.92, Math.sin(angle) * radius);
       dummy.lookAt(0, dummy.position.y, 0);
       const scale = 0.78 + this.crowdNoise(i * 7 + tier.y) * 0.2;
       dummy.scale.set(scale, scale, scale);
@@ -266,8 +312,12 @@ export class StadiumArena {
         varying float vAtlasSet;
         void main() {
           vec3 animatedPosition = position;
-          animatedPosition.y += sin(time * 5.0 + cheerPhase) * 0.075;
-          animatedPosition.x += sin(time * 2.5 + cheerPhase) * 0.018;
+          // Keep the waist planted behind the fascia while the shoulders and
+          // head carry the cheer motion. This removes the sliding paper-card
+          // seam where the artwork meets the seat.
+          float upperBody = smoothstep(-0.82, 0.28, position.y);
+          animatedPosition.y += sin(time * 5.0 + cheerPhase) * 0.065 * upperBody;
+          animatedPosition.x += sin(time * 2.5 + cheerPhase) * 0.016 * upperBody;
           // Four pixel inset inside each 224px cell prevents transparent-edge
           // filtering from sampling art in a neighbouring cell.
           vec2 cellSize = vec2(1.0 / 8.0, 1.0 / 4.0);
