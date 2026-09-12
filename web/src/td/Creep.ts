@@ -37,9 +37,12 @@ export class Creep {
   public reward: number;
   public isBoss: boolean;
   public threat: 'normal' | 'elite' | 'titan';
+  public modelType: CreepConfig['modelType'];
   public alive: boolean = true;
   public reachedEnd: boolean = false;
   public removalReady: boolean = false;
+  /** A Poké Ball is resolving against this target; it cannot move or be hit. */
+  public captureLocked: boolean = false;
 
   public position: THREE.Vector3 = new THREE.Vector3();
   public group: THREE.Group = new THREE.Group();
@@ -66,6 +69,7 @@ export class Creep {
   private hpTexture: THREE.CanvasTexture;
   private hpSprite: THREE.Sprite;
   private threatAura: THREE.Mesh | null = null;
+  private captureRing: THREE.Mesh;
 
   constructor(config: CreepConfig, waypoints: THREE.Vector3[]) {
     this.id = `creep_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -77,6 +81,7 @@ export class Creep {
     this.baseSpeed = config.speed;
     this.speed = config.speed;
     this.reward = config.reward;
+    this.modelType = config.modelType;
     this.threat = config.threat || (config.isBoss ? 'titan' : 'normal');
     this.isBoss = this.threat === 'titan' || !!config.isBoss;
     this.waypoints = waypoints;
@@ -152,11 +157,20 @@ export class Creep {
     this.hpSprite.scale.set(this.threat === 'titan' ? 4.0 : this.threat === 'elite' ? 3.0 : 2.5, this.isBoss ? 1.0 : 0.65, 1);
     this.group.add(this.hpSprite);
 
+    this.captureRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.9, 1.05, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    this.captureRing.rotation.x = -Math.PI / 2;
+    this.captureRing.position.y = 0.08;
+    this.captureRing.visible = false;
+    this.group.add(this.captureRing);
+
     this.updateHpBar();
   }
 
   public takeDamage(amount: number): boolean {
-    if (!this.alive) return false;
+    if (!this.alive || this.captureLocked) return false;
     this.hp -= amount;
     this.hitAnimationTimer = 0.28;
     this.updateHpBar();
@@ -175,6 +189,20 @@ export class Creep {
     if (effect === 'none' || !this.alive) return;
     this.status = effect;
     this.statusTimer = duration;
+  }
+
+  public get hpFraction(): number { return this.hp / this.maxHp; }
+
+  public beginCapture(): void {
+    this.captureLocked = true;
+    this.hpSprite.visible = false;
+  }
+
+  public cancelCapture(): void {
+    this.captureLocked = false;
+    this.group.visible = true;
+    this.group.scale.setScalar(this.threat === 'titan' ? 1.8 : this.threat === 'elite' ? 1.35 : 1);
+    this.hpSprite.visible = true;
   }
 
   private updateHpBar(): void {
@@ -212,6 +240,13 @@ export class Creep {
       ctx.fillText(this.threat.toUpperCase(), w - 6, 14);
     }
 
+    if (pct <= 0.35 && this.alive && !this.captureLocked) {
+      ctx.fillStyle = '#ffe46b';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('CATCH!', 28, 14);
+    }
+
     // Type badge color indicator dot
     const typeColor = TYPE_COLORS[this.type]?.hex || '#FFFFFF';
     ctx.fillStyle = typeColor;
@@ -226,6 +261,7 @@ export class Creep {
     }
 
     this.hpTexture.needsUpdate = true;
+    this.captureRing.visible = pct <= 0.35 && this.alive && !this.captureLocked;
   }
 
   public update(dt: number, onDeath: (creep: Creep) => void): void {
@@ -235,12 +271,21 @@ export class Creep {
       this.threatAura.scale.setScalar(pulse);
       (this.threatAura.material as THREE.MeshBasicMaterial).opacity = this.threat === 'titan' ? 0.58 : 0.42;
     }
+    if (this.captureRing.visible) {
+      const pulse = 1 + Math.sin(time * 8) * 0.12;
+      this.captureRing.scale.setScalar(pulse);
+      (this.captureRing.material as THREE.MeshBasicMaterial).opacity = 0.65 + Math.sin(time * 8) * 0.22;
+    }
     if (!this.alive) {
       if (!this.reachedEnd) {
         this.animPokemon.update(time, dt, 'faint');
         this.faintAnimationTimer -= dt;
         this.removalReady = this.faintAnimationTimer <= 0;
       }
+      return;
+    }
+    if (this.captureLocked) {
+      this.animPokemon.update(time, dt, 'hit');
       return;
     }
 
@@ -332,6 +377,8 @@ export class Creep {
     scene.remove(this.group);
     this.hpTexture.dispose();
     this.hpSprite.material.dispose();
+    this.captureRing.geometry.dispose();
+    (this.captureRing.material as THREE.Material).dispose();
     this.threatAura?.geometry.dispose();
     (this.threatAura?.material as THREE.Material | undefined)?.dispose();
   }

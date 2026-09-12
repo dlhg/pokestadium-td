@@ -135,6 +135,10 @@ export class StadiumAnnouncer {
           { text: `WHAT'S THIS? ${detail || 'YOUR POKÉMON'} IS EVOLVING!`, intensity: 'epic' },
           { text: "AN ASTONISHING POWER SURGE! IT HAS EVOLVED!", intensity: 'epic' }
         ];
+      case 'capture_success':
+        return [{ text: `${detail || 'THE POKÉMON'} WAS CAUGHT! A NEW TOWER JOINS THE ROSTER!`, intensity: 'epic' }];
+      case 'capture_failed':
+        return [{ text: `${detail || 'IT'} BROKE FREE!`, intensity: 'high' }];
       case 'life_lost':
         return [
           { text: "AN INVADER BROKE THROUGH! THE PRESSURE IS MOUNTING!", intensity: 'high' },

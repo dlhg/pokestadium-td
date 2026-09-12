@@ -16,6 +16,7 @@ import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
 import { mapPreview } from './MapPreview';
+import { BallType } from './CaptureSequence';
 import './map-select.css';
 
 /** What the roster hint says about the spot the cursor is currently over. */
@@ -27,6 +28,9 @@ export interface PlacementStatus {
 export interface UIState {
   money: number;
   lives: number;
+  balls: Record<BallType, number>;
+  selectedBall: BallType | null;
+  captureHint: string | null;
   cupName: string;
   round: number;
   inWave: boolean;
@@ -75,6 +79,7 @@ export class StadiumUI {
   /** Structure is rebuilt only when the tower's purchases actually change. */
   private panelSignature: string = '';
   private currentSelectedTower: Tower | null = null;
+  private capturedTemplates: TowerTemplate[] = [];
 
   // Callbacks
   public onSelectTemplate: (template: TowerTemplate | null) => void = () => {};
@@ -88,6 +93,8 @@ export class StadiumUI {
   public onChangeCamera: (mode: CameraMode) => void = () => {};
   public onOpenMaps: () => void = () => {};
   public onResumeMap: () => void = () => {};
+  public onSelectBall: (ball: BallType | null) => void = () => {};
+  public onBuyBall: (ball: BallType) => void = () => {};
   public onSelectMap: (map: StadiumMap) => void = () => {};
 
   constructor(container: HTMLElement, announcer: StadiumAnnouncer, camera: StadiumCamera) {
@@ -152,6 +159,13 @@ export class StadiumUI {
         }
 
         .ui-pokeball.lost { opacity: 0.2; filter: grayscale(1); transform: scale(0.85); }
+        .capture-kit { display:flex; gap:4px; align-items:center; }
+        .ball-choice { min-width:38px; padding:4px 5px; font-size:11px; }
+        .ball-choice.selected { border-color:#fff; box-shadow:0 0 10px #f6c437; background:linear-gradient(180deg,#f6c437,#a85d00); color:#071326; }
+        #capture-hint { position:absolute; bottom:78px; left:18px; color:#fff2a7; font-weight:800; letter-spacing:.8px; text-shadow:0 2px 3px #000; z-index:31; background:rgba(9,25,51,.88); border-left:3px solid #f6c437; padding:6px 10px; }
+        #poke-mart { position:absolute; left:18px; bottom:14px; z-index:30; padding:8px 10px; display:flex; gap:7px; align-items:center; }
+        #poke-mart strong { color:#f6c437; font-family:'Impact',sans-serif; letter-spacing:1px; }
+        .mart-item { font-size:11px; padding:4px 7px; }
 
         /* Controls (Top Right) */
         #controls-bar {
@@ -880,8 +894,12 @@ export class StadiumUI {
           <span class="stat-value" style="color: #48ff48;" id="prize-money">$400</span>
         </div>
         <div class="stat-badge">
-          <span class="stat-label">POKÉ BALLS</span>
-          <div class="pokeball-tray" id="pokeball-tray"></div>
+          <span class="stat-label">STADIUM HP</span>
+          <div class="pokeball-tray" id="stadium-hp"></div>
+        </div>
+        <div class="stat-badge">
+          <span class="stat-label">CAPTURE BALLS</span>
+          <div class="capture-kit" id="capture-kit"></div>
         </div>
         <button class="stadium-btn active" id="btn-wave">START MATCH</button>
       </div>
@@ -905,6 +923,8 @@ export class StadiumUI {
       <div id="card-deck" class="stadium-panel interactive"></div>
 
       <div id="course-info"><button id="btn-maps" class="stadium-btn interactive">MAPS</button><strong id="course-name"></strong><span id="course-strategy"></span></div>
+      <div id="capture-hint"></div>
+      <div id="poke-mart" class="stadium-panel interactive"><strong>POKÉ MART</strong><button class="stadium-btn mart-item" data-buy-ball="poke">BALL $35</button><button class="stadium-btn mart-item" data-buy-ball="great">GREAT $85</button><button class="stadium-btn mart-item" data-buy-ball="ultra">ULTRA $170</button></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
     `;
@@ -914,6 +934,15 @@ export class StadiumUI {
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
 
     this.bindEvents();
+    this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => button.addEventListener('click', () => this.onBuyBall(button.dataset.buyBall as BallType)));
+    // The inventory contents are redrawn every frame. Delegate from the stable
+    // tray so a press cannot lose its button before the browser emits `click`.
+    this.container.querySelector<HTMLElement>('#capture-kit')!.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-ball-type]');
+      if (!button || button.disabled) return;
+      const type = button.dataset.ballType as BallType;
+      this.onSelectBall(button.classList.contains('selected') ? null : type);
+    });
     this.renderCardDeck();
     this.setMapSelectVisible(true);
     this.container.querySelectorAll<HTMLButtonElement>('[data-map-id]').forEach(button => {
@@ -938,8 +967,13 @@ export class StadiumUI {
     else this.container.querySelector<HTMLButtonElement>('#btn-maps')!.focus();
   }
 
+  public setCapturedTemplates(templates: TowerTemplate[]): void {
+    this.capturedTemplates = templates;
+    this.renderCardDeck();
+  }
+
   private renderCardDeck(): void {
-    const templates = Object.values(TOWER_TEMPLATES);
+    const templates = [...Object.values(TOWER_TEMPLATES), ...this.capturedTemplates];
     this.cardDeckEl.innerHTML = `
       <div class="tower-rail-header">
         <span class="tower-rail-title">TOWER ROSTER</span>
@@ -1200,14 +1234,32 @@ export class StadiumUI {
     document.getElementById('round-number')!.innerText = `ROUND ${state.round}`;
     document.getElementById('prize-money')!.innerText = `$${state.money}`;
 
-    // Poké Balls
-    const tray = document.getElementById('pokeball-tray')!;
+    // Stadium HP remains the defensive fail-state; balls are capture inventory.
+    const tray = document.getElementById('stadium-hp')!;
     tray.innerHTML = '';
     for (let i = 0; i < 6; i++) {
       const ball = document.createElement('div');
       ball.className = `ui-pokeball ${i >= state.lives ? 'lost' : ''}`;
       tray.appendChild(ball);
     }
+
+    const captureKit = document.getElementById('capture-kit')!;
+    captureKit.innerHTML = '';
+    const ballLabels: Record<BallType, string> = { poke: '●', great: 'G', ultra: 'U' };
+    (Object.keys(ballLabels) as BallType[]).forEach(type => {
+      const button = document.createElement('button');
+      button.className = `stadium-btn ball-choice ${state.selectedBall === type ? 'selected' : ''}`;
+      button.title = `${type === 'poke' ? 'Poké' : type === 'great' ? 'Great' : 'Ultra'} Ball`;
+      button.dataset.ballType = type;
+      const name = type === 'poke' ? 'POKÉ' : type === 'great' ? 'GREAT' : 'ULTRA';
+      button.innerText = state.selectedBall === type ? `THROW ${name}` : `${name} ${state.balls[type]}`;
+      button.disabled = state.balls[type] <= 0;
+      captureKit.appendChild(button);
+    });
+    const captureHint = document.getElementById('capture-hint')!;
+    captureHint.innerText = state.captureHint || '';
+    const mart = document.getElementById('poke-mart')!;
+    mart.style.display = state.inWave ? 'none' : 'flex';
 
     // Wave button label
     const waveBtn = document.getElementById('btn-wave')!;
