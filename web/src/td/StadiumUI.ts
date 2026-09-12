@@ -19,7 +19,9 @@ import { mapPreview } from './MapPreview';
 import { BallType, CaptureHud } from './CaptureSequence';
 import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
+import { RosterModelView } from './RosterModelView';
 import './map-select.css';
+import stadiumThemeUrl from './stadium-ui-theme.css?url';
 
 /** What the roster hint says about the spot the cursor is currently over. */
 export interface PlacementStatus {
@@ -87,6 +89,7 @@ export class StadiumUI {
   private panelSignature: string = '';
   private currentSelectedTower: Tower | null = null;
   private capturedTemplates: TowerTemplate[] = [];
+  private rosterViews = new Map<string, RosterModelView>();
 
   // Callbacks
   private cinemaEl!: HTMLElement;
@@ -105,6 +108,8 @@ export class StadiumUI {
   public onChangeCamera: (mode: CameraMode) => void = () => {};
   public onOpenMaps: () => void = () => {};
   public onResumeMap: () => void = () => {};
+  public onResumeGame: () => void = () => {};
+  public onQuitToMenu: () => void = () => {};
   public onRetryMap: () => void = () => {};
   public onSelectBall: (ball: BallType | null) => void = () => {};
   public onBuyBall: (ball: BallType) => void = () => {};
@@ -997,6 +1002,7 @@ export class StadiumUI {
         .tp-sell-value { font-family: 'Teko', sans-serif; font-size: 22px; line-height: .85; }
         .tp-sell-btn { border-radius: 0; border-color: #ffd099; background: linear-gradient(180deg, #e34c50 0 10%, #b81e2a 13%, #7b101c 100%); font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .85; box-shadow: 2px 2px 0 rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.35); }
       </style>
+      <link rel="stylesheet" href="${stadiumThemeUrl}">
 
       <div id="map-select" class="interactive" aria-label="Select a battlefield">
         <section class="map-select-panel stadium-panel">
@@ -1045,24 +1051,50 @@ export class StadiumUI {
 
       <!-- Controls -->
       <div id="controls-bar" class="interactive">
-        <button class="stadium-btn active" id="btn-speed-1">1X</button>
-        <button class="stadium-btn" id="btn-speed-2">2X</button>
-        <button class="stadium-btn" id="btn-speed-3">3X</button>
-        <button class="stadium-btn active" id="btn-cam-tactical">TACTICAL</button>
-        <button class="stadium-btn" id="btn-cam-stadium">STADIUM</button>
-        <button class="stadium-btn" id="btn-cam-action">ACTION</button>
+        <div class="control-group" aria-label="Game speed">
+          <span class="control-group-label">SPEED</span>
+          <div class="control-group-buttons">
+            <button class="stadium-btn active" id="btn-speed-1">1X</button>
+            <button class="stadium-btn" id="btn-speed-2">2X</button>
+            <button class="stadium-btn" id="btn-speed-3">3X</button>
+          </div>
+        </div>
+        <div class="control-group" aria-label="Camera">
+          <span class="control-group-label">CAMERA</span>
+          <div class="control-group-buttons">
+            <button class="stadium-btn active" id="btn-cam-tactical">TACTICAL</button>
+            <button class="stadium-btn" id="btn-cam-stadium">STADIUM</button>
+            <button class="stadium-btn" id="btn-cam-action">ACTION</button>
+          </div>
+        </div>
       </div>
 
       <!-- Announcer Banner -->
       <div id="announcer-banner">
-        <div class="banner-inner" id="announcer-text">WHAT A BATTLE!</div>
+        <div class="banner-inner">
+          <span class="pokeball-emblem" aria-hidden="true"></span>
+          <span id="announcer-text">WHAT A BATTLE!</span>
+          <span class="pokeball-emblem" aria-hidden="true"></span>
+        </div>
       </div>
 
       <!-- Tower Purchase Roster -->
       <div id="card-deck" class="stadium-panel interactive"></div>
 
-      <div id="course-info"><button id="btn-maps" class="stadium-btn interactive">MAPS</button><strong id="course-name"></strong><span id="course-strategy"></span></div>
+      <div id="course-info"><strong id="course-name"></strong><span id="course-strategy"></span></div>
       <div id="capture-hint"></div>
+
+      <div id="pause-screen" class="interactive" hidden>
+        <section class="pause-card stadium-panel" aria-labelledby="pause-title">
+          <div class="pause-kicker">MATCH PAUSED</div>
+          <h2 id="pause-title">TAKE A BREATHER</h2>
+          <p>The stadium will wait for you.</p>
+          <div class="pause-actions">
+            <button class="stadium-btn active" id="btn-pause-resume">RESUME</button>
+            <button class="stadium-btn" id="btn-pause-quit">QUIT TO COURSE SELECT</button>
+          </div>
+        </section>
+      </div>
 
       <!-- Capture Cinematic -->
       <div id="capture-cinema">
@@ -1088,7 +1120,7 @@ export class StadiumUI {
           <div class="defeat-detail" id="defeat-detail"></div>
           <div class="defeat-actions">
             <button class="stadium-btn active" id="btn-defeat-retry">RETRY COURSE</button>
-            <button class="stadium-btn" id="btn-defeat-maps">MAPS</button>
+            <button class="stadium-btn" id="btn-defeat-maps">COURSE SELECT</button>
           </div>
         </div>
       </div>
@@ -1133,7 +1165,14 @@ export class StadiumUI {
     });
     this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
     if(visible) chooser.querySelector<HTMLButtonElement>('.map-filter.active')?.focus();
-    else this.container.querySelector<HTMLButtonElement>('#btn-maps')!.focus();
+    else this.container.querySelector<HTMLButtonElement>('#btn-wave')?.focus();
+  }
+
+  public setPauseVisible(visible: boolean): void {
+    const pause = this.container.querySelector<HTMLElement>('#pause-screen')!;
+    pause.hidden = !visible;
+    this.container.classList.toggle('pause-open', visible);
+    if (visible) pause.querySelector<HTMLButtonElement>('#btn-pause-resume')?.focus();
   }
 
   public setCapturedTemplates(templates: TowerTemplate[]): void {
@@ -1142,11 +1181,16 @@ export class StadiumUI {
   }
 
   private renderCardDeck(): void {
+    this.rosterViews.forEach(view => view.destroy());
+    this.rosterViews.clear();
     const templates = [...Object.values(TOWER_TEMPLATES), ...this.capturedTemplates];
     this.cardDeckEl.innerHTML = `
       <div class="tower-rail-header">
-        <span class="tower-rail-title">TOWER ROSTER</span>
-        <span id="placement-hint">SELECT A POKÉMON</span>
+        <span class="pokeball-emblem" aria-hidden="true"></span>
+        <span class="tower-rail-copy">
+          <span class="tower-rail-title">TOWER ROSTER</span>
+          <span id="placement-hint">SELECT A POKÉMON</span>
+        </span>
       </div>
     `;
 
@@ -1154,10 +1198,14 @@ export class StadiumUI {
       const card = document.createElement('div');
       card.className = 'stadium-panel tower-card';
       card.id = `card-${tmpl.id}`;
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
 
       const typeCol = TYPE_COLORS[tmpl.type]?.hex || '#fff';
+      const typeArt = `/ui/types/${tmpl.type.toLowerCase()}.jpg`;
 
       card.innerHTML = `
+        <span class="card-portrait-stage" style="background-image: linear-gradient(90deg, transparent 28%, rgba(4,12,43,.18) 48%, rgba(4,12,43,.96) 78%), url('${typeArt}');"></span>
         <span class="card-type-tag" style="background-color: ${typeCol};">${tmpl.type.toUpperCase()}</span>
         <span class="card-name">${tmpl.name}</span>
         <span class="card-cost">$${tmpl.cost}</span>
@@ -1166,16 +1214,28 @@ export class StadiumUI {
       card.addEventListener('click', () => {
         this.onSelectTemplate(tmpl);
       });
+      card.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          this.onSelectTemplate(tmpl);
+        }
+      });
 
       this.cardDeckEl.appendChild(card);
+      const portraitStage = card.querySelector<HTMLElement>('.card-portrait-stage')!;
+      const view = new RosterModelView();
+      portraitStage.appendChild(view.canvas);
+      view.show(tmpl.name, tmpl.createModel);
+      this.rosterViews.set(tmpl.id, view);
     });
   }
 
   private bindEvents(): void {
-    document.getElementById('btn-maps')!.addEventListener('click',()=>this.onOpenMaps());
     document.getElementById('btn-resume-map')!.addEventListener('click',()=>{
       this.setMapSelectVisible(false);this.onResumeMap();
     });
+    document.getElementById('btn-pause-resume')!.addEventListener('click', () => this.onResumeGame());
+    document.getElementById('btn-pause-quit')!.addEventListener('click', () => this.onQuitToMenu());
     this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(button=>{
       button.addEventListener('click',()=>{
         const filter=button.dataset.difficulty;
@@ -1306,6 +1366,7 @@ export class StadiumUI {
 
     this.panelEl.innerHTML = `
       <div class="tp-header">
+        <span class="pokeball-emblem" aria-hidden="true"></span>
         <span class="tp-title">${tower.name.toUpperCase()}</span>
         <div class="tp-stage-pips">${stagePips}</div>
         <button class="tp-close" id="tp-close">✕</button>

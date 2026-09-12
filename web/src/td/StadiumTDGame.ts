@@ -69,6 +69,7 @@ export class StadiumTDGame {
   public victory: boolean = false;
   public map: StadiumMap = DEFAULT_STADIUM_MAP;
   public isChoosingMap = true;
+  private pauseMenuOpen = false;
 
   // Entities
   public towers: Tower[] = [];
@@ -120,6 +121,23 @@ export class StadiumTDGame {
     };
     this.ui.onRetryMap = () => this.loadMap(this.map);
     this.ui.onResumeMap = () => { this.isChoosingMap = false; };
+    this.ui.onResumeGame = () => {
+      this.pauseMenuOpen = false;
+      this.isPaused = false;
+      this.ui.setPauseVisible(false);
+      this.audio.playSelect();
+    };
+    this.ui.onQuitToMenu = () => {
+      this.clearSelection();
+      this.selectedBall = null;
+      this.captureHint = null;
+      this.pauseMenuOpen = false;
+      this.isPaused = true;
+      this.ui.setPauseVisible(false);
+      this.isChoosingMap = true;
+      this.ui.setMapSelectVisible(true, false);
+      this.audio.playSelect();
+    };
     this.ui.onSelectMap = (map) => this.loadMap(map);
     this.ui.onSelectTemplate = (template) => {
       if (this.selectedTower) {
@@ -236,6 +254,8 @@ export class StadiumTDGame {
     this.gameOver = false;
     this.victory = false;
     this.ui.hideDefeat();
+    this.pauseMenuOpen = false;
+    this.ui.setPauseVisible(false);
     this.isPaused = false;
     this.isChoosingMap = false;
     this.gameSpeed = 1;
@@ -256,8 +276,24 @@ export class StadiumTDGame {
     if (input.isKeyJustPressed('Digit1')) this.camera.setMode('tactical');
     if (input.isKeyJustPressed('Digit2')) this.camera.setMode('stadium');
     if (input.isKeyJustPressed('Digit3')) this.camera.setMode('action');
-    if (input.isKeyJustPressed('Space')) this.isPaused = !this.isPaused;
-    if (input.isKeyJustPressed('Escape') || input.rightClicked) {
+    if (input.isKeyJustPressed('Space') && !this.pauseMenuOpen) this.isPaused = !this.isPaused;
+    if (input.isKeyJustPressed('Escape')) {
+      if (this.pauseMenuOpen) {
+        this.ui.onResumeGame();
+        return;
+      }
+      const dismissedSelection = Boolean(this.selectedTemplate || this.selectedTower || this.selectedBall);
+      this.clearSelection();
+      this.selectedBall = null;
+      this.captureHint = null;
+      if (!dismissedSelection) {
+        this.pauseMenuOpen = true;
+        this.isPaused = true;
+        this.ui.setPauseVisible(true);
+      }
+      return;
+    }
+    if (input.rightClicked) {
       this.clearSelection();
       this.selectedBall = null;
       this.captureHint = null;

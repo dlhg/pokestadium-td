@@ -1,0 +1,837 @@
+/*
+ * Stadium broadcast skin
+ *
+ * This layer deliberately overrides the component-local base styles without
+ * changing their layout or DOM.  The broad molded shells, saturated wells,
+ * and selective yellow accents echo turn-of-the-century console sports UI.
+ */
+
+:root {
+  --broadcast-ink: #07142b;
+  --broadcast-ink-soft: #102753;
+  --broadcast-cobalt: #123eb7;
+  --broadcast-cobalt-bright: #245be0;
+  --broadcast-indigo: #302aa5;
+  --broadcast-cream: #eee9d7;
+  --broadcast-cream-bright: #fffbed;
+  --broadcast-silver: #abb4bc;
+  --broadcast-gold: #f5c928;
+  --broadcast-gold-deep: #bf7210;
+  --broadcast-red: #bd1d2f;
+  --broadcast-shadow: #020817;
+}
+
+/* Molded outer shell with a saturated plastic information well. */
+.stadium-panel {
+  --shell-width: 5px;
+  position: relative;
+  border: var(--shell-width) solid transparent;
+  border-radius: 13px;
+  background-image:
+    linear-gradient(rgba(8, 23, 71, .86), rgba(5, 15, 51, .94)),
+    url('/ui/indigo-quilt.png'),
+    linear-gradient(rgba(245, 241, 224, .86), rgba(188, 195, 194, .94)),
+    url('/ui/cream-plastic.png');
+  background-size: auto, 210px 210px, auto, 180px 180px;
+  background-origin: padding-box, padding-box, border-box, border-box;
+  background-clip: padding-box, padding-box, border-box, border-box;
+  background-blend-mode: normal, soft-light, normal, soft-light;
+  box-shadow:
+    0 0 0 2px var(--broadcast-ink),
+    0 0 0 3px rgba(255, 255, 255, .54),
+    5px 7px 0 rgba(1, 6, 18, .72),
+    inset 0 0 0 2px rgba(102, 143, 255, .7),
+    inset 0 2px 0 rgba(255, 255, 255, .36);
+}
+
+.stadium-panel::after {
+  inset: 4px;
+  border: 1px solid rgba(177, 204, 255, .52);
+  border-radius: 6px;
+  box-shadow: inset 0 -1px rgba(0, 0, 0, .44);
+}
+
+.gold-glow {
+  text-shadow: 2px 3px 0 #6e3708, 0 0 5px rgba(245, 201, 40, .35);
+}
+
+.cyan-glow {
+  text-shadow: 2px 3px 0 #10205c;
+}
+
+/* Scoreboard */
+#top-bar {
+  min-height: 62px;
+  gap: 10px;
+  padding: 7px 10px 7px 14px;
+  clip-path: none;
+  border-radius: 14px;
+}
+
+#top-bar::before,
+#card-deck::before,
+#tower-panel::before {
+  display: none;
+}
+
+.stat-badge {
+  z-index: 2;
+  min-width: 0;
+}
+
+#top-bar .stat-badge:first-child { min-width: 145px; }
+#top-bar .stat-badge:nth-child(2) { min-width: 68px; }
+#top-bar .stat-badge:nth-child(3) { min-width: 140px; }
+#top-bar .stat-badge:nth-child(4) { min-width: 185px; }
+
+.stat-label {
+  color: #d9e8ff;
+  font-family: 'Trebuchet MS', 'Rajdhani', sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 1px;
+  text-shadow: 1px 2px var(--broadcast-ink);
+}
+
+.stat-value {
+  font-family: 'Teko', 'Impact', sans-serif;
+  font-size: 28px;
+  line-height: .9;
+  color: var(--broadcast-cream-bright);
+}
+
+.pokeball-tray {
+  padding: 4px 7px;
+  border: 2px solid #819ee4;
+  border-radius: 12px;
+  background: #050d2a;
+  box-shadow: inset 0 2px 5px #000;
+}
+
+.ui-pokeball {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--broadcast-cream-bright);
+  box-shadow: 0 0 0 1px #050812, 0 2px 0 #000, inset 0 1px 1px rgba(255, 255, 255, .55);
+}
+
+/* Compact controller-like keys */
+#controls-bar {
+  align-items: stretch;
+  gap: 5px;
+  padding: 6px;
+  border: 2px solid var(--broadcast-ink);
+  border-radius: 13px;
+  background:
+    linear-gradient(rgba(239, 235, 217, .86), rgba(176, 183, 185, .94)),
+    url('/ui/cream-plastic.png');
+  background-size: auto, 180px 180px;
+  background-blend-mode: normal, soft-light;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .65), 4px 5px 0 rgba(0, 0, 0, .55);
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.control-group + .control-group {
+  margin-left: 3px;
+  padding-left: 8px;
+  border-left: 2px solid #6f777d;
+}
+
+.control-group-label {
+  color: #172245;
+  font: 900 9px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 1.5px;
+  text-align: center;
+  text-shadow: 0 1px rgba(255, 255, 255, .65);
+}
+
+.control-group-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+#controls-bar .stadium-btn {
+  min-height: 26px;
+  padding: 4px 7px 3px;
+  font-size: 16px;
+}
+
+#btn-speed-1,
+#btn-speed-2,
+#btn-speed-3 { width: 43px; }
+#btn-cam-tactical { width: 86px; }
+#btn-cam-stadium { width: 82px; }
+#btn-cam-action { width: 69px; }
+
+.stadium-btn {
+  min-height: 28px;
+  border: 2px solid #d7e0ff;
+  border-radius: 6px;
+  padding: 5px 12px 4px;
+  background-image:
+    linear-gradient(rgba(41, 92, 224, .62), rgba(7, 28, 102, .88)),
+    url('/ui/cobalt-plastic.png');
+  background-size: auto, 150px 150px;
+  background-blend-mode: normal, soft-light;
+  box-shadow:
+    0 0 0 2px var(--broadcast-ink),
+    inset 0 2px 0 rgba(255, 255, 255, .43),
+    2px 3px 0 rgba(0, 0, 0, .42);
+  color: var(--broadcast-cream-bright);
+  font-family: 'Teko', 'Impact', sans-serif;
+  font-size: 17px;
+  line-height: .9;
+  letter-spacing: .55px;
+  text-shadow: 1px 2px var(--broadcast-ink);
+}
+
+.stadium-btn:hover {
+  border-color: #fff;
+  background-image:
+    linear-gradient(rgba(80, 127, 255, .58), rgba(17, 51, 146, .84)),
+    url('/ui/cobalt-plastic.png');
+  box-shadow: 0 0 0 2px var(--broadcast-gold), inset 0 2px rgba(255, 255, 255, .55), 2px 3px 0 rgba(0, 0, 0, .42);
+}
+
+.stadium-btn.active {
+  border-color: #fff6b2;
+  background: linear-gradient(180deg, #ffea67 0 14%, var(--broadcast-gold) 16%, #e39316 68%, #b85c0d 100%);
+  color: var(--broadcast-ink);
+  text-shadow: 1px 1px rgba(255, 255, 255, .5);
+  box-shadow: 0 0 0 2px #70410a, inset 0 2px rgba(255, 255, 255, .58), 2px 3px 0 rgba(0, 0, 0, .42);
+}
+
+#btn-wave {
+  border-color: #fff0c7;
+  background: linear-gradient(180deg, #f45762 0 14%, var(--broadcast-red) 16%, #780f22 100%);
+  color: var(--broadcast-cream-bright);
+}
+
+.ball-choice {
+  min-width: 40px;
+  padding-inline: 6px;
+}
+
+.ball-choice.selected {
+  border-color: #fff6b2;
+  background: linear-gradient(180deg, #ffea67, var(--broadcast-gold) 44%, #ce7610);
+  color: var(--broadcast-ink);
+  box-shadow: 0 0 0 2px #70410a, 0 0 10px rgba(245, 201, 40, .55);
+}
+
+/* Rental-board roster */
+#card-deck {
+  width: 196px;
+  gap: 9px;
+  padding: 9px;
+  border-radius: 15px;
+  scrollbar-color: var(--broadcast-gold) var(--broadcast-ink);
+}
+
+.tower-rail-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  z-index: 2;
+  margin: -1px -1px 1px;
+  padding: 7px 8px 8px;
+  border: 2px solid #fff1a0;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffe55b 0 15%, var(--broadcast-gold) 17%, #c9750d 100%);
+  box-shadow: 0 0 0 2px #70410a, inset 0 2px rgba(255, 255, 255, .56);
+}
+
+.tower-rail-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.tower-rail-title {
+  color: var(--broadcast-ink);
+  font-family: 'Teko', 'Impact', sans-serif;
+  font-size: 19px;
+  line-height: .82;
+  letter-spacing: .35px;
+  text-shadow: 1px 1px rgba(255, 255, 255, .62);
+}
+
+#placement-hint {
+  min-height: 15px;
+  color: #4c2e09;
+  font-family: 'Trebuchet MS', sans-serif;
+  font-size: 7px;
+  line-height: 1.15;
+  letter-spacing: .35px;
+}
+
+.tower-card.stadium-panel {
+  --shell-width: 3px;
+  min-height: 72px;
+  flex-basis: 72px;
+  border-radius: 9px;
+  padding: 8px;
+  background-image:
+    linear-gradient(rgba(26, 64, 193, .52), rgba(6, 24, 82, .84)),
+    url('/ui/cobalt-plastic.png'),
+    linear-gradient(#c8d3dc, #8d9aa4),
+    url('/ui/cream-plastic.png');
+  background-size: auto, 150px 150px, auto, 150px 150px;
+  box-shadow: 0 0 0 1px var(--broadcast-ink), 2px 3px 0 rgba(0, 0, 0, .48), inset 0 0 0 1px #6b99ff;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.tower-card.stadium-panel::after {
+  inset: 3px;
+  border-radius: 4px;
+}
+
+.tower-card:hover,
+.tower-card.selected {
+  border-color: var(--broadcast-gold);
+  transform: translateX(-5px);
+  box-shadow: 0 0 0 2px #fff0a1, 4px 4px 0 rgba(0, 0, 0, .52), inset 0 0 0 1px #85aaff;
+}
+
+.tower-card.selected::before {
+  left: -8px;
+  width: 7px;
+  border-radius: 5px 0 0 5px;
+  background: var(--broadcast-gold);
+  box-shadow: 0 0 0 2px #70410a;
+}
+
+.card-portrait-stage {
+  position: absolute;
+  z-index: -1;
+  inset: 2px;
+  overflow: hidden;
+  border-radius: 5px;
+  background-position: center;
+  background-size: cover;
+  opacity: .92;
+}
+
+.card-portrait-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .13), transparent 35%, rgba(1, 5, 18, .2));
+  pointer-events: none;
+}
+
+.roster-model-canvas {
+  position: absolute;
+  left: -4px;
+  bottom: -2px;
+  width: 76px;
+  height: 68px;
+  filter: drop-shadow(1px 3px 2px rgba(0, 0, 0, .72));
+  pointer-events: none;
+}
+
+.tower-card .card-type-tag,
+.tower-card .card-name,
+.tower-card .card-cost {
+  position: relative;
+  z-index: 2;
+}
+
+.tower-card .card-type-tag {
+  position: absolute;
+  top: 7px;
+  left: 65px;
+  margin: 0;
+}
+
+.tower-card .card-name {
+  position: absolute;
+  right: 7px;
+  bottom: 22px;
+  left: 65px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tower-card .card-cost {
+  position: absolute;
+  right: 7px;
+  bottom: 3px;
+}
+
+.card-type-tag {
+  border: 1px solid white;
+  border-radius: 4px;
+  padding: 2px 6px 1px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.card-name {
+  font-size: 16px;
+  line-height: .9;
+}
+
+.card-cost {
+  color: var(--broadcast-gold);
+  font-size: 20px;
+}
+
+/* Tower strategy card */
+#tower-panel {
+  top: 170px;
+  right: 218px;
+  max-height: calc(100% - 184px);
+  border-radius: 15px;
+  clip-path: none;
+}
+
+.tp-header {
+  padding: 10px 12px 8px;
+  border-bottom: 4px solid var(--broadcast-gold);
+  background-image:
+    linear-gradient(rgba(39, 84, 220, .5), rgba(8, 27, 98, .82)),
+    url('/ui/cobalt-plastic.png');
+  background-size: auto, 170px 170px;
+  background-blend-mode: normal, soft-light;
+}
+
+.tp-header .pokeball-emblem {
+  flex: 0 0 auto;
+  width: 29px;
+  height: 29px;
+}
+
+.tp-title {
+  color: #fff6b4;
+  font-size: 27px;
+  line-height: .85;
+  text-shadow: 2px 3px var(--broadcast-ink);
+}
+
+.tp-stage-pip {
+  border-radius: 50%;
+  border-color: #8facff;
+  background: #050d2a;
+}
+
+.tp-stage-pip.on {
+  border-color: #fff6a8;
+  background: var(--broadcast-gold);
+}
+
+.tp-close,
+.tp-arrow {
+  border: 2px solid #dbe4ff;
+  border-radius: 5px;
+  background: linear-gradient(#3b6ee0, #102c85);
+  box-shadow: 0 0 0 1px var(--broadcast-ink), inset 0 1px rgba(255, 255, 255, .42);
+}
+
+.tp-crest,
+.tp-target,
+.tp-line {
+  border: 2px solid #6f91e3;
+  border-radius: 7px;
+  background: rgba(3, 10, 33, .86);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .66);
+}
+
+.tp-crest-mark {
+  border: 3px solid #fff7c4;
+  box-shadow: 0 0 0 2px #73440b;
+}
+
+.tp-target {
+  background-image:
+    linear-gradient(rgba(30, 70, 190, .45), rgba(6, 22, 76, .76)),
+    url('/ui/cobalt-plastic.png');
+  background-size: auto, 160px 160px;
+}
+
+.tp-target-label,
+.tp-evolve-label,
+.tp-evolve-cost {
+  color: #ffe258;
+}
+
+.tp-target-cap,
+.tp-line-label,
+.tp-line-stats,
+.tp-buy-note,
+.tp-evolve-sub,
+.tp-sell-value span {
+  color: #c9d9ff;
+  font-family: 'Trebuchet MS', 'Rajdhani', sans-serif;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: .55px;
+}
+
+.tp-lines {
+  gap: 7px;
+  scrollbar-color: var(--broadcast-gold) var(--broadcast-ink);
+}
+
+.tp-line {
+  border-color: #557bd3;
+}
+
+.tp-line-move {
+  font-size: 19px;
+  line-height: .88;
+}
+
+.tp-pip {
+  border-radius: 2px;
+  border-color: #7198e9;
+  background: #050d2a;
+}
+
+.tp-pip.on {
+  border-color: #fff6ad;
+  background: var(--broadcast-gold);
+}
+
+.tp-buy {
+  border: 2px solid #91abe7;
+  border-radius: 6px;
+  background-image:
+    linear-gradient(rgba(43, 93, 214, .46), rgba(7, 25, 81, .74)),
+    url('/ui/cobalt-plastic.png');
+  background-size: auto, 130px 130px;
+  box-shadow: inset 0 2px rgba(255, 255, 255, .22);
+}
+
+.tp-buy.maxed,
+.tp-evolve.final {
+  border-color: #fff1a5;
+  background: linear-gradient(#946a16, #402805);
+}
+
+.tp-evolve {
+  border: 2px solid #fff0a1;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffe85f 0 12%, var(--broadcast-gold) 14%, #ca7511 100%);
+  box-shadow: 0 0 0 2px #70410a, inset 0 2px rgba(255, 255, 255, .48);
+}
+
+.tp-evolve-label,
+.tp-evolve-cost {
+  color: var(--broadcast-ink);
+  text-shadow: 1px 1px rgba(255, 255, 255, .5);
+}
+
+.tp-evolve-sub {
+  color: #573207;
+}
+
+.tp-footer {
+  border-top: 3px solid var(--broadcast-gold);
+  background: #07163f;
+}
+
+.tp-sell-btn {
+  border: 2px solid #fff1d1;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #f35b66 0 12%, var(--broadcast-red) 14%, #720d20 100%);
+  box-shadow: 0 0 0 2px #500816, inset 0 2px rgba(255, 255, 255, .38);
+}
+
+/* The one deliberately loud broadcast surface. */
+.banner-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  width: min(760px, calc(100vw - 420px));
+  border: 5px solid transparent;
+  border-left-width: 12px;
+  border-right-width: 12px;
+  border-radius: 14px;
+  padding: 8px 48px 7px;
+  background:
+    linear-gradient(180deg, #d92e40, #8f1025) padding-box,
+    linear-gradient(rgba(247, 242, 219, .94), rgba(184, 190, 187, .94)) border-box;
+  box-shadow: 0 0 0 2px #5b0918, 5px 6px 0 rgba(0, 0, 0, .55), inset 0 2px rgba(255, 255, 255, .33);
+  color: var(--broadcast-cream-bright);
+  font-size: 31px;
+  line-height: .86;
+  text-shadow: 2px 3px #5b0918;
+  transform: none;
+}
+
+.banner-inner .pokeball-emblem {
+  width: 35px;
+  height: 35px;
+  flex: 0 0 auto;
+}
+
+.pokeball-emblem {
+  position: relative;
+  display: inline-block;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 2px solid #141927;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #e73845 0 47%, #171b27 48% 56%, #f5f1dc 57% 100%);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .72), 2px 3px 0 rgba(0, 0, 0, .4), inset 0 3px rgba(255, 255, 255, .28);
+}
+
+.pokeball-emblem::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #171b27;
+  border-radius: 50%;
+  background: #f5f1dc;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .5);
+}
+
+/* Shop and current-course plaque */
+#poke-mart {
+  bottom: 96px;
+  border-radius: 13px;
+}
+
+#poke-mart strong {
+  color: #ffe15b;
+  font-family: 'Teko', 'Impact', sans-serif;
+  font-size: 18px;
+  line-height: .9;
+}
+
+.mart-item {
+  padding: 4px 8px;
+  font-size: 15px;
+}
+
+#course-info {
+  padding: 9px 12px;
+  border: 4px solid transparent;
+  border-radius: 10px;
+  background:
+    linear-gradient(rgba(4, 14, 44, .91), rgba(3, 10, 30, .95)) padding-box,
+    linear-gradient(180deg, #f5cf36, #bb6c0c) border-box;
+  box-shadow: 0 0 0 2px var(--broadcast-ink), 4px 5px 0 rgba(0, 0, 0, .54);
+}
+
+#course-info::before {
+  content: 'CURRENT COURSE';
+  display: block;
+  margin-bottom: 2px;
+  color: #9db7ef;
+  font: 800 8px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 1.4px;
+}
+
+#course-info strong {
+  color: #ffe15b;
+  font-size: 21px;
+}
+
+#course-strategy {
+  color: #d5e1ff;
+}
+
+#capture-hint {
+  border: 4px solid transparent;
+  border-radius: 9px;
+  background:
+    linear-gradient(#07163f, #040d29) padding-box,
+    linear-gradient(#ffe65b, #bf7210) border-box;
+  box-shadow: 0 0 0 2px var(--broadcast-ink);
+}
+
+/* Escape pause sheet */
+#pause-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 75;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 42%, rgba(19, 48, 127, .42), rgba(2, 7, 23, .84) 72%);
+  backdrop-filter: blur(3px) saturate(.72);
+}
+
+#pause-screen[hidden] {
+  display: none;
+}
+
+.pause-card {
+  width: min(420px, calc(100vw - 36px));
+  padding: 23px 25px 25px;
+  text-align: center;
+}
+
+.pause-kicker {
+  display: inline-block;
+  padding: 5px 12px 4px;
+  border-radius: 5px;
+  background: var(--broadcast-gold);
+  color: var(--broadcast-ink);
+  font: 900 10px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 2px;
+}
+
+#pause-title {
+  margin: 13px 0 0;
+  color: var(--broadcast-cream-bright);
+  font: 700 42px/.9 'Teko', 'Impact', sans-serif;
+  letter-spacing: .5px;
+  text-shadow: 3px 4px var(--broadcast-ink);
+}
+
+.pause-card p {
+  margin: 7px 0 18px;
+  color: #cfddff;
+  font-size: 14px;
+}
+
+.pause-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Course selection: illustrated venue behind an opaque tournament board. */
+#map-select {
+  background:
+    linear-gradient(180deg, rgba(5, 13, 43, .22), rgba(3, 8, 28, .78)),
+    url('/ui/course-select-stadium.jpg') center / cover no-repeat;
+}
+
+.map-select-panel.stadium-panel {
+  border-width: 7px;
+  border-radius: 18px;
+  background-image:
+    linear-gradient(rgba(12, 25, 78, .9), rgba(4, 12, 43, .95)),
+    url('/ui/indigo-quilt.png'),
+    linear-gradient(rgba(247, 242, 221, .9), rgba(180, 189, 192, .95)),
+    url('/ui/cream-plastic.png');
+  background-size: auto, 230px 230px, auto, 190px 190px;
+  box-shadow: 0 0 0 3px var(--broadcast-ink), 8px 10px 0 rgba(0, 0, 0, .58), inset 0 0 0 2px #7598f3;
+}
+
+.map-select-eyebrow {
+  display: inline-block;
+  padding: 5px 11px 4px;
+  border-radius: 5px;
+  background: var(--broadcast-gold);
+  color: var(--broadcast-ink);
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+
+.map-select-title {
+  color: var(--broadcast-cream-bright);
+  font-size: 46px;
+  text-shadow: 3px 4px var(--broadcast-ink), 0 0 0 #000;
+}
+
+.map-select-subtitle {
+  color: #dce6ff;
+}
+
+.map-card {
+  overflow: hidden;
+  border: 4px solid transparent;
+  border-radius: 11px;
+  background-image:
+    linear-gradient(rgba(25, 58, 176, .62), rgba(4, 17, 63, .9)),
+    url('/ui/cobalt-plastic.png'),
+    linear-gradient(#dce1dc, #89969f),
+    url('/ui/cream-plastic.png');
+  background-size: auto, 180px 180px, auto, 160px 160px;
+  background-origin: padding-box, padding-box, border-box, border-box;
+  background-clip: padding-box, padding-box, border-box, border-box;
+  background-blend-mode: normal, soft-light, normal, soft-light;
+  box-shadow: 0 0 0 2px var(--broadcast-ink), 3px 4px 0 rgba(0, 0, 0, .52), inset 0 0 0 1px #78a0ff;
+}
+
+.map-card:hover,
+.map-card:focus-visible {
+  border-color: var(--broadcast-gold);
+  outline: 2px solid #fff3a1;
+  box-shadow: 0 0 0 2px #70410a, 5px 7px 0 rgba(0, 0, 0, .5), inset 0 0 0 1px #78a0ff;
+}
+
+.map-preview {
+  border-bottom: 4px solid var(--broadcast-gold);
+}
+
+.map-difficulty {
+  border: 2px solid white;
+  border-radius: 5px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .55);
+}
+
+.map-name {
+  color: #fff7c6;
+  font-size: 27px;
+  text-shadow: 2px 2px var(--broadcast-ink);
+}
+
+.map-venue {
+  color: #9dc0ff;
+}
+
+.map-description {
+  color: #edf2ff;
+}
+
+.map-obstacles {
+  border-top-color: #5779ca;
+  color: #ffe05a;
+}
+
+.map-select-footer {
+  color: #c9d7fa;
+}
+
+/* Cinematic and terminal-state cards share the same physical vocabulary. */
+#cine-card,
+#capture-trophy,
+#defeat-screen .defeat-card {
+  border: 6px solid var(--broadcast-cream);
+  border-radius: 15px;
+  background-image:
+    linear-gradient(rgba(23, 55, 176, .55), rgba(4, 16, 58, .9)),
+    url('/ui/cobalt-plastic.png');
+  background-size: auto, 190px 190px;
+  background-blend-mode: normal, soft-light;
+  box-shadow: 0 0 0 3px var(--broadcast-ink), 7px 9px 0 rgba(0, 0, 0, .64), inset 0 0 0 2px #7298f2;
+}
+
+#cine-card,
+#capture-trophy {
+  border-bottom-color: var(--broadcast-gold);
+}
+
+#capture-trophy .trophy-stage {
+  border: 4px solid var(--broadcast-gold);
+  border-radius: 9px;
+}
+
+#defeat-screen .defeat-card {
+  border-color: #f3dfca;
+  box-shadow: 0 0 0 3px #650918, 7px 9px 0 rgba(0, 0, 0, .64), inset 0 0 0 2px #f15c69;
+}
+
+@media (max-width: 1100px) {
+  #card-deck { width: 184px; }
+  #tower-panel { right: 206px; }
+}

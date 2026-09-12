@@ -213,6 +213,8 @@ window.addEventListener('DOMContentLoaded', () => {
         game.camera.setMode('stadium');
       } else if (shot === 'action_cam') {
         game.camera.setMode('action');
+      } else if (shot === 'pause') {
+        game.ui.setPauseVisible(true);
       } else if (shot === 'round_milestone') {
         // Park on the easy course's win round to show the payout card and HUD counter.
         game.waveManager.currentWaveIndex = game.waveManager.winRound;
