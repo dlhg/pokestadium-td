@@ -121,6 +121,12 @@ export class Input {
     return this.raycaster.intersectObjects(objects, true);
   }
 
+  /** The pointer's ray into the world, for callers that test their own surfaces. */
+  public pointerRay(camera: THREE.Camera): THREE.Ray {
+    this.raycaster.setFromCamera(this.mouseNDC, camera);
+    return this.raycaster.ray.clone();
+  }
+
   public raycastGround(camera: THREE.Camera, groundY: number = 0): THREE.Vector3 | null {
     this.raycaster.setFromCamera(this.mouseNDC, camera);
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -groundY);

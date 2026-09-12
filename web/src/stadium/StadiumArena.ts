@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { DEFAULT_STADIUM_MAP, type MapObstacle, type StadiumMap } from '../td/MapCatalog';
 import { mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
+import { LANE_RIDE_HEIGHT, MapTerrain } from '../td/MapTerrain';
 import { buildMapGround, buildMapObstacle, disposeScenery } from './MapScenery';
 
 export type BuildBlockReason = MapBuildBlock;
@@ -40,6 +41,8 @@ export class StadiumArena {
   /** Towers may be placed anywhere inside this radius of the pitch centre. */
   public readonly buildableRadius: number;
   public readonly map: StadiumMap;
+  /** Ground heights shared by rendering, movement, placement and picking. */
+  public readonly terrain: MapTerrain;
   private environmentGroup = new THREE.Group();
   private gameplayGroup = new THREE.Group();
   private noBuildGroup = new THREE.Group();
@@ -57,6 +60,7 @@ export class StadiumArena {
     this.map = map;
     this.buildableRadius = map.buildableRadius;
     this.routes = sampleMapRoutes(map);
+    this.terrain = new MapTerrain(map, this.routes);
     this.waypoints = this.routes[0];
     this.environmentGroup.name = 'arena-environment';
     this.gameplayGroup.name = 'tower-defense-overlay';
@@ -75,7 +79,7 @@ export class StadiumArena {
 
   private initArena(): void {
     this.environmentGroup.add(new THREE.HemisphereLight(0xe6f1ff, 0x647557, 1.1));
-    this.environmentGroup.add(buildMapGround(this.map));
+    this.environmentGroup.add(buildMapGround(this.map,this.terrain,this.routes));
     this.buildTrackPath();
     this.buildGrandstands();
     this.buildFloodlightTowers();
@@ -104,7 +108,8 @@ export class StadiumArena {
           const before=points[Math.max(0,index-1)], after=points[Math.min(points.length-1,index+1)];
           const direction=new THREE.Vector3().subVectors(after,before).normalize();
           const normal=new THREE.Vector3(-direction.z,0,direction.x).multiplyScalar(halfWidth);
-          positions.push(point.x+normal.x,edge?0.12:0.14,point.z+normal.z,point.x-normal.x,edge?0.12:0.14,point.z-normal.z);
+          const y=point.y-LANE_RIDE_HEIGHT+(edge?0.12:0.14);
+          positions.push(point.x+normal.x,y,point.z+normal.z,point.x-normal.x,y,point.z-normal.z);
           if(index<points.length-1) {
             const v=index*2; indices.push(v,v+1,v+2,v+1,v+3,v+2);
           }
@@ -125,7 +130,7 @@ export class StadiumArena {
         const arrow=new THREE.Mesh(new THREE.ShapeGeometry(shape),new THREE.MeshBasicMaterial({color:this.map.theme==='industrial'?(routeIndex?'#66cee5':'#f9d578'):this.map.palette.edge,side:THREE.DoubleSide}));
         arrow.rotation.x=-Math.PI/2;
         arrow.rotation.z=Math.atan2(next.x-point.x,next.z-point.z);
-        arrow.position.set(point.x,0.55,point.z);
+        arrow.position.set(point.x,point.y+0.05,point.z);
         this.gameplayGroup.add(arrow);
       }
       this.addGate(points[0],points[1],true,routeIndex);
@@ -135,7 +140,7 @@ export class StadiumArena {
 
   private addGate(point: THREE.Vector3, adjacent: THREE.Vector3, entry: boolean, index: number): void {
     const gate=new THREE.Group();
-    gate.position.set(point.x,0,point.z);
+    gate.position.set(point.x,point.y-LANE_RIDE_HEIGHT,point.z);
     gate.rotation.y=Math.atan2(adjacent.x-point.x,adjacent.z-point.z);
     const color=entry?'#90dfae':'#ff9579';
     const mat=new THREE.MeshLambertMaterial({color:0x233f56});
@@ -530,7 +535,7 @@ export class StadiumArena {
   }
 
   public isBuildable(x: number, z: number, radius: number): BuildBlockReason {
-    return mapBuildBlock(this.map,this.routes,x,z,radius);
+    return mapBuildBlock(this.map,this.routes,x,z,radius,this.terrain);
   }
 
   public getNoBuildZones(): readonly NoBuildZone[] {
@@ -541,7 +546,7 @@ export class StadiumArena {
     this.map.obstacles = zones;
     disposeScenery(this.noBuildGroup);
     this.noBuildGroup.clear();
-    zones.forEach(zone => this.noBuildGroup.add(buildMapObstacle(zone,this.map)));
+    zones.forEach(zone => this.noBuildGroup.add(buildMapObstacle(zone,this.map,this.terrain)));
   }
 
   public dispose(): void {

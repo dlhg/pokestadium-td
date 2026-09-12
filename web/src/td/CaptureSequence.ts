@@ -21,6 +21,7 @@ import { StadiumCamera } from '../engine/StadiumCamera';
 import { StadiumAudio } from '../engine/StadiumAudio';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumArena } from '../stadium/StadiumArena';
+import { LANE_RIDE_HEIGHT } from './MapTerrain';
 
 export type BallType = 'poke' | 'great' | 'ultra';
 export type CapturePhase = 'aim' | 'throw' | 'absorb' | 'drop' | 'wobble' | 'verdict';
@@ -110,6 +111,7 @@ export class CaptureSequence {
   private readonly profile: typeof THREAT_PROFILE[keyof typeof THREAT_PROFILE];
   private readonly baseChance: number;
   private readonly restPos: THREE.Vector3;
+  private readonly restY: number;
   private readonly throwFrom: THREE.Vector3;
   private readonly targetBaseScale: number;
   private readonly targetBaseY: number;
@@ -134,7 +136,9 @@ export class CaptureSequence {
     this.profile = THREAT_PROFILE[target.threat];
     this.targetBaseScale = target.group.scale.x;
     this.targetBaseY = target.group.position.y;
-    this.restPos = target.position.clone().setY(BALL_REST_Y);
+    // The ball settles on whatever ground the target stands on, terrace or meadow.
+    this.restY = target.position.y - LANE_RIDE_HEIGHT + BALL_REST_Y;
+    this.restPos = target.position.clone().setY(this.restY);
 
     const zoneStart = 0.12 + Math.random() * (0.76 - this.profile.zone);
     this.hud = {
@@ -153,8 +157,8 @@ export class CaptureSequence {
     };
 
     // The throw comes in over the player's shoulder from outside the arena.
-    const inward = this.restPos.clone().normalize();
-    this.throwFrom = this.restPos.clone().addScaledVector(inward, 13).setY(5.5);
+    const inward = this.restPos.clone().setY(0).normalize();
+    this.throwFrom = this.restPos.clone().addScaledVector(inward, 13).setY(this.restY - BALL_REST_Y + 5.5);
 
     this.ball = this.createBall(ballType);
     this.ballTop = this.ball.children[0] as THREE.Mesh;
@@ -191,7 +195,7 @@ export class CaptureSequence {
       }),
     );
     this.flash.rotation.x = -Math.PI / 2;
-    this.flash.position.copy(this.restPos).setY(0.08);
+    this.flash.position.copy(this.restPos).setY(this.restY - BALL_REST_Y + 0.08);
     this.group.add(this.flash);
 
     stage.camera.beginCinematic(this.restPos, 9.5, 3.2, 0.3, this.clearestAngle());
@@ -396,7 +400,7 @@ export class CaptureSequence {
     // Two decaying bounces onto the pitch.
     const p = (t - this.beats.absorbEnd) / D_DROP;
     const height = Math.abs(Math.cos(p * Math.PI * 2.5)) * 1.45 * Math.pow(1 - p, 2.1);
-    this.ball.position.set(this.restPos.x, BALL_REST_Y + height, this.restPos.z);
+    this.ball.position.set(this.restPos.x, this.restY + height, this.restPos.z);
     this.ball.rotation.z = Math.sin(p * 9) * 0.35 * (1 - p);
     this.ballLight.intensity = 1.6;
 
@@ -422,7 +426,7 @@ export class CaptureSequence {
     this.ball.rotation.z = swing * dir * (0.5 + index * 0.16);
     this.ball.position.set(
       this.restPos.x + swing * dir * (0.2 + index * 0.06),
-      BALL_REST_Y + swing * 0.1,
+      this.restY + swing * 0.1,
       this.restPos.z,
     );
     this.ballLight.intensity = 1.2 + swing * 2.4;
@@ -476,7 +480,7 @@ export class CaptureSequence {
     // Locked: the ball settles, pulses gold, then lifts away in triumph.
     const lift = Math.max(0, p - 0.55);
     this.ball.rotation.z = 0;
-    this.ball.position.set(this.restPos.x, BALL_REST_Y + lift * lift * 2.6, this.restPos.z);
+    this.ball.position.set(this.restPos.x, this.restY + lift * lift * 2.6, this.restPos.z);
     this.ballLight.color.setHex(0xffe46b);
     this.ballLight.intensity = 4 + Math.sin(p * 22) * 2.6;
 
@@ -549,8 +553,13 @@ export class CaptureSequence {
     const shell = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.3 });
     const topHalf = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), shell(top));
     const bottomHalf = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), shell(bottom));
-    const band = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.045, 8, 20), new THREE.MeshBasicMaterial({ color: 0x151922 }));
-    band.rotation.x = Math.PI / 2;
+    // The equatorial seam is paint on the shell, not a raised rubber torus.
+    // A shallow sphere segment follows the ball's curvature and only sits
+    // 0.001 units above it, avoiding both the bulky silhouette and z-fighting.
+    const band = new THREE.Mesh(
+      new THREE.SphereGeometry(0.341, 16, 2, 0, Math.PI * 2, Math.PI / 2 - 0.04, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x151922, roughness: 0.42, metalness: 0.12 }),
+    );
     const button = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     button.position.z = 0.32;
     // Order matters: update() drives children[0] and children[1] as the halves.
