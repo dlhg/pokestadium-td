@@ -317,7 +317,10 @@ export class StadiumArena {
       members.forEach((member, index) => {
         const viewAngle = Math.atan2(cameraPosition.x - member.position.x, cameraPosition.z - member.position.z);
         const relative = this.wrapAngle(viewAngle - member.facing);
-        const direction = Math.abs(relative) > Math.PI * 0.75 ? 2 : relative > Math.PI * 0.25 ? 1 : relative < -Math.PI * 0.25 ? 3 : 0;
+        // Camera-angle sign is opposite the character's local left/right in
+        // this pitch-facing coordinate system, so select the opposite side
+        // column rather than making spectators turn away from the match.
+        const direction = Math.abs(relative) > Math.PI * 0.75 ? 2 : relative > Math.PI * 0.25 ? 3 : relative < -Math.PI * 0.25 ? 1 : 0;
         const cheering = Math.sin(time * 2.2 + member.phase) > 0.42 ? 1 : 0;
         const rowFromTop = Math.floor(member.character / 2) * 2 + cheering;
         atlasCell.setXY(index, (member.character % 2) * 4 + direction, 3 - rowFromTop);
