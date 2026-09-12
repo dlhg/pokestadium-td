@@ -8,6 +8,7 @@
  */
 
 import * as THREE from 'three';
+import { Input } from './Input';
 
 export type CameraMode = 'tactical' | 'stadium' | 'action';
 
@@ -22,6 +23,17 @@ export class StadiumCamera {
   // Target presets
   private desiredPos: THREE.Vector3 = new THREE.Vector3(0, 42, 28);
   private desiredTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+
+  // Player-controlled orbit state around desiredTarget.
+  private yaw: number = 0;
+  private pitch: number = Math.PI / 3;
+  private distance: number = 40;
+  private readonly minPitch = THREE.MathUtils.degToRad(20);
+  private readonly maxPitch = THREE.MathUtils.degToRad(80);
+  private readonly minDistance = 12;
+  private readonly maxDistance = 75;
+  private readonly panSpeed = 20;
+  private readonly arenaLimit = 22;
 
   // Screen shake
   private shakeIntensity: number = 0;
@@ -64,6 +76,7 @@ export class StadiumCamera {
         this.desiredTarget.set(0, 1, 0);
         break;
     }
+    this.syncOrbitFromDesired();
   }
 
   public triggerActionCam(focusPos: THREE.Vector3, duration: number = 2.0): void {
@@ -79,7 +92,55 @@ export class StadiumCamera {
       focusPos.z + Math.sin(offsetAngle) * dist
     );
     this.desiredTarget.copy(focusPos);
+    this.syncOrbitFromDesired();
     this.shake(0.35);
+  }
+
+  /** Moves the focal point, zooms, and orbits without bypassing camera smoothing. */
+  public handleInput(input: Input, dt: number): void {
+    const forwardPressed = input.isKeyDown('KeyW') || input.isKeyDown('ArrowUp');
+    const backPressed = input.isKeyDown('KeyS') || input.isKeyDown('ArrowDown');
+    const leftPressed = input.isKeyDown('KeyA') || input.isKeyDown('ArrowLeft');
+    const rightPressed = input.isKeyDown('KeyD') || input.isKeyDown('ArrowRight');
+    const isPanning = forwardPressed || backPressed || leftPressed || rightPressed;
+
+    const hasDragMovement = input.dragDelta.lengthSq() > 0;
+    if (!hasDragMovement && input.wheelDelta === 0 && !isPanning) return;
+
+    // Manual input deliberately exits a transient combat close-up.
+    this.actionTimer = 0;
+    this.actionFocusTarget = null;
+
+    if (hasDragMovement) {
+      this.yaw -= input.dragDelta.x * 0.008;
+      this.pitch = THREE.MathUtils.clamp(
+        this.pitch + input.dragDelta.y * 0.006,
+        this.minPitch,
+        this.maxPitch,
+      );
+    }
+
+    if (input.wheelDelta !== 0) {
+      this.distance = THREE.MathUtils.clamp(
+        this.distance * Math.exp(input.wheelDelta * 0.001),
+        this.minDistance,
+        this.maxDistance,
+      );
+    }
+
+    const forwardAmount = Number(forwardPressed) - Number(backPressed);
+    const rightAmount = Number(rightPressed) - Number(leftPressed);
+    if (forwardAmount !== 0 || rightAmount !== 0) {
+      const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+      const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+      const movement = forward.multiplyScalar(forwardAmount).addScaledVector(right, rightAmount);
+      movement.normalize().multiplyScalar(this.panSpeed * dt);
+      this.desiredTarget.add(movement);
+      this.desiredTarget.x = THREE.MathUtils.clamp(this.desiredTarget.x, -this.arenaLimit, this.arenaLimit);
+      this.desiredTarget.z = THREE.MathUtils.clamp(this.desiredTarget.z, -this.arenaLimit, this.arenaLimit);
+    }
+
+    this.updateDesiredPositionFromOrbit();
   }
 
   public shake(amount: number): void {
@@ -116,5 +177,25 @@ export class StadiumCamera {
 
     this.camera.position.copy(this.currentPos).add(this.shakeOffset);
     this.camera.lookAt(this.currentTarget);
+  }
+
+  private syncOrbitFromDesired(): void {
+    const offset = this.desiredPos.clone().sub(this.desiredTarget);
+    this.distance = THREE.MathUtils.clamp(offset.length(), this.minDistance, this.maxDistance);
+    this.yaw = Math.atan2(offset.x, offset.z);
+    this.pitch = THREE.MathUtils.clamp(
+      Math.asin(offset.y / this.distance),
+      this.minPitch,
+      this.maxPitch,
+    );
+  }
+
+  private updateDesiredPositionFromOrbit(): void {
+    const horizontalDistance = Math.cos(this.pitch) * this.distance;
+    this.desiredPos.set(
+      Math.sin(this.yaw) * horizontalDistance,
+      Math.sin(this.pitch) * this.distance,
+      Math.cos(this.yaw) * horizontalDistance,
+    ).add(this.desiredTarget);
   }
 }
