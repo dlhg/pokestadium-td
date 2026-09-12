@@ -18,6 +18,7 @@ import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
 import { mapPreview } from './MapPreview';
 import { BallType, CaptureHud } from './CaptureSequence';
 import type { MilestoneReward } from './WaveManager';
+import { TrophyModelView } from './TrophyModelView';
 import './map-select.css';
 
 /** What the roster hint says about the spot the cursor is currently over. */
@@ -91,6 +92,7 @@ export class StadiumUI {
   private cinemaEl!: HTMLElement;
   private cinemaVerdict: string = '';
   private trophyTimer: number = 0;
+  private trophyView = new TrophyModelView();
 
   public onSelectTemplate: (template: TowerTemplate | null) => void = () => {};
   public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
@@ -249,6 +251,17 @@ export class StadiumUI {
         #capture-trophy .trophy-moves { display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(246,196,55,.35); padding-top:9px; }
         #capture-trophy .trophy-move { display:flex; justify-content:space-between; gap:18px; font-size:12px; letter-spacing:.6px; color:#cfe3ff; }
         #capture-trophy .trophy-move em { color:#8faecf; font-style:normal; font-size:10px; letter-spacing:1.4px; }
+        #capture-trophy.has-model { display:flex; align-items:center; gap:18px; }
+        #capture-trophy .trophy-stage {
+          flex:0 0 150px; height:176px; overflow:hidden; border:2px solid rgba(246,196,55,.55);
+          background:radial-gradient(ellipse at 50% 88%, rgba(246,196,55,.4) 0 22%, transparent 48%), radial-gradient(circle at 50% 40%, #2a5596 0%, #0b1d3c 72%);
+          box-shadow:inset 0 0 22px rgba(0,0,0,.6);
+        }
+        #capture-trophy .trophy-canvas { display:block; width:100%; height:100%; transform:skew(6deg) scale(1.12); }
+        @media (max-width: 480px) {
+          #capture-trophy.has-model { flex-direction:column; gap:10px; min-width:0; width:min(88vw,330px); }
+          #capture-trophy .trophy-stage { flex-basis:auto; width:100%; height:150px; }
+        }
 
         /* Defeat: the only screen that stops a run. */
         #defeat-screen {
@@ -1468,6 +1481,8 @@ export class StadiumUI {
       ...(Object.entries(milestone.balls) as [BallType, number][]).map(([ball, count]) =>
         `<div class="trophy-move"><span>+${count} ${ballNames[ball]}${count > 1 ? 'S' : ''}</span><em>CAPTURE KIT</em></div>`),
     ].join('');
+    this.trophyView.hide();
+    card.classList.remove('has-model');
     card.innerHTML = `
       <div class="trophy-kicker">ROUND ${milestone.round} CLEARED</div>
       <div class="trophy-name">${milestone.label}</div>
@@ -1502,14 +1517,23 @@ export class StadiumUI {
       return `<div class="trophy-move"><span>${move ? move.name.toUpperCase() : line.label}</span><em>${line.label}</em></div>`;
     }).join('');
     card.innerHTML = `
-      <div class="trophy-kicker">ADDED TO YOUR ROSTER</div>
-      <div class="trophy-name">${template.name.toUpperCase()}</div>
-      <div class="trophy-type" style="background:${typeColor}">${template.type.toUpperCase()}</div>
-      <div class="trophy-moves">${moves}</div>
+      <div class="trophy-stage"></div>
+      <div class="trophy-copy">
+        <div class="trophy-kicker">ADDED TO YOUR ROSTER</div>
+        <div class="trophy-name">${template.name.toUpperCase()}</div>
+        <div class="trophy-type" style="background:${typeColor}">${template.type.toUpperCase()}</div>
+        <div class="trophy-moves">${moves}</div>
+      </div>
     `;
-    card.classList.add('shown');
+    card.querySelector('.trophy-stage')!.appendChild(this.trophyView.canvas);
+    card.classList.add('has-model', 'shown');
+    this.trophyView.show(template.name, template.createModel);
     window.clearTimeout(this.trophyTimer);
-    this.trophyTimer = window.setTimeout(() => card.classList.remove('shown'), 4200);
+    // Held a beat longer than the text-only cards so the send-out clip can land.
+    this.trophyTimer = window.setTimeout(() => {
+      card.classList.remove('shown');
+      this.trophyTimer = window.setTimeout(() => this.trophyView.hide(), 400);
+    }, 5200);
   }
 
   public update(state: UIState): void {
