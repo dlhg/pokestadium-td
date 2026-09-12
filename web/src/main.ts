@@ -43,8 +43,11 @@ window.addEventListener('DOMContentLoaded', () => {
       // Charizard on pedestal 1
       const ped1 = game.arena.pedestals[1];
       const t1 = new Tower(TOWER_TEMPLATES.charizard, ped1.id, ped1.position);
-      t1.upgrade(); // Charmeleon
-      t1.upgrade(); // Charizard!
+      t1.evolve(); // Charmeleon
+      t1.evolve(); // Charizard!
+      t1.buyUpgrade(0); // Flamethrower
+      t1.buyUpgrade(0); // Fire Blast — unlocked by the final evolution
+      t1.buyUpgrade(2); // Smokescreen
       game.renderer.scene.add(t1.group);
       game.towers.push(t1);
       ped1.occupied = true;
@@ -53,8 +56,10 @@ window.addEventListener('DOMContentLoaded', () => {
       // Blastoise on pedestal 3
       const ped3 = game.arena.pedestals[3];
       const t3 = new Tower(TOWER_TEMPLATES.blastoise, ped3.id, ped3.position);
-      t3.upgrade();
-      t3.upgrade(); // Blastoise!
+      t3.evolve();
+      t3.evolve(); // Blastoise!
+      t3.buyUpgrade(1); // Bite
+      t3.buyUpgrade(1); // Ice Beam
       game.renderer.scene.add(t3.group);
       game.towers.push(t3);
       ped3.occupied = true;
@@ -70,7 +75,11 @@ window.addEventListener('DOMContentLoaded', () => {
         const projected = previewPedestal.position.clone().project(game.camera.camera);
         input.mouseNDC.set(projected.x, projected.y);
       } else {
-        // Select Pikachu to showcase the Stadium Radial Command Wheel.
+        // Select Pikachu to showcase the move shop: one line part-bought, one
+        // untouched, and a top tier still locked behind evolution.
+        t0.buyUpgrade(0); // Thunderbolt
+        t0.buyUpgrade(2); // Thunder Wave
+        t0.buyUpgrade(2); // Flash
         game.selectedTower = t0;
         t0.setSelected(true);
       }

@@ -14,7 +14,7 @@ import { Input } from '../engine/Input';
 import { StadiumArena, PedestalSlot } from '../stadium/StadiumArena';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumUI } from './StadiumUI';
-import { Tower, TowerTemplate } from './Tower';
+import { Tower, TowerTemplate, TARGET_PRIORITIES } from './Tower';
 import { Creep } from './Creep';
 import { Projectile } from './Projectile';
 import { WaveManager } from './WaveManager';
@@ -87,18 +87,33 @@ export class StadiumTDGame {
       this.audio.playSelect();
     };
 
-    this.ui.onUpgradeTower = (tower) => {
-      const cost = tower.getUpgradeCost();
-      if (cost !== null && this.money >= cost) {
-        this.money -= cost;
-        const prevName = tower.name;
-        tower.upgrade();
-        this.audio.playDeploy();
-        this.camera.shake(0.2);
+    this.ui.onUpgradeTower = (tower, lineIdx) => {
+      const cost = tower.getUpgradeCost(lineIdx);
+      if (cost === null || tower.getUpgradeBlockReason(lineIdx) !== null) return;
+      if (this.money < cost) return;
 
-        if (tower.level === 3) {
-          this.announcer.trigger('tower_evolve', `${prevName} into ${tower.name}`);
-        }
+      this.money -= cost;
+      tower.buyUpgrade(lineIdx);
+      this.audio.playDeploy();
+      this.camera.shake(0.2);
+    };
+
+    this.ui.onEvolveTower = (tower) => {
+      const next = tower.getNextEvolution();
+      if (!next || this.money < next.cost) return;
+
+      this.money -= next.cost;
+      const prevName = tower.name;
+      tower.evolve();
+      this.audio.playDeploy();
+      this.camera.shake(0.35);
+      this.announcer.trigger('tower_evolve', `${prevName} into ${tower.name}`);
+    };
+
+    this.ui.onDeselectTower = () => {
+      if (this.selectedTower) {
+        this.selectedTower.setSelected(false);
+        this.selectedTower = null;
       }
     };
 
@@ -112,9 +127,9 @@ export class StadiumTDGame {
       }
     };
 
-    this.ui.onChangeTargetPriority = (tower) => {
-      const modes: ('first' | 'last' | 'strongest' | 'weakest')[] = ['first', 'strongest', 'weakest', 'last'];
-      const nextIdx = (modes.indexOf(tower.targetPriority) + 1) % modes.length;
+    this.ui.onChangeTargetPriority = (tower, dir) => {
+      const modes = TARGET_PRIORITIES;
+      const nextIdx = (modes.indexOf(tower.targetPriority) + dir + modes.length) % modes.length;
       tower.targetPriority = modes[nextIdx];
       this.audio.playSelect();
     };
@@ -246,7 +261,7 @@ export class StadiumTDGame {
     const color = canAfford ? 0x00f0ff : 0xd90429;
     if (this.placementPreviewTemplateId !== template.id) {
       this.placementPreview.clear();
-      const range = MOVES[template.initialMoveId].range;
+      const range = MOVES[template.lines[0].tiers[0].moveId].range;
 
       const rangeFill = new THREE.Mesh(
         new THREE.CircleGeometry(range, 64),
@@ -322,24 +337,24 @@ export class StadiumTDGame {
 
     // Update Towers
     this.towers.forEach(tower => {
-      tower.update(dt, this.creeps, (t, target) => {
+      tower.update(dt, this.creeps, (t, target, move) => {
         // Fire attack!
-        this.audio.playAttack(t.currentMove.fxType);
+        this.audio.playAttack(move.fxType);
 
-        if (t.currentMove.fxType === 'hyper_beam') {
+        if (move.fxType === 'hyper_beam') {
           // Instant beam attack
           const start = t.position.clone().add(new THREE.Vector3(0, 1.5, 0));
           const end = target.position.clone().add(new THREE.Vector3(0, 1.0, 0));
           this.particles.emitBeam(start, end, 0xffffff, 0.6, 0.35);
           this.camera.triggerActionCam(target.position, 1.6);
-          const multiplier = getCombinedEffectiveness(t.currentMove.type, target.types);
-          const died = target.takeDamage(Math.floor(t.currentMove.basePower * multiplier));
+          const multiplier = move.ignoresType ? 1 : getCombinedEffectiveness(move.type, target.types);
+          const died = target.takeDamage(Math.floor(move.basePower * multiplier));
           if (died) this.handleCreepDefeat(target);
           this.audio.playHit(multiplier >= 2);
           if (multiplier >= 2) this.announcer.trigger('super_effective');
         } else {
           // Projectile attack
-          const proj = new Projectile(t.currentMove, t.position, target, this.renderer.scene);
+          const proj = new Projectile(move, t.position, target, this.renderer.scene);
           this.projectiles.push(proj);
         }
       });
@@ -405,11 +420,6 @@ export class StadiumTDGame {
     }
 
     // Update UI
-    let screenPos: { x: number; y: number; visible: boolean } | undefined;
-    if (this.selectedTower) {
-      screenPos = this.renderer.toScreenXY(this.selectedTower.position, this.camera.camera);
-    }
-
     this.ui.update(
       {
         money: this.money,
@@ -422,8 +432,7 @@ export class StadiumTDGame {
         cameraMode: this.camera.mode,
         selectedTower: this.selectedTower,
         selectedTemplate: this.selectedTemplate,
-      },
-      screenPos
+      }
     );
   }
 
