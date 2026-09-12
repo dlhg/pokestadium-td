@@ -185,9 +185,9 @@ export class StadiumUI {
 
         /* ---- Capture cinematic overlay ---- */
         /* Gameplay chrome recedes so the ball owns the screen. */
-        #top-bar, #controls-bar, #card-deck, #tower-panel, #course-info, #poke-mart, #capture-hint { transition:opacity .28s ease, filter .28s ease; }
+        #top-bar, #controls-bar, #card-deck, #tower-panel, #poke-mart, #capture-hint { transition:opacity .28s ease, filter .28s ease; }
         .cinema-live #top-bar, .cinema-live #controls-bar, .cinema-live #card-deck,
-        .cinema-live #tower-panel, .cinema-live #course-info, .cinema-live #poke-mart,
+        .cinema-live #tower-panel, .cinema-live #poke-mart,
         .cinema-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
         .cinema-live #announcer-banner { display:none !important; }
         #capture-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .18s ease; }
@@ -467,7 +467,7 @@ export class StadiumUI {
         /* Announcer Banner */
         #announcer-banner {
           position: absolute;
-          top: 68px;
+          top: 143px;
           left: 50%;
           transform: translateX(-50%);
           pointer-events: none;
@@ -495,7 +495,6 @@ export class StadiumUI {
            ------------------------------------------------------------------ */
         #tower-panel {
           position: absolute;
-          /* Clears the announcer banner, which drops in at 68px. */
           top: 122px;
           right: 176px;
           width: 312px;
@@ -1081,7 +1080,6 @@ export class StadiumUI {
       <!-- Tower Purchase Roster -->
       <div id="card-deck" class="stadium-panel interactive"></div>
 
-      <div id="course-info"><strong id="course-name"></strong><span id="course-strategy"></span></div>
       <div id="capture-hint"></div>
 
       <div id="pause-screen" class="interactive" hidden>
@@ -1160,7 +1158,7 @@ export class StadiumUI {
     const chooser=this.container.querySelector<HTMLElement>('#map-select')!;
     chooser.style.display=visible?'grid':'none';
     this.container.classList.toggle('map-select-open',visible);
-    ['top-bar','controls-bar','card-deck','tower-panel','course-info','poke-mart','capture-hint'].forEach(id=>{
+    ['top-bar','controls-bar','card-deck','tower-panel','poke-mart','capture-hint'].forEach(id=>{
       this.container.querySelector<HTMLElement>(`#${id}`)!.inert=visible;
     });
     this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
@@ -1599,8 +1597,6 @@ export class StadiumUI {
 
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
-    document.getElementById('course-name')!.innerText=state.mapName.toUpperCase();
-    document.getElementById('course-strategy')!.innerText=state.mapStrategy;
     [1,2,3].forEach(speed => document.getElementById(`btn-speed-${speed}`)!.classList.toggle('active',state.gameSpeed===speed));
     ['tactical','stadium','action'].forEach(mode => document.getElementById(`btn-cam-${mode}`)!.classList.toggle('active',state.cameraMode===mode));
 
