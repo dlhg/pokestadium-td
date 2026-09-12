@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AnimatedPokemon, PokemonAnimationState } from '../stadium/PokemonModels';
+import { SIZE_REFERENCE_SPECIES, worldScaleFor } from '../stadium/PokemonScale';
 
 interface ManifestAnimation {
   index: number;
@@ -15,6 +16,8 @@ interface ManifestPokemon {
   species: number;
   name: string;
   glb: string;
+  /** Idle footprint (twice the farthest horizontal reach) and height, in native units. */
+  size?: { footprint: number; height: number };
   animations: ManifestAnimation[];
 }
 
@@ -53,7 +56,12 @@ export class GLTFModelLoader {
     return name.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  public static async loadPokemonModel(name: string, targetHeight = 2.2): Promise<AnimatedPokemon | null> {
+  /**
+   * Loads a species at the shared world scale (see PokemonScale), so sizes stay
+   * relative to each other. Pass `fitHeight` to stretch it to a fixed height
+   * instead, for close-up displays that frame one Pokémon on its own.
+   */
+  public static async loadPokemonModel(name: string, fitHeight?: number): Promise<AnimatedPokemon | null> {
     const manifest = await this.loadManifest();
     const entry = manifest?.pokemon.find((pokemon) => pokemon.name.toLowerCase() === name.toLowerCase());
     if (!entry) return null;
@@ -85,8 +93,20 @@ export class GLTFModelLoader {
       });
 
       let bounds = new THREE.Box3().setFromObject(clonedScene);
-      const size = bounds.getSize(new THREE.Vector3());
-      const scale = targetHeight / Math.max(size.y, 0.001);
+      const boundsHeight = Math.max(bounds.getSize(new THREE.Vector3()).y, 0.001);
+      const reference = manifest!.pokemon.find((pokemon) => pokemon.name === SIZE_REFERENCE_SPECIES)?.size;
+      let scale: number;
+      let height: number;
+      if (fitHeight === undefined && entry.size && reference) {
+        scale = worldScaleFor(entry.size.footprint, reference.footprint);
+        height = entry.size.height * scale;
+      } else {
+        if (fitHeight === undefined) {
+          console.warn('[GLTFModelLoader] manifest.json has no model sizes; re-run web/tools/stadium_pipeline/build.py');
+        }
+        height = fitHeight ?? 2.2;
+        scale = height / boundsHeight;
+      }
       clonedScene.scale.multiplyScalar(scale);
       bounds = new THREE.Box3().setFromObject(clonedScene);
       clonedScene.position.y -= bounds.min.y;
@@ -123,6 +143,7 @@ export class GLTFModelLoader {
 
       return {
         mesh: rootGroup,
+        height,
         parts,
         mixer,
         actions,

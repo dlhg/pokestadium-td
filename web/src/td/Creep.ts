@@ -12,6 +12,8 @@ import { StatusEffectType } from '../stadium/MoveDatabase';
 
 /** A 0.4 grade stair roughly halves a creep's pace. */
 const CLIMB_SLOWDOWN = 2.6;
+/** Gap between the top of a loaded model and its HP bar. */
+const HP_BAR_CLEARANCE = 0.7;
 
 export interface CreepConfig {
   id: string;
@@ -117,22 +119,20 @@ export class Creep {
 
     this.group.add(this.animPokemon.mesh);
     if (this.threat === 'elite') {
-      this.group.scale.setScalar(1.35);
       this.addThreatAura(0x8ee7ff);
     } else if (this.threat === 'titan') {
-      this.group.scale.setScalar(1.8);
       this.addThreatAura(0xffc52b);
     }
 
     // Asynchronously load authentic GLB model & animations
     const modelName = (config.modelName || config.name).toLowerCase()
       .replace('titan ', '').replace('boss ', '').trim();
-    const targetHeight = this.threat === 'titan' ? 2.5 : 1.6;
-    PokemonModelFactory.loadAuthenticModel(modelName, targetHeight, () => this.animPokemon).then((loaded) => {
+    PokemonModelFactory.loadAuthenticModel(modelName, undefined, () => this.animPokemon).then((loaded) => {
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
         this.group.remove(this.animPokemon.mesh);
         this.animPokemon = loaded;
         this.group.add(this.animPokemon.mesh);
+        if (loaded.height !== undefined) this.hpSprite.position.y = loaded.height + HP_BAR_CLEARANCE;
       }
     });
 
@@ -155,13 +155,15 @@ export class Creep {
       depthTest: false,
     });
     this.hpSprite = new THREE.Sprite(spriteMat);
+    // Models share one world scale now, so threat tiers only enlarge their HUD.
+    const hudScale = this.threat === 'titan' ? 1.8 : this.threat === 'elite' ? 1.35 : 1;
     const barHeight = this.threat === 'titan' ? 3.8 : this.threat === 'elite' ? 2.9 : 2.6;
-    this.hpSprite.position.set(0, barHeight, 0);
-    this.hpSprite.scale.set(this.threat === 'titan' ? 4.0 : this.threat === 'elite' ? 3.0 : 2.5, this.isBoss ? 1.0 : 0.65, 1);
+    this.hpSprite.position.set(0, barHeight * hudScale, 0);
+    this.hpSprite.scale.set((this.threat === 'titan' ? 4.0 : this.threat === 'elite' ? 3.0 : 2.5) * hudScale, (this.isBoss ? 1.0 : 0.65) * hudScale, 1);
     this.group.add(this.hpSprite);
 
     this.captureRing = new THREE.Mesh(
-      new THREE.RingGeometry(0.9, 1.05, 24),
+      new THREE.RingGeometry(0.9 * hudScale, 1.05 * hudScale, 24),
       new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
     );
     this.captureRing.rotation.x = -Math.PI / 2;
@@ -204,7 +206,7 @@ export class Creep {
   public cancelCapture(): void {
     this.captureLocked = false;
     this.group.visible = true;
-    this.group.scale.setScalar(this.threat === 'titan' ? 1.8 : this.threat === 'elite' ? 1.35 : 1);
+    this.group.scale.setScalar(1);
     this.hpSprite.visible = true;
   }
 
@@ -391,11 +393,11 @@ export class Creep {
 
   private addThreatAura(color: number): void {
     const aura = new THREE.Mesh(
-      new THREE.TorusGeometry(this.threat === 'titan' ? 1.25 : 0.88, 0.05, 6, 24),
+      new THREE.TorusGeometry(this.threat === 'titan' ? 2.25 : 1.19, this.threat === 'titan' ? 0.09 : 0.07, 6, 24),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false })
     );
     aura.rotation.x = Math.PI / 2;
-    aura.position.y = 0.08;
+    aura.position.y = this.threat === 'titan' ? 0.14 : 0.11;
     this.group.add(aura);
     this.threatAura = aura;
   }

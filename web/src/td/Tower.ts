@@ -429,10 +429,9 @@ export class Tower {
 
   private loadAuthenticModel(): void {
     const generation = ++this.modelLoadGeneration;
-    const targetHeight = [1.9, 2.2, 2.6][Math.min(this.evolutionStage, 2)];
     const modelName = this.name.toLowerCase();
 
-    PokemonModelFactory.loadAuthenticModel(modelName, targetHeight, () => this.template.createModel()).then((loaded) => {
+    PokemonModelFactory.loadAuthenticModel(modelName, undefined, () => this.template.createModel()).then((loaded) => {
       if (generation !== this.modelLoadGeneration) return;
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
         this.group.remove(this.animPokemon.mesh);
