@@ -75,7 +75,10 @@ export function resolveMoveHit(
 
     const died = victim.takeDamage(Math.floor(move.basePower * multiplier * mods.damage), source);
 
-    if (!died && move.statusEffect !== 'none' && Math.random() < Math.min(1, move.statusChance * mods.status)) {
+    // Elemental immunity blocks the whole move, including its secondary
+    // effect. A capture target is also protected from splash while locked.
+    if (!died && multiplier > 0 && !victim.captureLocked && move.statusEffect !== 'none'
+      && Math.random() < Math.min(1, move.statusChance * mods.status)) {
       victim.applyStatus(move.statusEffect, move.statusDuration * mods.status, source);
     }
 

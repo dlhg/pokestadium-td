@@ -245,7 +245,7 @@ export class StadiumTDGame {
     this.finishMatch();
     this.map = map;
     this.clearSelection();
-    this.towers.forEach(tower => this.renderer.scene.remove(tower.group));
+    this.towers.forEach(tower => tower.destroy(this.renderer.scene));
     this.creeps.forEach(creep => creep.destroy(this.renderer.scene));
     this.projectiles.forEach(projectile => projectile.destroy(this.renderer.scene));
     this.towers = [];
@@ -305,7 +305,7 @@ export class StadiumTDGame {
   }
 
   private removeTower(tower: Tower): void {
-    this.renderer.scene.remove(tower.group);
+    tower.destroy(this.renderer.scene);
     this.towers = this.towers.filter(t => t.id !== tower.id);
   }
 
@@ -816,6 +816,9 @@ export class StadiumTDGame {
           this.clearSelection();
           const report = this.finishMatch();
           this.ui.showDefeat(this.map.name, this.waveManager.round, this.waveManager.winRound, report);
+          // Defeat is a single transition. Any other creeps that crossed on
+          // this frame are cleared by retry/loadMap and must not overwrite it.
+          break;
         }
       } else if (!c.alive && c.removalReady) {
         c.destroy(this.renderer.scene);

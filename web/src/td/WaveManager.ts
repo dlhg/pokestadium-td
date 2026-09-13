@@ -444,9 +444,9 @@ export class WaveManager {
     // Spawning active queue
     if (this.spawnQueue.length > 0) {
       this.spawnTimer -= dt;
-      if (this.spawnTimer <= 0) {
+      while (this.spawnQueue.length > 0 && this.spawnTimer <= 0) {
         const next = this.spawnQueue.shift()!;
-        this.spawnTimer = next.delay;
+        this.spawnTimer += next.delay;
         const creep = new Creep(next.config, this.routes[this.nextRoute]);
         this.nextRoute = (this.nextRoute + 1) % this.routes.length;
         onSpawn(creep);

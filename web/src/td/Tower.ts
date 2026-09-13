@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { AnimatedPokemon, PokemonModelFactory } from '../stadium/PokemonModels';
+import { AnimatedPokemon, disposePokemonModel, PokemonModelFactory } from '../stadium/PokemonModels';
 import { MoveDefinition, MOVES } from '../stadium/MoveDatabase';
 import { Creep } from './Creep';
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
@@ -62,6 +62,7 @@ export class Tower {
   /** Plays the freshly-evolved model's entrance clip instead of idle, briefly. */
   private entranceAnimTimer: number = 0;
   private modelLoadGeneration = 0;
+  private destroyed = false;
   public currentTarget: Creep | null = null;
 
   constructor(pokemon: OwnedPokemon, pos: THREE.Vector3) {
@@ -239,8 +240,12 @@ export class Tower {
     const modelName = this.formName.toLowerCase();
 
     PokemonModelFactory.loadAuthenticModel(modelName, undefined, () => this.species.createModel()).then((loaded) => {
-      if (generation !== this.modelLoadGeneration) return;
+      if (generation !== this.modelLoadGeneration || this.destroyed) {
+        disposePokemonModel(loaded);
+        return;
+      }
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
+        disposePokemonModel(this.animPokemon);
         this.group.remove(this.animPokemon.mesh);
         this.animPokemon = loaded;
         this.group.add(this.animPokemon.mesh);
@@ -263,6 +268,33 @@ export class Tower {
 
   public getSellValue(): number {
     return Math.floor(this.totalInvested * 0.7);
+  }
+
+  /** Releases resources owned by this placed tower. Shared extracted assets stay cached. */
+  public destroy(scene: THREE.Scene): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.modelLoadGeneration++;
+    scene.remove(this.group);
+    disposePokemonModel(this.animPokemon);
+    this.group.remove(this.animPokemon.mesh);
+    const disposedGeometries = new Set<THREE.BufferGeometry>();
+    const disposedMaterials = new Set<THREE.Material>();
+    this.group.traverse(object => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      if (!disposedGeometries.has(mesh.geometry)) {
+        mesh.geometry.dispose();
+        disposedGeometries.add(mesh.geometry);
+      }
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        if (!disposedMaterials.has(material)) {
+          material.dispose();
+          disposedMaterials.add(material);
+        }
+      }
+    });
   }
 
   public update(
@@ -292,13 +324,19 @@ export class Tower {
       const move = this.getActiveMove(i);
       if (!move) continue;
 
-      if (this.cooldowns[i] > 0) this.cooldowns[i] -= dt;
-
       const target = this.findTarget(creeps, move.range);
+      if (this.cooldowns[i] > 0) {
+        this.cooldowns[i] -= dt;
+        // Becoming ready with nobody in range is an idle state, not a bank of
+        // missed attacks to unleash when the next creep enters range.
+        if (!target && this.cooldowns[i] < 0) this.cooldowns[i] = 0;
+      }
       if (i === 0 || !primaryTarget) primaryTarget = primaryTarget ?? target;
 
       if (target && this.cooldowns[i] <= 0) {
-        this.cooldowns[i] = 1.0 / (move.attackSpeed * this.modifiers.rate);
+        // Add the interval to the overdue deadline so a slow frame does not
+        // permanently lower this line's attack rate by discarding overshoot.
+        this.cooldowns[i] += 1.0 / (move.attackSpeed * this.modifiers.rate);
         this.isAttackingAnim = true;
         this.attackAnimTimer = 0.35;
         this.animPokemon.playMove?.(move.name);

@@ -57,6 +57,7 @@ export class StadiumArena {
   private jumbotronCanvas: HTMLCanvasElement;
   private jumbotronCtx: CanvasRenderingContext2D;
   private jumbotronTexture: THREE.CanvasTexture;
+  private jumbotronSignature = '';
   private crowdMaterial: THREE.ShaderMaterial | null = null;
   private crowdMood: number = 0;
   private targetCrowdMood: number = 0;
@@ -488,6 +489,9 @@ export class StadiumArena {
   }
 
   public updateJumbotron(title: string, subtitle: string, wave: number): void {
+    const signature = `${title}\u0000${subtitle}\u0000${wave}`;
+    if (signature === this.jumbotronSignature) return;
+    this.jumbotronSignature = signature;
     const ctx = this.jumbotronCtx;
     const w = this.jumbotronCanvas.width;
     const h = this.jumbotronCanvas.height;
