@@ -16,6 +16,7 @@ export class TrophyModelView {
   private renderer: THREE.WebGLRenderer | null = null;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  private cameraTarget = new THREE.Vector3();
   private pivot = new THREE.Group();
   private pokemon: AnimatedPokemon | null = null;
   private generation = 0;
@@ -36,7 +37,10 @@ export class TrophyModelView {
     rim.position.set(-4, 3, -4);
     this.scene.add(rim);
     this.scene.add(this.pivot);
-    this.frameCamera(MODEL_HEIGHT);
+    this.frameCamera(new THREE.Box3(
+      new THREE.Vector3(-MODEL_HEIGHT * .5, 0, -MODEL_HEIGHT * .5),
+      new THREE.Vector3(MODEL_HEIGHT * .5, MODEL_HEIGHT, MODEL_HEIGHT * .5),
+    ));
   }
 
   /** Loads the species onto the stage and starts the entrance → idle loop. */
@@ -48,11 +52,12 @@ export class TrophyModelView {
       if (generation !== this.generation) return;
       this.pokemon = loaded;
       this.pivot.add(loaded.mesh);
-      this.frameCamera(new THREE.Box3().setFromObject(loaded.mesh).getSize(new THREE.Vector3()).y || MODEL_HEIGHT);
       this.elapsed = 0;
       const entrance = loaded.actions?.entrance;
       this.entranceEnds = entrance ? entrance.getClip().duration : 0;
       loaded.update(0, 0, entrance ? 'entrance' : 'idle');
+      loaded.mesh.updateMatrixWorld(true);
+      this.frameCamera(new THREE.Box3().setFromObject(loaded.mesh, true));
     });
   }
 
@@ -99,14 +104,25 @@ export class TrophyModelView {
       // Face the viewer through the send-out, then a gentle showcase sway.
       const sway = Math.max(0, this.elapsed - this.entranceEnds);
       this.pivot.rotation.y = Math.sin(sway * 0.9) * 0.45 * Math.min(1, sway);
+      // Stadium's flying clips translate the rig much farther than its bind
+      // pose. Frame the posed vertices so Pidgey stays inside the showcase
+      // through the entrance-to-idle transition as well.
+      this.pokemon.mesh.updateMatrixWorld(true);
+      this.frameCamera(new THREE.Box3().setFromObject(this.pokemon.mesh, true));
     }
     renderer.render(this.scene, this.camera);
   }
 
-  private frameCamera(height: number): void {
-    const distance = (height * 0.62) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    this.camera.position.set(0, height * 0.62, distance);
-    this.camera.lookAt(0, height * 0.48, 0);
+  private frameCamera(bounds: THREE.Box3): void {
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    const height = size.y || MODEL_HEIGHT;
+    const width = Math.max(size.x, size.z);
+    const framingHeight = Math.max(height, width / Math.max(this.camera.aspect, .01)) * 1.18;
+    const distance = (framingHeight * .5) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    this.cameraTarget.copy(center);
+    this.camera.position.set(center.x, center.y, center.z + distance);
+    this.camera.lookAt(this.cameraTarget);
   }
 
   private clearModel(): void {
