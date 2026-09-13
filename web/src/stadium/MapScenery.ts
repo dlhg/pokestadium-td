@@ -78,13 +78,25 @@ export function buildMapGround(map: StadiumMap, terrain: MapTerrain, routes: THR
   for (const bridge of map.bridges) {
     const wood = material('#b78e60'), darkWood=material('#624a35');
     const deck = new THREE.Group(); deck.position.set(bridge.x,terrain.heightAt(bridge.x,bridge.z),bridge.z); group.add(deck);
-    for (let x=-bridge.width/2+0.3;x<bridge.width/2;x+=0.65) {
-      mesh(deck,new THREE.BoxGeometry(0.6,0.16,bridge.depth),wood,x,0.42,0);
+    const halfWidth = bridge.width/2;
+    const archY = (x: number) => bridge.rise ? bridge.rise*(1-(x/halfWidth)**2) : 0;
+    for (let x=-halfWidth+0.3;x<halfWidth;x+=0.65) {
+      mesh(deck,new THREE.BoxGeometry(0.6,0.16,bridge.depth),wood,x,0.42+archY(x),0);
     }
     for (const side of [-1,1]) {
-      mesh(deck,new THREE.BoxGeometry(bridge.width,0.16,0.16),darkWood,0,1,side*bridge.depth/2);
-      for (const x of [-bridge.width/2,0,bridge.width/2]) {
-        mesh(deck,new THREE.CylinderGeometry(0.14,0.19,1.25,6),darkWood,x,0.65,side*bridge.depth/2);
+      const zSide = side*bridge.depth/2;
+      if (bridge.rise) {
+        const curve = new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(-halfWidth,1,zSide),
+          new THREE.Vector3(0,1+bridge.rise,zSide),
+          new THREE.Vector3(halfWidth,1,zSide),
+        );
+        mesh(deck,new THREE.TubeGeometry(curve,16,0.08,6,false),darkWood);
+      } else {
+        mesh(deck,new THREE.BoxGeometry(bridge.width,0.16,0.16),darkWood,0,1,zSide);
+      }
+      for (const x of [-halfWidth,0,halfWidth]) {
+        mesh(deck,new THREE.CylinderGeometry(0.14,0.19,1.25,6),darkWood,x,0.65+archY(x),zSide);
       }
     }
   }

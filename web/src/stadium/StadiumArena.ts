@@ -14,6 +14,7 @@ import { DEFAULT_STADIUM_MAP, type MapObstacle, type StadiumMap } from '../td/Ma
 import { mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
 import { LANE_RIDE_HEIGHT, MapTerrain } from '../td/MapTerrain';
 import { buildMapGround, buildMapObstacle, disposeScenery } from './MapScenery';
+import { StadiumBackdrop } from './StadiumBackdrop';
 
 export type BuildBlockReason = MapBuildBlock;
 export type NoBuildZone = MapObstacle;
@@ -26,6 +27,10 @@ type CrowdMember = {
   facing: number;
   scale: number;
 };
+
+/** No-show rate re-rolled per match so the stands never look identical twice. */
+const EMPTY_SEAT_RATE_MIN = 0.08;
+const EMPTY_SEAT_RATE_MAX = 0.15;
 
 type CrowdBatch = {
   atlasCell: THREE.InstancedBufferAttribute;
@@ -46,6 +51,7 @@ export class StadiumArena {
   private environmentGroup = new THREE.Group();
   private gameplayGroup = new THREE.Group();
   private noBuildGroup = new THREE.Group();
+  private backdrop: StadiumBackdrop;
 
   // Jumbotron dynamic canvas textures
   private jumbotronCanvas: HTMLCanvasElement;
@@ -55,6 +61,8 @@ export class StadiumArena {
   private crowdMood: number = 0;
   private targetCrowdMood: number = 0;
   private crowdBatches: CrowdBatch[] = [];
+  /** Re-rolled per arena instance so empty seats land somewhere new each level. */
+  private emptySeatRate: number = EMPTY_SEAT_RATE_MIN + Math.random() * (EMPTY_SEAT_RATE_MAX - EMPTY_SEAT_RATE_MIN);
 
   constructor(map: StadiumMap = DEFAULT_STADIUM_MAP) {
     this.map = map;
@@ -72,12 +80,14 @@ export class StadiumArena {
     this.jumbotronCanvas.height = 256;
     this.jumbotronCtx = this.jumbotronCanvas.getContext('2d')!;
     this.jumbotronTexture = new THREE.CanvasTexture(this.jumbotronCanvas);
+    this.backdrop = new StadiumBackdrop(map);
 
     this.initArena();
     this.setNoBuildZones(map.obstacles);
   }
 
   private initArena(): void {
+    this.environmentGroup.add(this.backdrop.group);
     this.environmentGroup.add(new THREE.HemisphereLight(0xe6f1ff, 0x647557, 1.1));
     this.environmentGroup.add(buildMapGround(this.map,this.terrain,this.routes));
     this.buildTrackPath();
@@ -160,6 +170,31 @@ export class StadiumArena {
   }
 
   private buildGrandstands(): void {
+    // The crowd art is intentionally alpha-cutout, and the stepped tiers have
+    // open air between their structural levels. Give the entire bowl a solid
+    // architectural back so a bright venue sky never shows through spectators
+    // or reads as transparent seating.
+    const bowlBacking = new THREE.Mesh(
+      // The lower extent is deliberately deep: from an elevated camera, a ray
+      // through the front row continues downward before reaching the far outer
+      // wall. A shallow facade therefore still exposes the sky beneath tier 1.
+      new THREE.CylinderGeometry(56.35, 56.35, 70, 64, 1, true),
+      new THREE.MeshLambertMaterial({ color: 0x101d30, side: THREE.DoubleSide }),
+    );
+    bowlBacking.position.y = -16;
+    bowlBacking.receiveShadow = true;
+    bowlBacking.name = 'opaque-grandstand-backing';
+    this.environmentGroup.add(bowlBacking);
+
+    const upperRim = new THREE.Mesh(
+      new THREE.TorusGeometry(56.3, 0.42, 6, 64),
+      new THREE.MeshLambertMaterial({ color: 0x6f8297 }),
+    );
+    upperRim.rotation.x = Math.PI / 2;
+    upperRim.position.y = 19;
+    upperRim.name = 'grandstand-upper-rim';
+    this.environmentGroup.add(upperRim);
+
     // 3 tiers of stadium seating
     const tiers = [
       { rInner: 36, rOuter: 42, y: 3.5, height: 3 },
@@ -256,7 +291,10 @@ export class StadiumArena {
       const seatY = tier.y + row * rowRise;
       dummy.position.set(Math.cos(angle) * radius, seatY + 0.92, Math.sin(angle) * radius);
       dummy.lookAt(0, dummy.position.y, 0);
-      const scale = 0.78 + this.crowdNoise(i * 7 + tier.y) * 0.2;
+      // A few seats are empty each match; scaling the card to nothing hides it
+      // without disturbing the instance count or the row/seat layout math.
+      const isEmpty = Math.random() < this.emptySeatRate;
+      const scale = isEmpty ? 0 : 0.78 + this.crowdNoise(i * 7 + tier.y) * 0.2;
       dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -391,6 +429,7 @@ export class StadiumArena {
   }
 
   public update(time: number, cameraPosition: THREE.Vector3, dt: number = 0.016): void {
+    this.backdrop.update(time);
     this.crowdMood = THREE.MathUtils.damp(this.crowdMood, this.targetCrowdMood, 5, dt);
     if (this.crowdMaterial) {
       this.crowdMaterial.uniforms.time.value = time;

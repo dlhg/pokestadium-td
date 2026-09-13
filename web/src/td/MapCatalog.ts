@@ -10,7 +10,8 @@ export interface MapObstacle {
 }
 /** Water surface sits at `height` (default 0), so springs can pool on a terrace. */
 export interface WaterRegion { points: MapPoint[]; height?: number; }
-export interface MapBridge { x: number; z: number; width: number; depth: number; }
+/** `rise` optionally bows the deck into a gentle arc, peaking at its midpoint. */
+export interface MapBridge { x: number; z: number; width: number; depth: number; rise?: number; }
 
 /** A flat-topped terrace. Outside its outline the ground falls away as a cliff. */
 export interface MapPlateau { points: MapPoint[]; height: number; label: string; }
@@ -151,9 +152,15 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ]],
     water:[
       { points:[[-6,9],[-2,9],[-1,15],[1,21],[0.5,30],[1.5,37],[-5,37],[-5,30],[-4.5,22],[-6.5,15]] },
-      { height:TIER_ROUTE_23, points:[[-6.4,5.4],[-4.5,4.8],[-2.6,5.2],[-1.8,6.8],[-2.2,8.4],[-6.4,8.4],[-7,6.8]] },
+      // Spring-fed pool at the base of the summit cliff, catching the first drop.
+      { height:TIER_BADGE_CHECK, points:[[-10,-21.6],[-8.3,-22],[-6.2,-21.5],[-6,-20],[-7.7,-19.3],[-10,-19.7]] },
+      // The river down Route 23, fed by the second drop, crossing the road on its way to the falls.
+      { height:TIER_ROUTE_23, points:[[-7.4,-4],[-7.6,-2],[-7.2,1],[-6.8,5],[-6.4,8.4],[-2.2,8.4],[-2.6,6],[-3,2.5],[-3.6,-1.8],[-5.2,-4.2]] },
     ],
-    bridges:[{ x:-2, z:27, width:9, depth:3.8 }],
+    bridges:[
+      { x:-2, z:27, width:9, depth:3.8, rise:0.9 },
+      { x:-5, z:2.5, width:5.5, depth:3.5 },
+    ],
     obstacles:[
       { x:-24, z:12, radius:2.6, label:'Viridian pines', style:'pine' },
       { x:7, z:17, radius:2.3, label:'Strength boulder', style:'boulder' },
@@ -173,6 +180,10 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ],
     decor:[
       { kind:'cave', x:-30, z:16.3, angle:0.86 },
+      // The river's source: a spring in the summit's cliff face, cascading down through both lower terraces.
+      { kind:'cave', x:-8, z:-23.6, angle:0 },
+      { kind:'waterfall', x:-8, z:-23.6, angle:0, width:2.6, top:TIER_SUMMIT, drop:TIER_SUMMIT-TIER_BADGE_CHECK },
+      { kind:'waterfall', x:-6.3, z:-4.7, angle:0, width:2.8, top:TIER_BADGE_CHECK, drop:TIER_BADGE_CHECK-TIER_ROUTE_23 },
       { kind:'waterfall', x:-4.2, z:8.4, angle:0, width:3.4, top:TIER_ROUTE_23, drop:TIER_ROUTE_23 },
       { kind:'arch', x:8.4, z:25.4, angle:-1.218, span:8.1, text:'BADGE CHECK' },
       { kind:'arch', x:0, z:-28, angle:0, span:7.2, text:'INDIGO PLATEAU' },
