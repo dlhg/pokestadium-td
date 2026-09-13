@@ -261,13 +261,16 @@ export class TrainerScreens {
       const team = data.team.map(uid => (uid ? this.store.get(uid) : null));
       const teamCount = team.filter(Boolean).length;
       this.root.querySelector('.tr-slots')!.innerHTML = team.map((pokemon, slot) => pokemon
-        ? `<button class="tr-slot filled" data-slot="${slot}" data-drop-slot="${slot}" data-drag-uid="${pokemon.uid}" draggable="true" title="Click to remove · drag to swap" style="${typeArtStyle(formOf(pokemon).type)}">
-            <span class="tr-model" data-model="${formOf(pokemon).name}" data-species="${pokemon.speciesId}"></span>
-            <span class="tr-slot-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
-            <span class="tr-slot-meta">LV ${pokemon.level}</span>
-            <span class="tr-slot-types">${typeChips(pokemon)}</span>
-            ${xpBar(pokemon)}
-          </button>`
+        ? `<div class="tr-slot filled" data-drop-slot="${slot}" data-drag-uid="${pokemon.uid}" draggable="true" style="${typeArtStyle(formOf(pokemon).type)}">
+            <button class="tr-slot-main" data-slot="${slot}" title="Click to remove · drag to swap">
+              <span class="tr-model" data-model="${formOf(pokemon).name}" data-species="${pokemon.speciesId}"></span>
+              <span class="tr-slot-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
+              <span class="tr-slot-meta">LV ${pokemon.level}</span>
+              <span class="tr-slot-types">${typeChips(pokemon)}</span>
+              ${xpBar(pokemon)}
+            </button>
+            <button class="tr-info stadium-btn" data-info="${pokemon.uid}" title="Summary">INFO</button>
+          </div>`
         : `<div class="tr-slot empty" data-drop-slot="${slot}"><span>SLOT ${slot + 1}</span></div>`).join('');
       this.mountModels(this.root.querySelector('.tr-slots')!);
       this.root.querySelector('[data-team-count]')!.textContent = `TEAM ${teamCount}/${TEAM_SIZE}`;
