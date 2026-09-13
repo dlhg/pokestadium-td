@@ -24,6 +24,8 @@ export class StadiumAnnouncer {
     victory: { cooldown: 0, chance: 1 }, game_over: { cooldown: 0, chance: 1 },
     tower_evolve: { cooldown: 15_000, chance: 0.6 }, wave_cleared: { cooldown: 22_000, chance: 0.2 },
     capture_throw: { cooldown: 0, chance: 1 },
+    trait_airborne: { cooldown: 0, chance: 1 }, trait_phantom: { cooldown: 0, chance: 1 },
+    trait_armored: { cooldown: 0, chance: 1 },
     capture_success: { cooldown: 0, chance: 1 }, capture_failed: { cooldown: 0, chance: 1 },
   };
   private static readonly originalVoiceClips: Partial<Record<string, number[]>> = {
@@ -123,6 +125,12 @@ export class StadiumAnnouncer {
           { text: "THE BOSS HAS BEEN TOPPLED! WHAT AN INCREDIBLE DEFENSE!", intensity: 'epic' },
           { text: "DOWN GOES THE TITAN!", intensity: 'epic' }
         ];
+      case 'trait_airborne':
+        return [{ text: "FLYERS INCOMING! GROUND ATTACKS WON'T TOUCH THEM!", intensity: 'high' }];
+      case 'trait_phantom':
+        return [{ text: "PHANTOMS! ONLY PSYCHIC AND GHOST POKÉMON CAN AIM AT THEM!", intensity: 'high' }];
+      case 'trait_armored':
+        return [{ text: "ARMORED FOES! LIGHT HITS BOUNCE OFF — BRING HEAVY MOVES!", intensity: 'high' }];
       case 'elite_spawn':
         return [{ text: `AN ELITE ${detail || 'CHALLENGER'} JOINS THE ASSAULT!`, intensity: 'high' }];
       case 'elite_defeat':

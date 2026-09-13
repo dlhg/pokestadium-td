@@ -11,7 +11,7 @@ const result = await build({
       "export { Tower } from './src/td/Tower.ts';",
       "export { Creep } from './src/td/Creep.ts';",
       "export { Projectile } from './src/td/Projectile.ts';",
-      "export { resolveMoveHit } from './src/td/MoveDelivery.ts';",
+      "export { resolveMoveHit, collectVictims, hitDamage } from './src/td/MoveDelivery.ts';",
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
       "export { createPokemon, formOf, statsOf, TrainerStore } from './src/td/progression/TrainerStore.ts';",
       "export { xpForLevel } from './src/td/progression/Stats.ts';",
@@ -26,7 +26,7 @@ const result = await build({
   loader: { '.css': 'empty' },
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
-const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, MOVES,
+const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, MOVES,
   createPokemon, formOf, statsOf, TrainerStore, xpForLevel, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
@@ -88,7 +88,7 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, MOVES,
 {
   const statusApplications = [];
   const target = {
-    alive: true, captureLocked: false, types: ['Ground'], position: new THREE.Vector3(),
+    alive: true, captureLocked: false, types: ['Ground'], position: new THREE.Vector3(), hasTrait: () => false,
     takeDamage: () => false, applyStatus: effect => statusApplications.push(effect),
   };
   const context = {
@@ -190,4 +190,83 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, MOVES,
     'projectile remains pending while paused');
 }
 
-console.log('PASS: gameplay timing, capture, defeat, save repair, evolution, and pause regressions.');
+// Hit shapes decide who a move catches: a beam pierces its line, a cone its
+// arc, a field rings the caster and passes under anything Airborne.
+{
+  const creepAt = (x, z, traits = []) => ({
+    alive: true, captureLocked: false, position: new THREE.Vector3(x, 0, z),
+    hasTrait: trait => traits.includes(trait),
+  });
+  const geometry = { origin: new THREE.Vector3(), direction: new THREE.Vector3(1, 0, 0), reach: 12 };
+  const inLine = [creepAt(3, 0), creepAt(8, 0.8), creepAt(11, -1)];
+  const offLine = creepAt(6, 4);
+  const beyond = creepAt(14, 0);
+  const behind = creepAt(-3, 0);
+  const all = [...inLine, offLine, beyond, behind];
+
+  const beam = { ...MOVES.hydro_pump, delivery: 'beam', pierce: undefined };
+  assert.deepEqual(collectVictims(beam, inLine[0], all, geometry), inLine, 'beam pierces its whole line');
+  assert.deepEqual(collectVictims({ ...beam, pierce: 2 }, inLine[0], all, geometry), inLine.slice(0, 2),
+    'pierce stops after the nearest creeps');
+
+  const cone = { ...MOVES.flamethrower, delivery: 'cone', coneAngle: 90 };
+  const coneHits = collectVictims(cone, inLine[0], all, geometry);
+  assert.ok(coneHits.includes(offLine) && !coneHits.includes(behind) && !coneHits.includes(beyond),
+    'cone catches its arc out to reach');
+
+  const flyer = creepAt(0, 5, ['airborne']);
+  const field = { ...MOVES.earthquake, delivery: 'field' };
+  const fieldHits = collectVictims(field, inLine[0], [...all, flyer], geometry);
+  assert.ok(fieldHits.includes(behind) && !fieldHits.includes(flyer) && !fieldHits.includes(beyond),
+    'field rings the caster and misses Airborne creeps');
+}
+
+// Most towers can't aim at Phantoms; seers and untargeted moves can. Fields
+// never fire at Airborne creeps they would pass under.
+{
+  const ghost = { alive: true, captureLocked: false, position: new THREE.Vector3(2, 0, 0), pathProgress: 1,
+    hasTrait: trait => trait === 'phantom' };
+  const bird = { alive: true, captureLocked: false, position: new THREE.Vector3(3, 0, 0), pathProgress: 0,
+    hasTrait: trait => trait === 'airborne' };
+  const tower = (seesPhantoms) => ({ position: new THREE.Vector3(), targetPriority: 'first', seesPhantoms,
+    reachAgainst: range => range });
+  const find = (t, move, creeps) => Tower.prototype.findTarget.call(t, creeps, move);
+  assert.equal(find(tower(false), MOVES.ember, [ghost]), null, 'phantom is untargetable');
+  assert.equal(find(tower(true), MOVES.ember, [ghost]), ghost, 'psychic and ghost towers see phantoms');
+  assert.equal(find(tower(false), MOVES.toxic, [ghost]), ghost, 'auras reach phantoms');
+  assert.equal(find(tower(false), MOVES.earthquake, [bird]), null, 'fields ignore airborne');
+}
+
+// Armor halves Light hits only; fixed damage and Heavy moves land in full.
+{
+  const rock = { types: ['Normal'], hasTrait: trait => trait === 'armored' };
+  assert.equal(hitDamage(MOVES.quick_attack, rock).damage, MOVES.quick_attack.basePower * 0.5, 'light hit is halved');
+  assert.equal(hitDamage(MOVES.hyper_beam, rock).damage, MOVES.hyper_beam.basePower, 'heavy hit lands in full');
+  assert.equal(hitDamage(MOVES.seismic_toss, rock).damage, MOVES.seismic_toss.basePower, 'fixed damage is heavy');
+}
+
+// A creep holds one damage-over-time and one movement effect at once; sleep
+// breaks on a direct hit but not on a tick, and Titans are only ever slowed.
+{
+  const blank = (isBoss = false) => ({
+    alive: true, captureLocked: false, isBoss, maxHp: 100, hp: 100, contributors: new Map(),
+    damageStatus: null, movementStatus: null, updateHpBar() {}, credit() {},
+  });
+  const creep = blank();
+  Creep.prototype.applyStatus.call(creep, 'burn', 4);
+  Creep.prototype.applyStatus.call(creep, 'sleep', 3);
+  assert.equal(creep.damageStatus.effect, 'burn', 'burn survives a movement status');
+  assert.equal(creep.movementStatus.effect, 'sleep', 'sleep stacks alongside burn');
+  assert.equal(Creep.prototype.applyStatus.call(creep, 'freeze', 10), false, 'a slow cannot displace sleep');
+  Creep.prototype.takeDamage.call(creep, 1, null, true);
+  assert.equal(creep.movementStatus?.effect, 'sleep', 'a burn tick does not wake');
+  Creep.prototype.takeDamage.call(creep, 1);
+  assert.equal(creep.movementStatus, null, 'a direct hit wakes');
+
+  const titan = blank(true);
+  Creep.prototype.applyStatus.call(titan, 'stun', 4);
+  assert.deepEqual([titan.movementStatus.effect, titan.movementStatus.timer], ['freeze', 2],
+    'titans are slowed, briefly, instead of stopped');
+}
+
+console.log('PASS: gameplay timing, capture, defeat, save repair, evolution, pause, hit shape, armor, and status regressions.');

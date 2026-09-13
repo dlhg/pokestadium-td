@@ -194,7 +194,7 @@ window.addEventListener('DOMContentLoaded', () => {
         game.camera.camera.updateMatrixWorld(true);
         const projected = new THREE.Vector3(-9, TOWER_BASE_HEIGHT, 6).project(game.camera.camera);
         input.mouseNDC.set(projected.x, projected.y);
-      } else {
+      } else if (shot !== 'hit_shapes') {
         // Select Pikachu to showcase the move shop: one line part-bought, one
         // untouched, and a top tier still locked behind a level.
         t0.buyUpgrade(0); // Thunderbolt
@@ -225,6 +225,7 @@ window.addEventListener('DOMContentLoaded', () => {
         id: 'demo_2',
         name: 'Zubat',
         type: 'Poison',
+        secondaryType: 'Flying',
         maxHp: 120,
         speed: 5.0,
         reward: 20,
@@ -263,6 +264,20 @@ window.addEventListener('DOMContentLoaded', () => {
 
       if (shot === 'stadium_overview') {
         game.camera.setMode('stadium');
+      } else if (shot === 'hit_shapes') {
+        // Trait badges and shaped attacks mid-flight: run the fight briefly, then freeze.
+        game.camera.setMode('stadium');
+        // Park the demo creeps inside the towers' reach so every shape has something to catch.
+        [[-4, -3], [3, -3], [2, 3], [7, -10]].forEach(([x, z], i) => {
+          const creep = [c1, c2, c3, c4][i];
+          creep.position.set(x, game.arena.terrain.raycast(new THREE.Ray(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0)))?.y ?? 0, z);
+          creep.group.position.copy(creep.position);
+        });
+        window.setTimeout(() => {
+          game.isPaused = false;
+          for (let frame = 0; frame < 24; frame++) game.update(1 / 60, input);
+          frozenShot = true;
+        }, 1500);
       } else if (shot === 'action_cam') {
         game.camera.setMode('action');
       } else if (shot === 'pause') {
