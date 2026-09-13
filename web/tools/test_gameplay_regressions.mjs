@@ -11,6 +11,8 @@ const result = await build({
       "export { Tower } from './src/td/Tower.ts';",
       "export { Creep } from './src/td/Creep.ts';",
       "export { Projectile } from './src/td/Projectile.ts';",
+      "export { createPokemon, formOf, TrainerStore } from './src/td/progression/TrainerStore.ts';",
+      "export { xpForLevel } from './src/td/progression/Stats.ts';",
     ].join('\n'),
     resolveDir: fileURLToPath(new URL('../', import.meta.url)),
   },
@@ -21,7 +23,7 @@ const result = await build({
   loader: { '.css': 'empty' },
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
-const { StadiumTDGame, Tower, Creep, Projectile } =
+const { StadiumTDGame, Tower, Creep, Projectile, createPokemon, formOf, TrainerStore, xpForLevel } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Starting the next match must release a keyboard-only pause, or the wave
@@ -37,6 +39,23 @@ const { StadiumTDGame, Tower, Creep, Projectile } =
   game.ui.onStartWave();
   assert.equal(starts, 1, 'next match starts');
   assert.equal(game.isPaused, false, 'starting a match releases keyboard pause');
+}
+
+// A wild Pokemon keeps the form that was caught even when its wild level is
+// above that form's normal evolution threshold. Incidental XP must not evolve
+// it; the next real level-up should.
+{
+  const store = new TrainerStore(false);
+  const rattata = createPokemon('rattata', 20, { kind: 'caught', at: 0 }, { stage: 0 });
+  assert.equal(formOf(rattata).name, 'Rattata', 'capture preserves the field form');
+
+  store.gainXp(rattata, 1);
+  assert.equal(rattata.level, 20, 'small XP award does not level up');
+  assert.equal(formOf(rattata).name, 'Rattata', 'small XP award does not force evolution');
+
+  store.gainXp(rattata, xpForLevel(21) - rattata.xp);
+  assert.equal(rattata.level, 21, 'enough XP reaches the next level');
+  assert.equal(formOf(rattata).name, 'Raticate', 'over-level capture evolves on a real level-up');
 }
 
 // The faint animation remains clickable briefly, but a dead target cannot
@@ -66,4 +85,4 @@ const { StadiumTDGame, Tower, Creep, Projectile } =
     'projectile remains pending while paused');
 }
 
-console.log('PASS: wave resume, capture eligibility, and paused simulation regressions.');
+console.log('PASS: wave resume, capture eligibility, captured forms, and paused simulation regressions.');
