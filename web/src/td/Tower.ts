@@ -550,10 +550,12 @@ export class Tower {
     this.currentTarget = target;
 
     if (target) {
-      // Smoothly rotate toward whatever the tower is engaging
-      const lookPos = target.position.clone();
-      lookPos.y = this.position.y;
-      this.animPokemon.mesh.lookAt(lookPos);
+      // Turn toward whatever the tower is engaging, easing across a retarget
+      // rather than snapping (a model lookAt faces +Z, hence atan2(x, z)).
+      const mesh = this.animPokemon.mesh;
+      const facing = Math.atan2(target.position.x - this.position.x, target.position.z - this.position.z);
+      const turn = Math.atan2(Math.sin(facing - mesh.rotation.y), Math.cos(facing - mesh.rotation.y));
+      mesh.rotation.set(0, mesh.rotation.y + turn * (1 - Math.exp(-14 * dt)), 0);
     }
 
     // Update 3D model animation
