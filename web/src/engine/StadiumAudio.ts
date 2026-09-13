@@ -154,6 +154,40 @@ export class StadiumAudio {
     source.onended = () => { if (this.musicNode === source) this.musicNode = null; };
   }
 
+  /** Like startMusic, but leaves the loop alone when that track is already playing. */
+  public playMusic(id: string): void {
+    if (this.requestedMusicId === id && (this.musicNode || !this.nativeBuffers.has(id))) {
+      this.initContext();
+      return;
+    }
+    this.startMusic(id);
+  }
+
+  /**
+   * One-shot music cue on the music bus. The loop ducks underneath it and
+   * comes back when the cue ends. Returns false when the clip isn't loaded.
+   */
+  public playJingle(id: string): boolean {
+    this.initContext();
+    const buffer = this.nativeBuffers.get(id);
+    if (!this.ctx || !this.enabled || !buffer) return false;
+    const now = this.ctx.currentTime;
+    const loopGain = this.musicGain;
+    if (loopGain) {
+      loopGain.gain.cancelScheduledValues(now);
+      loopGain.gain.setTargetAtTime(0, now, 0.08);
+      loopGain.gain.setTargetAtTime(0.45, now + buffer.duration, 0.5);
+    }
+    const source = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    source.buffer = buffer;
+    gain.gain.value = 0.6;
+    source.connect(gain);
+    gain.connect(this.musicBus ?? this.ctx.destination);
+    source.start();
+    return true;
+  }
+
   public stopMusic(): void {
     this.requestedMusicId = null;
     this.musicNode?.stop();
