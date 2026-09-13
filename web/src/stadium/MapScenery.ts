@@ -261,13 +261,31 @@ function buildStairs(group: THREE.Group, map: StadiumMap, route: THREE.Vector3[]
     const before = route[i-1], after = route[i+1];
     const run = Math.hypot(after.x-before.x, after.z-before.z);
     if (Math.abs(after.y-before.y) / run < 0.08) continue;
-    const ground = route[i].y - LANE_RIDE_HEIGHT;
-    const step = new THREE.Group();
-    step.position.set(route[i].x, ground, route[i].z);
-    step.rotation.y = Math.atan2(after.x-before.x, after.z-before.z);
-    mesh(step, new THREE.BoxGeometry(map.laneWidth+0.1, 0.5, 0.47), stone[i%2], 0, -0.05, 0);
-    for (const side of [-1,1]) mesh(step, new THREE.BoxGeometry(0.4, 0.75, 0.47), curb, side*(half+0.25), 0.02, 0);
-    group.add(step);
+    const point = route[i];
+    // Adjacent treads share their cross-section exactly, including on curves.
+    // Rotated boxes leave gaps on the outside of a bend and overlap inside it.
+    const start = before.clone().lerp(point, 0.5), end = point.clone().lerp(after, 0.5);
+    const startDir = point.clone().sub(before).setY(0).normalize();
+    const endDir = after.clone().sub(point).setY(0).normalize();
+    const startNormal = new THREE.Vector3(-startDir.z, 0, startDir.x);
+    const endNormal = new THREE.Vector3(-endDir.z, 0, endDir.x);
+    // Clear the sloping ribbon even at the uphill end of the tread.
+    const top = Math.max(start.y, point.y, end.y) - LANE_RIDE_HEIGHT + 0.2;
+    const bottom = Math.min(start.y, point.y, end.y) - LANE_RIDE_HEIGHT - 0.3;
+    const tread = (left: number, right: number, height: number, mat: THREE.Material) => {
+      const corners = [start.clone().addScaledVector(startNormal,left), start.clone().addScaledVector(startNormal,right),
+        end.clone().addScaledVector(endNormal,right), end.clone().addScaledVector(endNormal,left)];
+      const positions = [bottom, height].flatMap(y => corners.flatMap(p => [p.x,y,p.z]));
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+      geometry.setIndex([4,5,6,4,6,7, 0,2,1,0,3,2, 0,5,4,0,1,5,
+        1,6,5,1,2,6, 2,7,6,2,3,7, 3,4,7,3,0,4]);
+      geometry.computeVertexNormals();
+      mesh(group, geometry, mat);
+    };
+    tread(-half-0.05, half+0.05, top, stone[i%2]);
+    tread(-half-0.45, -half-0.05, top+0.2, curb);
+    tread(half+0.05, half+0.45, top+0.2, curb);
   }
 }
 

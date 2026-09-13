@@ -86,6 +86,9 @@ export class Projectile {
   /** Advances one step. Returns false once it has landed and should be reaped. */
   public update(dt: number, ctx: HitContext): boolean {
     if (!this.active) return false;
+    // A dead target normally detonates its projectile immediately, but that
+    // resolution still belongs to simulation time and must wait through pause.
+    if (dt <= 0) return true;
 
     // Target point (center mass of creep)
     const targetPos = this.target.alive

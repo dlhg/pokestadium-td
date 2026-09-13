@@ -1,7 +1,7 @@
 # Tower-defense courses
 
 The course selector previews the actual route and terrain data. Difficulty tabs
-filter five authored courses; each starts with $420 and six lives. The first wave
+filter six authored courses; each starts with $420 and six lives. The first wave
 waits for **Start Match**, allowing time to plan. **Maps** pauses the match while
 browsing; **Resume Match** keeps it, and choosing a course starts a fresh match.
 
@@ -35,20 +35,22 @@ between two parallel lanes) → the grand stair between the Indigo pillars.
 
 ## Twin ascent (Mt. Silver Crown)
 
-Mt. Silver expands the plateau idea into two asymmetric climbs. The red trail
-takes short, steep stairs while the blue trail runs longer switchbacks; climbing
-slowdown makes their travel times closer than their lengths suggest. The routes
-exchange the inside and outside edge on each shelf, repeatedly changing which
-high-ground positions can cover both.
+Mt. Silver expands the plateau idea into two asymmetric climbs. The west trail
+crosses each shelf directly while the east trail runs long switchbacks beneath
+the same high ground. Both climb four stair stages, but their different exposure
+times make route coverage as important as summit coverage.
 
 - **Five elevation bands** rise from the cave floor through the pine shelf,
   doubleback balcony and wind saddle to the frozen crown.
+- **Broad, level turns** keep the switchbacks clear of their return lanes.
+  Stair treads share their edges around curves, avoiding gaps and overlapping
+  rectangular steps; their tops clear the sloping road beneath them.
 - **The middle shelves are the prize.** Parallel passes come within shared tower
   range, but rock spines and lane clearance prevent building in the obvious
   center pocket.
-- **The summit is a loop, not a straight finish.** Both trails pass around the
-  crown before meeting beneath the Mt. Silver gate, giving the final towers a
-  last crossfire opportunity.
+- **The summit is not a straight finish.** Both trails wrap opposite crown edges
+  before meeting beneath the Mt. Silver gate, giving the final towers a last
+  crossfire opportunity.
 
 These are original procedural environments in the Stadium arena. The layouts
 take inspiration from the readable paths, terrain constraints and bridge

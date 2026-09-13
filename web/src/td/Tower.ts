@@ -270,6 +270,10 @@ export class Tower {
     creeps: Creep[],
     onFire: (tower: Tower, target: Creep, move: MoveDefinition) => void,
   ): void {
+    // A zero delta means the simulation is paused. In particular, a freshly
+    // deployed tower has a ready cooldown and must not fire during that frame.
+    if (dt <= 0) return;
+
     const time = performance.now() * 0.001;
 
     if (this.attackAnimTimer > 0) {

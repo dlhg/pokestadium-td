@@ -91,7 +91,9 @@ for (const map of STADIUM_MAPS) {
 }
 assert.equal(signatures.size, STADIUM_MAPS.length, 'Maps share an identical route');
 assert.equal(STADIUM_MAPS.find(m=>m.id==='power-plant').routes.length,2);
-assert.equal(STADIUM_MAPS.find(m=>m.id==='mt-silver-crown').routes.length,2);
+const silverRoutes=sampleMapRoutes(STADIUM_MAPS.find(m=>m.id==='mt-silver-crown'));
+assert.equal(silverRoutes.length,2);
+assert.ok(silverRoutes[1].length>silverRoutes[0].length*1.2,'Mt. Silver routes are not meaningfully asymmetric');
 
 // Edge clearance matters even when the tower centre is outside the water.
 const square=[[-2,-2],[2,-2],[2,2],[-2,2]];

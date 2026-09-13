@@ -219,7 +219,11 @@ export class StadiumTDGame {
     };
 
     this.ui.onStartWave = () => {
-      if (!this.waveManager.inWave) {
+      if (!this.waveManager.inWave && !this.pauseMenuOpen && !this.namingHold) {
+        // Space can pause without opening the pause sheet. Starting a match is
+        // an explicit request to resume play, otherwise the HUD says the match
+        // is running while the spawn queue remains frozen indefinitely.
+        this.isPaused = false;
         this.waveManager.startNextWave();
         this.audio.playSelect();
         this.audio.startMusic();
@@ -463,7 +467,9 @@ export class StadiumTDGame {
   /** Public so the headless shot harness can stage a capture set piece. */
   public tryCapture(target: Creep | null): void {
     const ball = this.selectedBall;
-    if (!ball || !target || target.captureLocked) return;
+    // A fainted Pokemon remains in the scene for its defeat animation, but it
+    // is no longer a legal capture target and must not consume a ball.
+    if (!ball || !target || !target.alive || target.captureLocked) return;
     if (target.hpFraction > 0.35) {
       this.captureHint = `WEAKEN ${target.name.toUpperCase()} UNTIL ITS HP BAR SAYS CATCH!`;
       return;
