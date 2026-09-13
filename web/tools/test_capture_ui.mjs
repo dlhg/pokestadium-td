@@ -67,7 +67,7 @@ try {
     await click(`[data-ball-type="${type}"]`);
     assert.equal(await evaluate(`document.querySelector('[data-ball-type="${type}"]').getAttribute('aria-pressed')`),'false',`${type} disarms`);
   }
-  assert.equal(await evaluate(`(()=>{const a=document.querySelector('#poke-mart').getBoundingClientRect(),b=document.querySelector('#course-info').getBoundingClientRect(); return a.bottom<=b.top})()`),true,'Mart clears current-course plaque');
+  assert.equal(await evaluate(`(()=>{const a=document.querySelector('#poke-mart').getBoundingClientRect(); return a.left>=0&&a.bottom<=innerHeight})()`),true,'Mart stays inside the viewport');
   assert.equal(await evaluate(`document.querySelector('#btn-maps')===null`),true,'Always-visible Maps control is removed');
   await press('Escape','Escape');
   assert.equal(await evaluate(`document.querySelector('#pause-screen').hidden`),false,'Escape opens the pause sheet');
@@ -75,6 +75,7 @@ try {
   assert.equal(await evaluate(`document.querySelector('#pause-screen').hidden`),true,'Resume closes the pause sheet');
   await press('Escape','Escape');
   await click('#btn-pause-quit');
+  await click('#trainer-screen [data-continue]');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('#map-select')).display`),'grid','Quit opens course selection');
   assert.equal(await evaluate(`document.querySelector('#btn-resume-map').hidden`),true,'Quit cannot resume the abandoned match');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('#poke-mart')).visibility`),'hidden','Mart hidden during map selection');

@@ -100,6 +100,7 @@ export class StadiumUI {
   private roster: OwnedPokemon[] = [];
   /** Rebuild the deck only when membership, names or forms change. */
   private rosterSignature = '';
+  private renderedLives = -1;
   private rosterViews = new Map<string, RosterModelView>();
   public readonly trainer: TrainerScreens;
 
@@ -1736,11 +1737,14 @@ export class StadiumUI {
 
     // Stadium HP remains the defensive fail-state; balls are capture inventory.
     const tray = document.getElementById('stadium-hp')!;
-    tray.innerHTML = '';
-    for (let i = 0; i < 6; i++) {
-      const ball = document.createElement('div');
-      ball.className = `ui-pokeball ${i >= state.lives ? 'lost' : ''}`;
-      tray.appendChild(ball);
+    if (state.lives !== this.renderedLives) {
+      this.renderedLives = state.lives;
+      tray.innerHTML = '';
+      for (let i = 0; i < 6; i++) {
+        const ball = document.createElement('div');
+        ball.className = `ui-pokeball ${i >= state.lives ? 'lost' : ''}`;
+        tray.appendChild(ball);
+      }
     }
 
     const captureKit = document.getElementById('capture-kit')!;

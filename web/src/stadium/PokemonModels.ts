@@ -22,6 +22,36 @@ export interface AnimatedPokemon {
   update(t: number, dt: number, state: PokemonAnimationState): void;
 }
 
+/**
+ * Stops animation and releases a model's unique GPU resources. Extracted GLB
+ * clones share geometry and their original materials with the loader cache;
+ * only per-instance materials created by cinema dimming belong to the clone.
+ */
+export function disposePokemonModel(pokemon: AnimatedPokemon): void {
+  pokemon.mixer?.stopAllAction();
+  const authentic = pokemon.mesh.userData.authenticStadiumAsset === true;
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  pokemon.mesh.traverse(object => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if (!authentic && !geometries.has(mesh.geometry)) {
+      mesh.geometry.dispose();
+      geometries.add(mesh.geometry);
+    }
+    const ownedMaterial = object.userData.__cinemaOwnMaterial === true;
+    if (!authentic || ownedMaterial) {
+      const meshMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of meshMaterials) {
+        if (!materials.has(material)) {
+          material.dispose();
+          materials.add(material);
+        }
+      }
+    }
+  });
+}
+
 export class PokemonModelFactory {
   public static async loadAuthenticModel(
     name: string,

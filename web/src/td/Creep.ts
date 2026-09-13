@@ -6,7 +6,7 @@
  */
 
 import * as THREE from 'three';
-import { AnimatedPokemon, PokemonModelFactory } from '../stadium/PokemonModels';
+import { AnimatedPokemon, disposePokemonModel, PokemonModelFactory } from '../stadium/PokemonModels';
 import { PokemonGait } from '../stadium/PokemonGait';
 import { PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
 import { StatusEffectType } from '../stadium/MoveDatabase';
@@ -84,6 +84,7 @@ export class Creep {
   private entranceTimer = 0.75;
   private hitAnimationTimer = 0;
   private faintAnimationTimer = 0;
+  private destroyed = false;
 
   // 3D Billboard HP Bar
   private hpCanvas: HTMLCanvasElement;
@@ -148,7 +149,12 @@ export class Creep {
       .replace('titan ', '').replace('boss ', '').trim();
     this.gait = new PokemonGait(modelName);
     PokemonModelFactory.loadAuthenticModel(modelName, undefined, () => this.animPokemon).then((loaded) => {
+      if (this.destroyed) {
+        disposePokemonModel(loaded);
+        return;
+      }
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
+        disposePokemonModel(this.animPokemon);
         this.facing.remove(this.animPokemon.mesh);
         this.animPokemon = loaded;
         this.facing.add(this.animPokemon.mesh);
@@ -217,7 +223,7 @@ export class Creep {
   }
 
   public applyStatus(effect: StatusEffectType, duration: number, source: Tower | null = null): void {
-    if (effect === 'none' || !this.alive) return;
+    if (effect === 'none' || !this.alive || this.captureLocked) return;
     this.status = effect;
     this.statusTimer = duration;
     if (source) {
@@ -340,8 +346,8 @@ export class Creep {
 
       if (this.status === 'burn') {
         this.burnTickTimer += dt;
-        if (this.burnTickTimer >= 0.5) {
-          this.burnTickTimer = 0;
+        while (this.burnTickTimer >= 0.5) {
+          this.burnTickTimer -= 0.5;
           if (this.takeDamage(this.maxHp * 0.04, this.statusSource)) {
             onDeath(this);
             return;
@@ -350,8 +356,8 @@ export class Creep {
       } else if (this.status === 'poison') {
         // Weaker per-tick than burn, but control moves apply it for far longer.
         this.burnTickTimer += dt;
-        if (this.burnTickTimer >= 0.5) {
-          this.burnTickTimer = 0;
+        while (this.burnTickTimer >= 0.5) {
+          this.burnTickTimer -= 0.5;
           if (this.takeDamage(this.maxHp * 0.018, this.statusSource)) {
             onDeath(this);
             return;
@@ -423,7 +429,10 @@ export class Creep {
   }
 
   public destroy(scene: THREE.Scene): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
     scene.remove(this.group);
+    disposePokemonModel(this.animPokemon);
     this.hpTexture.dispose();
     this.hpSprite.material.dispose();
     this.captureRing.geometry.dispose();

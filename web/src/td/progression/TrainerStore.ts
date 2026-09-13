@@ -129,28 +129,97 @@ export function sanitizeNickname(raw: string): string | null {
   return cleaned || null;
 }
 
-/** Tolerates hand-edited or older saves: unknown species are dropped, gaps are filled. */
+function finiteInteger(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(min, Math.min(max, Math.round(value)))
+    : fallback;
+}
+
+function validSpeciesIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((id): id is string => {
+    if (typeof id !== 'string') return false;
+    try { getSpecies(id); return true; } catch { return false; }
+  }))];
+}
+
+/** Tolerates hand-edited or older saves: malformed records are repaired or dropped. */
 function migrate(raw: unknown): TrainerSave {
   const base = freshSave();
   if (!raw || typeof raw !== 'object' || (raw as { version?: number }).version !== 1) return base;
   const data = raw as Partial<TrainerSave>;
-  const collection = (Array.isArray(data.collection) ? data.collection : []).filter(p => {
-    try { getSpecies(p.speciesId); return true; } catch { return false; }
+  const seenUids = new Set<string>();
+  const collection = (Array.isArray(data.collection) ? data.collection : []).flatMap((value): OwnedPokemon[] => {
+    if (!value || typeof value !== 'object') return [];
+    const candidate = value as Partial<OwnedPokemon>;
+    if (typeof candidate.uid !== 'string' || !candidate.uid || seenUids.has(candidate.uid)
+      || typeof candidate.speciesId !== 'string') return [];
+    let species: SpeciesDef;
+    try { species = getSpecies(candidate.speciesId); } catch { return []; }
+    seenUids.add(candidate.uid);
+
+    const level = finiteInteger(candidate.level, 1, 1, MAX_LEVEL);
+    const xp = finiteInteger(candidate.xp, xpForLevel(level), xpForLevel(level), xpForLevel(MAX_LEVEL));
+    const dvs = candidate.dvs && typeof candidate.dvs === 'object' ? candidate.dvs : {} as Partial<StatBlock>;
+    const record = candidate.record && typeof candidate.record === 'object' ? candidate.record : {} as Partial<OwnedPokemon['record']>;
+    const origin = candidate.origin && typeof candidate.origin === 'object' ? candidate.origin : {} as Partial<OwnedPokemon['origin']>;
+    const originKinds: OwnedPokemon['origin']['kind'][] = ['starter', 'gift', 'caught', 'dev'];
+    const kind = originKinds.includes(origin.kind as OwnedPokemon['origin']['kind']) ? origin.kind! : 'caught';
+    const repairedOrigin: OwnedPokemon['origin'] = {
+      kind,
+      at: finiteInteger(origin.at, 0, 0, Number.MAX_SAFE_INTEGER),
+    };
+    if (typeof origin.mapId === 'string') repairedOrigin.mapId = origin.mapId;
+    if (typeof origin.round === 'number' && Number.isFinite(origin.round)) repairedOrigin.round = Math.max(0, Math.round(origin.round));
+    if (origin.ball === 'poke' || origin.ball === 'great' || origin.ball === 'ultra') repairedOrigin.ball = origin.ball;
+
+    return [{
+      uid: candidate.uid,
+      speciesId: candidate.speciesId,
+      stage: finiteInteger(candidate.stage, stageForLevel(species, level), 0, species.forms.length - 1),
+      nickname: typeof candidate.nickname === 'string' ? sanitizeNickname(candidate.nickname) : null,
+      level,
+      xp,
+      dvs: {
+        attack: finiteInteger(dvs.attack, 8, 0, MAX_DV),
+        speed: finiteInteger(dvs.speed, 8, 0, MAX_DV),
+        special: finiteInteger(dvs.special, 8, 0, MAX_DV),
+      },
+      origin: repairedOrigin,
+      record: {
+        knockouts: finiteInteger(record.knockouts, 0, 0, Number.MAX_SAFE_INTEGER),
+        damageDealt: finiteInteger(record.damageDealt, 0, 0, Number.MAX_SAFE_INTEGER),
+        matches: finiteInteger(record.matches, 0, 0, Number.MAX_SAFE_INTEGER),
+      },
+    }];
   });
   const owned = new Set(collection.map(p => p.uid));
   const team = Array.from({ length: TEAM_SIZE }, (_, i) => {
     const uid = data.team?.[i];
     return uid && owned.has(uid) ? uid : null;
   });
+  const maps: Record<string, MapRecord> = {};
+  if (data.maps && typeof data.maps === 'object') {
+    for (const [id, value] of Object.entries(data.maps)) {
+      if (!value || typeof value !== 'object') continue;
+      const record = value as Partial<MapRecord>;
+      maps[id] = {
+        cleared: record.cleared === true,
+        bestRound: finiteInteger(record.bestRound, 0, 0, Number.MAX_SAFE_INTEGER),
+      };
+    }
+  }
+  const pokedex = data.pokedex && typeof data.pokedex === 'object' ? data.pokedex : base.pokedex;
   return {
-    ...base,
-    ...data,
     version: 1,
+    starterChosen: data.starterChosen === true,
     collection,
     team,
-    maps: data.maps ?? {},
-    pokedex: { seen: data.pokedex?.seen ?? [], caught: data.pokedex?.caught ?? [] },
-    unlocks: data.unlocks ?? [],
+    maps,
+    pokedex: { seen: validSpeciesIds(pokedex.seen), caught: validSpeciesIds(pokedex.caught) },
+    captureLuck: finiteInteger(data.captureLuck, 0, 0, Number.MAX_SAFE_INTEGER),
+    matchesPlayed: finiteInteger(data.matchesPlayed, 0, 0, Number.MAX_SAFE_INTEGER),
+    unlocks: Array.isArray(data.unlocks) ? [...new Set(data.unlocks.filter((item): item is string => typeof item === 'string'))] : [],
   };
 }
 
