@@ -165,8 +165,6 @@ export const STADIUM_MAPS: StadiumMap[] = [
     obstacles:[
       { x:-24, z:12, radius:2.6, label:'Viridian pines', style:'pine' },
       { x:7, z:17, radius:2.3, label:'Strength boulder', style:'boulder' },
-      { x:7, z:21.6, radius:1, label:'Badge check', style:'brick' },
-      { x:9.8, z:29.2, radius:1, label:'Badge check', style:'brick' },
       { x:-23.5, z:3.2, radius:2.8, label:'Pokémon Center', style:'center' },
       { x:-8.5, z:19, radius:1.6, label:'Fallen rockslide', style:'rock' },
       { x:10, z:-12.3, radius:1.2, label:'Strength boulder', style:'boulder' },
@@ -184,7 +182,6 @@ export const STADIUM_MAPS: StadiumMap[] = [
       // The river's source: a spring pool emerging straight from a cave at the summit's cliff foot.
       { kind:'cave', x:-8, z:-21.8, angle:0 },
       { kind:'waterfall', x:-4.2, z:8.4, angle:0, width:3.4, top:TIER_ROUTE_23, drop:TIER_ROUTE_23 },
-      { kind:'arch', x:8.4, z:25.4, angle:-1.218, span:8.1, text:'BADGE CHECK' },
       { kind:'arch', x:0, z:-28, angle:0, span:7.2, text:'INDIGO PLATEAU' },
       { kind:'torch', x:-12.5, z:-5.8 }, { kind:'torch', x:-17.8, z:-11.5 },
       { kind:'torch', x:2.6, z:-20.5 }, { kind:'torch', x:-2.6, z:-20.5 },
