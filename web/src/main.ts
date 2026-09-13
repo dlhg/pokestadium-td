@@ -303,7 +303,7 @@ window.addEventListener('DOMContentLoaded', () => {
           frozenShot = true;
         }, 1500);
       } else if (shot === 'catch_picker') {
-        // A weakened pack bunched on the track: stacked tags, the CATCH NOW tray, and an open picker.
+        // A weakened pack bunched on the track: stacked one-click tags, the CATCH NOW tray, and a selected Great Ball.
         const lead = game.arena.waypoints[8];
         [c1, c2, c4].forEach((creep, i) => {
           creep.position.set(lead.x + i * 0.9, lead.y, lead.z + i * 0.5);
@@ -311,7 +311,7 @@ window.addEventListener('DOMContentLoaded', () => {
           creep.hp = creep.maxHp * (0.12 + i * 0.08);
         });
         game.balls = { poke: 3, great: 1, ultra: 0 };
-        window.setTimeout(() => game.ui.onOpenCatch(c2), 1200);
+        game.selectedBall = 'great';
       } else if (shot === 'action_cam') {
         game.camera.setMode('action');
       } else if (shot === 'pause') {

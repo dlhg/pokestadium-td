@@ -82,6 +82,7 @@ export class StadiumTDGame {
   public money: number = 420;
   public lives: number = 6;
   public balls: Record<BallType, number> = { poke: 3, great: 0, ultra: 0 };
+  public selectedBall: BallType = 'poke';
   public gameSpeed: number = 1.0;
   public isPaused: boolean = false;
   public gameOver: boolean = false;
@@ -125,8 +126,6 @@ export class StadiumTDGame {
   private placementPreview: THREE.Group = new THREE.Group();
   private placementPreviewTemplateId: string | null = null;
   private placementStatus: PlacementStatus | null = null;
-  /** The catchable creep whose ball picker is open, if any. */
-  private catchTarget: Creep | null = null;
   private captureHint: string | null = null;
   private captureHintTimer = 0;
   private timedCaptureHint: string | null = null;
@@ -204,7 +203,6 @@ export class StadiumTDGame {
     this.ui.onQuitToMenu = () => {
       const report = this.finishMatch();
       this.clearSelection();
-      this.catchTarget = null;
       this.captureHint = null;
       this.pauseMenuOpen = false;
       this.isPaused = true;
@@ -236,13 +234,16 @@ export class StadiumTDGame {
         this.selectedTower = null;
       }
       this.selectedMember = member;
-      this.catchTarget = null;
       this.placementPreviewTemplateId = null;
       this.placementPreview.visible = false;
       this.audio.playSelect();
     };
-    this.ui.onOpenCatch = (creep) => this.openCatch(creep);
-    this.ui.onThrowBall = (creep, ball) => this.tryCapture(creep, ball);
+    this.ui.onCatch = (creep) => this.tryCapture(creep, this.selectedBall);
+    this.ui.onSelectBall = (ball) => {
+      if (this.balls[ball] <= 0) return;
+      this.selectedBall = ball;
+      this.audio.playSelect();
+    };
     this.ui.onBuyBall = (ball) => {
       if (this.waveManager.inWave || this.money < BALL_PRICES[ball]) return;
       this.money -= BALL_PRICES[ball];
@@ -334,7 +335,7 @@ export class StadiumTDGame {
     this.lives = 6;
     // A brand-new trainer gets extra balls to build a team with.
     this.balls = { poke: this.store.data.matchesPlayed === 0 ? 5 : 3, great: 0, ultra: 0 };
-    this.catchTarget = null;
+    this.selectedBall = 'poke';
     this.captureHint = null;
     this.abortCapture();
     this.abortEvolution();
@@ -392,35 +393,28 @@ export class StadiumTDGame {
   }
 
   public handleInput(input: Input): void {
-    // Hotkeys: C cycles the camera, Q cycles catchable Pokémon, and 1–9 call
-    // signature moves in bar order — or pick a ball while a catch is open.
+    // Hotkeys: C cycles the camera, Q catches the nearest-to-exit catchable
+    // Pokémon with the selected ball, and 1–9 call signature moves in bar order.
     if (input.isKeyJustPressed('KeyC')) {
       const modes: CameraMode[] = ['tactical', 'stadium', 'action'];
       this.camera.setMode(modes[(modes.indexOf(this.camera.mode) + 1) % modes.length]);
     }
     if (input.isKeyJustPressed('KeyQ')) {
       const catchable = this.catchableCreeps();
-      if (catchable.length) this.openCatch(catchable[(catchable.indexOf(this.catchTarget!) + 1) % catchable.length]);
+      if (catchable.length) this.tryCapture(catchable[0], this.selectedBall);
     }
-    if (this.catchTarget) {
-      BALL_ORDER.forEach((ball, i) => {
-        if (input.isKeyJustPressed(`Digit${i + 1}`)) this.tryCapture(this.catchTarget, ball);
-      });
-    } else {
-      this.signatureSlots().slice(0, 9).forEach((slot, i) => {
-        if (input.isKeyJustPressed(`Digit${i + 1}`)) this.requestSignature(slot.tower, slot.def.id);
-      });
-    }
+    this.signatureSlots().slice(0, 9).forEach((slot, i) => {
+      if (input.isKeyJustPressed(`Digit${i + 1}`)) this.requestSignature(slot.tower, slot.def.id);
+    });
     if (input.isKeyJustPressed('Space') && !this.pauseMenuOpen) this.isPaused = !this.isPaused;
     if (input.isKeyJustPressed('Escape')) {
       if (this.pauseMenuOpen) {
         this.ui.onResumeGame();
         return;
       }
-      const dismissedSelection = Boolean(this.selectedMember || this.selectedTower || this.catchTarget || this.aiming);
+      const dismissedSelection = Boolean(this.selectedMember || this.selectedTower || this.aiming);
       this.aiming = null;
       this.clearSelection();
-      this.catchTarget = null;
       this.captureHint = null;
       if (!dismissedSelection) {
         this.pauseMenuOpen = true;
@@ -432,7 +426,6 @@ export class StadiumTDGame {
     if (input.rightClicked) {
       this.aiming = null;
       this.clearSelection();
-      this.catchTarget = null;
       this.captureHint = null;
     }
 
@@ -444,12 +437,6 @@ export class StadiumTDGame {
       return;
     }
     this.aimPreview.visible = false;
-
-    // An open ball picker closes on any click out on the pitch.
-    if (this.catchTarget) {
-      if (input.clicked && !input.clickedOnUI) this.catchTarget = null;
-      return;
-    }
 
     // An armed Pokémon owns the cursor — clicks drop it, never select a tower.
     if (this.selectedMember) {
@@ -582,18 +569,6 @@ export class StadiumTDGame {
     return this.creeps.filter(creep => creep.catchable).sort((a, b) => b.pathProgress - a.pathProgress);
   }
 
-  /** Opens the ball picker on a catchable Pokémon, or closes it when it is already open there. */
-  private openCatch(creep: Creep | null): void {
-    if (this.capture || this.evolution || this.summon) return;
-    const next = creep?.catchable && creep !== this.catchTarget ? creep : null;
-    if (next) {
-      this.aiming = null;
-      this.clearSelection();
-    }
-    this.catchTarget = next;
-    this.audio.playSelect();
-  }
-
   /** Odds a ball would catch this Pokémon right now, before the release meter. */
   private captureChance(target: Creep, ball: BallType): number {
     const ballBonus: Record<BallType, number> = { poke: 0, great: 0.20, ultra: 0.42 };
@@ -625,7 +600,6 @@ export class StadiumTDGame {
     }, guaranteed);
     this.renderer.scene.add(sequence.group);
     this.capture = { sequence, target, ball };
-    this.catchTarget = null;
     // The cinematic overlay carries the read-out from here; the corner hint returns with the verdict.
     this.captureHint = null;
   }
@@ -1094,7 +1068,7 @@ export class StadiumTDGame {
         lives: this.lives,
         balls: this.balls,
         catchables: this.catchSlots(),
-        catchTarget: this.catchTarget,
+        selectedBall: this.selectedBall,
         captureHint: this.captureHint,
         captureCinema: this.capture?.sequence.hud ?? null,
         evolutionCinema: this.evolution?.sequence.hud ?? null,
@@ -1120,7 +1094,6 @@ export class StadiumTDGame {
 
   /** Screen anchors and live odds for every catchable Pokémon. */
   private catchSlots(): CatchSlot[] {
-    if (this.catchTarget && !this.catchTarget.catchable) this.catchTarget = null;
     return this.catchableCreeps().map(creep => {
       const anchor = creep.group.position.clone();
       anchor.y += creep.hudAnchorHeight;
@@ -1160,7 +1133,6 @@ export class StadiumTDGame {
     if (targeting === 'point' || targeting === 'line') {
       const same = this.aiming?.tower === tower && this.aiming.signatureId === signatureId;
       this.clearSelection();
-      this.catchTarget = null;
       this.aiming = same ? null : { tower, signatureId };
       this.captureHint = same ? null : `${def.name.toUpperCase()} · CLICK ${targeting === 'point' ? 'A SPOT' : 'A DIRECTION'} · ESC TO CANCEL`;
       this.audio.playSelect();
