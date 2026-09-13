@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { AnimatedPokemon, disposePokemonModel, PokemonModelFactory } from '../stadium/PokemonModels';
 import { PokemonGait } from '../stadium/PokemonGait';
 import { PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
-import { StatusEffectType } from '../stadium/MoveDatabase';
+import { DamageStatus, isDamageStatus, MovementStatus, StatusEffectType } from '../stadium/MoveDatabase';
 import type { Tower } from './Tower';
 import { STATUS_CONTRIBUTION } from './progression/Stats';
 
@@ -17,6 +17,41 @@ import { STATUS_CONTRIBUTION } from './progression/Stats';
 const CLIMB_SLOWDOWN = 2.6;
 /** Gap between the top of a loaded model and its HP bar. */
 const HP_BAR_CLEARANCE = 0.7;
+/** Canvas pixels below the HP bar reserved for trait badges. */
+const TRAIT_STRIP_HEIGHT = 16;
+
+/**
+ * The three things a creep can be, each read straight off its typing so a
+ * Pokémon player already knows them: flyers stay off the ground, ghosts can't
+ * be aimed at, rocks shrug off light hits.
+ */
+export type CreepTrait = 'airborne' | 'phantom' | 'armored';
+
+export const TRAIT_LABELS: Record<CreepTrait, string> = {
+  airborne: 'AIRBORNE', phantom: 'PHANTOM', armored: 'ARMORED',
+};
+
+const TRAIT_BADGE_COLORS: Record<CreepTrait, string> = {
+  airborne: TYPE_COLORS.Flying.hex, phantom: TYPE_COLORS.Ghost.hex, armored: TYPE_COLORS.Rock.hex,
+};
+
+export function traitsForTypes(types: PokemonType[]): CreepTrait[] {
+  const traits: CreepTrait[] = [];
+  if (types.includes('Flying')) traits.push('airborne');
+  if (types.includes('Ghost')) traits.push('phantom');
+  if (types.includes('Rock')) traits.push('armored');
+  return traits;
+}
+
+/** Share of a Light hit that lands on an Armored creep. */
+export const ARMOR_LIGHT_MULTIPLIER = 0.5;
+/** Titans shake off control: stops become slows and every effect runs this long. */
+export const TITAN_CONTROL_DURATION = 0.5;
+
+/** A stronger hold displaces a weaker one; equal holds keep whichever lasts longer. */
+const MOVEMENT_PRIORITY: Record<MovementStatus, number> = { freeze: 1, paralyze: 2, stun: 3, sleep: 3 };
+
+interface StatusSlot<T> { effect: T; timer: number; source: Tower | null }
 
 export interface CreepConfig {
   id: string;
@@ -40,6 +75,7 @@ export class Creep {
   public name: string;
   public type: PokemonType;
   public types: PokemonType[];
+  public readonly traits: CreepTrait[];
   public maxHp: number;
   public hp: number;
   public baseSpeed: number;
@@ -54,8 +90,6 @@ export class Creep {
    * each status landed. The knockout XP pool is split by these weights.
    */
   public contributors = new Map<Tower, number>();
-  /** Burn and poison ticks credit whoever applied them. */
-  private statusSource: Tower | null = null;
   public alive: boolean = true;
   public reachedEnd: boolean = false;
   public removalReady: boolean = false;
@@ -77,9 +111,9 @@ export class Creep {
   /** Negative distance to the exit: comparable even on routes of different lengths. */
   public pathProgress: number = 0;
 
-  // Status effects
-  public status: StatusEffectType = 'none';
-  public statusTimer: number = 0;
+  // Status effects: one damage-over-time and one movement effect can stack.
+  public damageStatus: StatusSlot<DamageStatus> | null = null;
+  public movementStatus: StatusSlot<MovementStatus> | null = null;
   private burnTickTimer: number = 0;
   private entranceTimer = 0.75;
   private hitAnimationTimer = 0;
@@ -99,6 +133,7 @@ export class Creep {
     this.name = config.name;
     this.type = config.type;
     this.types = config.secondaryType ? [config.type, config.secondaryType] : [config.type];
+    this.traits = traitsForTypes(this.types);
     this.maxHp = config.maxHp;
     this.hp = config.maxHp;
     this.baseSpeed = config.speed;
@@ -175,7 +210,8 @@ export class Creep {
     // 3D Billboard Sprite for HP Bar
     this.hpCanvas = document.createElement('canvas');
     this.hpCanvas.width = 128;
-    this.hpCanvas.height = 32;
+    // Trait badges get a strip of their own under the bar.
+    this.hpCanvas.height = this.traits.length ? 32 + TRAIT_STRIP_HEIGHT : 32;
     this.hpCtx = this.hpCanvas.getContext('2d')!;
     this.hpTexture = new THREE.CanvasTexture(this.hpCanvas);
 
@@ -189,7 +225,8 @@ export class Creep {
     const hudScale = this.threat === 'titan' ? 1.8 : this.threat === 'elite' ? 1.35 : 1;
     const barHeight = this.threat === 'titan' ? 3.8 : this.threat === 'elite' ? 2.9 : 2.6;
     this.hpSprite.position.set(0, barHeight * hudScale, 0);
-    this.hpSprite.scale.set((this.threat === 'titan' ? 4.0 : this.threat === 'elite' ? 3.0 : 2.5) * hudScale, (this.isBoss ? 1.0 : 0.65) * hudScale, 1);
+    const stripScale = this.hpCanvas.height / 32;
+    this.hpSprite.scale.set((this.threat === 'titan' ? 4.0 : this.threat === 'elite' ? 3.0 : 2.5) * hudScale, (this.isBoss ? 1.0 : 0.65) * hudScale * stripScale, 1);
     this.group.add(this.hpSprite);
 
     this.captureRing = new THREE.Mesh(
@@ -204,8 +241,22 @@ export class Creep {
     this.updateHpBar();
   }
 
-  public takeDamage(amount: number, source: Tower | null = null): boolean {
+  public hasTrait(trait: CreepTrait): boolean {
+    return this.traits.includes(trait);
+  }
+
+  /** The most noticeable status, for anything that only cares about one. */
+  public get status(): StatusEffectType {
+    return this.movementStatus?.effect ?? this.damageStatus?.effect ?? 'none';
+  }
+
+  /**
+   * Removes HP. `periodic` marks burn and poison ticks, which never wake a
+   * sleeping creep; any direct hit does.
+   */
+  public takeDamage(amount: number, source: Tower | null = null, periodic = false): boolean {
     if (!this.alive || this.captureLocked) return false;
+    if (!periodic && this.movementStatus?.effect === 'sleep') this.movementStatus = null;
     // Overkill earns nothing: only the HP actually removed counts.
     if (source) this.credit(source, Math.min(amount, this.hp));
     this.hp -= amount;
@@ -222,14 +273,29 @@ export class Creep {
     return false;
   }
 
-  public applyStatus(effect: StatusEffectType, duration: number, source: Tower | null = null): void {
-    if (effect === 'none' || !this.alive || this.captureLocked) return;
-    this.status = effect;
-    this.statusTimer = duration;
-    if (source) {
-      this.statusSource = source;
-      this.credit(source, this.maxHp * STATUS_CONTRIBUTION);
+  /** Returns true when the status took hold. */
+  public applyStatus(effect: StatusEffectType, duration: number, source: Tower | null = null): boolean {
+    if (effect === 'none' || !this.alive || this.captureLocked) return false;
+
+    if (isDamageStatus(effect)) {
+      this.damageStatus = { effect, timer: duration, source };
+    } else {
+      let hold: MovementStatus = effect;
+      if (this.isBoss) {
+        // Titans are never stopped outright, only slowed, and not for long.
+        hold = 'freeze';
+        duration *= TITAN_CONTROL_DURATION;
+      }
+      const current = this.movementStatus;
+      if (current) {
+        const gap = MOVEMENT_PRIORITY[hold] - MOVEMENT_PRIORITY[current.effect];
+        if (gap < 0 || (gap === 0 && duration <= current.timer)) return false;
+      }
+      this.movementStatus = { effect: hold, timer: duration, source };
     }
+
+    if (source) this.credit(source, this.maxHp * STATUS_CONTRIBUTION);
+    return true;
   }
 
   private credit(source: Tower, amount: number): void {
@@ -253,9 +319,9 @@ export class Creep {
   private updateHpBar(): void {
     const ctx = this.hpCtx;
     const w = this.hpCanvas.width;
-    const h = this.hpCanvas.height;
+    const h = 32;
 
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, w, this.hpCanvas.height);
 
     // Background dark border box
     ctx.fillStyle = this.threat === 'titan' ? 'rgba(78, 35, 0, 0.9)' : this.threat === 'elite' ? 'rgba(20, 49, 78, 0.9)' : 'rgba(0, 0, 0, 0.75)';
@@ -305,8 +371,30 @@ export class Creep {
       ctx.fill();
     }
 
+    this.drawTraitBadges(ctx, h);
+
     this.hpTexture.needsUpdate = true;
     this.captureRing.visible = pct <= 0.35 && this.alive && !this.captureLocked;
+  }
+
+  private drawTraitBadges(ctx: CanvasRenderingContext2D, top: number): void {
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const gap = 3;
+    const widths = this.traits.map(trait => ctx.measureText(TRAIT_LABELS[trait]).width + 8);
+    let x = (this.hpCanvas.width - widths.reduce((sum, width) => sum + width + gap, -gap)) / 2;
+    this.traits.forEach((trait, i) => {
+      ctx.fillStyle = TRAIT_BADGE_COLORS[trait];
+      ctx.fillRect(x, top + 1, widths[i], TRAIT_STRIP_HEIGHT - 3);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, top + 1.5, widths[i] - 1, TRAIT_STRIP_HEIGHT - 4);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(TRAIT_LABELS[trait], x + widths[i] / 2, top + TRAIT_STRIP_HEIGHT / 2);
+      x += widths[i] + gap;
+    });
+    ctx.textBaseline = 'alphabetic';
   }
 
   public update(dt: number, onDeath: (creep: Creep) => void): void {
@@ -341,44 +429,37 @@ export class Creep {
 
     // Handle Status Effects
     this.speed = this.baseSpeed;
-    if (this.statusTimer > 0) {
-      this.statusTimer -= dt;
+    const dot = this.damageStatus;
+    if (dot) {
+      dot.timer -= dt;
+      // Poison is weaker per tick than burn, but control moves apply it for far longer.
+      const tickShare = dot.effect === 'burn' ? 0.04 : 0.018;
+      this.burnTickTimer += dt;
+      while (this.burnTickTimer >= 0.5) {
+        this.burnTickTimer -= 0.5;
+        if (this.takeDamage(this.maxHp * tickShare, dot.source, true)) {
+          onDeath(this);
+          return;
+        }
+      }
+      if (dot.timer <= 0) {
+        this.damageStatus = null;
+        this.burnTickTimer = 0;
+      }
+    }
 
-      if (this.status === 'burn') {
-        this.burnTickTimer += dt;
-        while (this.burnTickTimer >= 0.5) {
-          this.burnTickTimer -= 0.5;
-          if (this.takeDamage(this.maxHp * 0.04, this.statusSource)) {
-            onDeath(this);
-            return;
-          }
-        }
-      } else if (this.status === 'poison') {
-        // Weaker per-tick than burn, but control moves apply it for far longer.
-        this.burnTickTimer += dt;
-        while (this.burnTickTimer >= 0.5) {
-          this.burnTickTimer -= 0.5;
-          if (this.takeDamage(this.maxHp * 0.018, this.statusSource)) {
-            onDeath(this);
-            return;
-          }
-        }
-      } else if (this.status === 'freeze') {
+    const hold = this.movementStatus;
+    if (hold) {
+      hold.timer -= dt;
+      if (hold.effect === 'freeze') {
         this.speed = this.baseSpeed * 0.45; // 55% slow
-      } else if (this.status === 'paralyze') {
+      } else if (hold.effect === 'paralyze') {
         // Intermittent stutter
-        if (Math.sin(time * 20) > 0.2) {
-          this.speed = 0;
-        } else {
-          this.speed = this.baseSpeed * 0.6;
-        }
-      } else if (this.status === 'stun') {
+        this.speed = Math.sin(time * 20) > 0.2 ? 0 : this.baseSpeed * 0.6;
+      } else {
         this.speed = 0;
       }
-
-      if (this.statusTimer <= 0) {
-        this.status = 'none';
-      }
+      if (hold.timer <= 0) this.movementStatus = null;
     }
 
     // Spend the entire movement budget across sampled segments. Dense curves

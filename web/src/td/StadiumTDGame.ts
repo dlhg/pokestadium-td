@@ -22,11 +22,11 @@ import {
   highGroundRangeScale,
 } from './Tower';
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
-import { Creep } from './Creep';
+import { Creep, type CreepTrait } from './Creep';
 import { Projectile } from './Projectile';
 import { WaveManager, getMilestone } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
-import { HitContext, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
+import { HitContext, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 import { BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
@@ -103,6 +103,7 @@ export class StadiumTDGame {
   private evolution: { sequence: EvolutionSequence } | null = null;
   /** Queued so simultaneous evolutions (a multi-way knockout) play one at a time. */
   private evolutionQueue: { tower: Tower; fromName: string; toName: string }[] = [];
+  private traitsIntroduced = new Set<CreepTrait>();
   private cinemaDim = 0;
   private cinemaDimApplied = false;
   private cinemaFades = new Map<THREE.Object3D, number>();
@@ -264,6 +265,7 @@ export class StadiumTDGame {
     this.captureHint = null;
     this.abortCapture();
     this.abortEvolution();
+    this.traitsIntroduced.clear();
     this.roster = [...this.store.team];
     this.roster.forEach(member => member.record.matches++);
     this.progress.start(this.roster);
@@ -477,7 +479,8 @@ export class StadiumTDGame {
     if (this.balls[ball] <= 0) return;
     this.balls[ball]--;
     const ballBonus: Record<BallType, number> = { poke: 0, great: 0.20, ultra: 0.42 };
-    const statusBonus = target.status === 'stun' || target.status === 'freeze' ? 0.22 : target.status !== 'none' ? 0.12 : 0;
+    const held = target.movementStatus?.effect;
+    const statusBonus = held === 'stun' || held === 'sleep' || held === 'freeze' ? 0.22 : target.status !== 'none' ? 0.12 : 0;
     const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
     // Trainer's luck: every miss since the last catch sweetens the next throw.
     const luck = this.store.captureLuckBonus;
@@ -760,6 +763,7 @@ export class StadiumTDGame {
       (newCreep) => {
         this.renderer.scene.add(newCreep.group);
         this.creeps.push(newCreep);
+        this.introduceTraits(newCreep);
       },
       (round) => this.handleRoundCleared(round)
     );
@@ -776,9 +780,10 @@ export class StadiumTDGame {
         }
 
         // Every other archetype lands the moment it is fired: draw the
-        // delivery, then resolve the hit once at the target.
-        playInstantDelivery(move, t.position, target, this.particles, this.camera);
-        resolveMoveHit(move, target, this.hitContext(), t);
+        // delivery, then resolve everything its shape catches.
+        const geometry = moveGeometry(move, t, target);
+        playInstantDelivery(move, geometry, target, this.particles, this.camera);
+        resolveMoveHit(move, target, this.hitContext(), t, geometry);
       });
     });
 
@@ -900,6 +905,16 @@ export class StadiumTDGame {
         mapStrategy: this.map.strategy,
       }
     );
+  }
+
+  /** The first creep with a trait each match gets the announcer's explanation. */
+  private introduceTraits(creep: Creep): void {
+    for (const trait of creep.traits) {
+      if (this.traitsIntroduced.has(trait)) continue;
+      this.traitsIntroduced.add(trait);
+      this.announcer.trigger(`trait_${trait}`);
+      return; // One banner at a time; a second trait gets its turn on the next spawn.
+    }
   }
 
   /** Everything the shared hit resolver needs to apply a move and react to it. */

@@ -7,7 +7,16 @@
 
 import { PokemonType } from './TypeMatrix';
 
-export type StatusEffectType = 'none' | 'burn' | 'freeze' | 'paralyze' | 'stun' | 'poison';
+export type StatusEffectType = 'none' | 'burn' | 'freeze' | 'paralyze' | 'stun' | 'poison' | 'sleep';
+
+/** Statuses that tick damage. A creep carries at most one of these... */
+export type DamageStatus = 'burn' | 'poison';
+/** ...plus at most one of these, which change how it moves. */
+export type MovementStatus = 'freeze' | 'paralyze' | 'stun' | 'sleep';
+
+export function isDamageStatus(effect: StatusEffectType): effect is DamageStatus {
+  return effect === 'burn' || effect === 'poison';
+}
 
 export type ParticleFXType =
   | 'lightning'
@@ -23,14 +32,15 @@ export type ParticleFXType =
   | 'impact';
 
 /**
- * How a move reaches what it hits. Drives presentation and timing only —
- * damage and status resolution are identical across archetypes.
+ * How a move reaches what it hits. The shape decides who is caught in it, so
+ * each archetype rewards a different spot beside the lane.
  *
- * projectile  a travelling mesh that homes onto one creep, then resolves
- * beam        an instant line from caster to target
- * cone        an instant spray fanning out from the caster
- * field       an instant ground-centred shockwave; no travel, shakes the arena
- * aura        an instant effect blooming on the target; the control-move look
+ * projectile  a travelling mesh that homes onto one creep, then splashes
+ * beam        an instant line from the caster out to full range, piercing
+ * cone        an instant arc fanning out from the caster toward the target
+ * field       an instant ring around the caster; misses Airborne creeps
+ * aura        an instant effect blooming on the target and its splash radius;
+ *             untargeted, so it can reach Phantoms
  */
 export type DeliveryType = 'projectile' | 'beam' | 'cone' | 'field' | 'aura';
 
@@ -50,6 +60,17 @@ export interface MoveDefinition {
   delivery: DeliveryType;
   description: string;
   ignoresType?: boolean;
+  /** Heavy hits punch through armor. Fixed-damage moves are always Heavy. */
+  heavy?: boolean;
+  /** Beam only: how many creeps it passes through. Unlimited when omitted. */
+  pierce?: number;
+  /** Cone only: full width of the arc in degrees. */
+  coneAngle?: number;
+}
+
+/** Light hits deal reduced damage to Armored creeps; Heavy ones don't. */
+export function isHeavy(move: MoveDefinition): boolean {
+  return !!move.heavy || !!move.ignoresType;
 }
 
 export const MOVES: Record<string, MoveDefinition> = {
@@ -116,7 +137,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   thunder: {
     id: 'thunder',
-    delivery: 'field',
+    delivery: 'field', heavy: true,
     name: 'Thunder',
     type: 'Electric',
     basePower: 110,
@@ -164,7 +185,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   fire_blast: {
     id: 'fire_blast',
-    delivery: 'field',
+    delivery: 'field', heavy: true,
     name: 'Fire Blast',
     type: 'Fire',
     basePower: 130,
@@ -196,7 +217,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   hydro_pump: {
     id: 'hydro_pump',
-    delivery: 'beam',
+    delivery: 'beam', heavy: true,
     name: 'Hydro Pump',
     type: 'Water',
     basePower: 68,
@@ -244,7 +265,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   solar_beam: {
     id: 'solar_beam',
-    delivery: 'beam',
+    delivery: 'beam', heavy: true,
     name: 'SolarBeam',
     type: 'Grass',
     basePower: 140,
@@ -292,7 +313,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   hyper_beam: {
     id: 'hyper_beam',
-    delivery: 'beam',
+    delivery: 'beam', heavy: true,
     name: 'Hyper Beam',
     type: 'Normal',
     basePower: 160,
@@ -341,7 +362,7 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   dig: {
     id: 'dig', name: 'Dig', type: 'Ground', basePower: 58, attackSpeed: 1.0,
-    delivery: 'field',
+    delivery: 'field', heavy: true,
     range: 12, projectileSpeed: 40, splashRadius: 2.5,
     statusEffect: 'stun', statusChance: 0.2, statusDuration: 1.0,
     fxType: 'earthquake', description: 'Burrows and erupts underfoot — the answer to Ground immunity.',
@@ -377,14 +398,14 @@ export const MOVES: Record<string, MoveDefinition> = {
   },
   earthquake: {
     id: 'earthquake', name: 'Earthquake', type: 'Ground', basePower: 95, attackSpeed: 0.8,
-    delivery: 'field',
+    delivery: 'field', heavy: true,
     range: 13, projectileSpeed: 60, splashRadius: 7.0,
     statusEffect: 'stun', statusChance: 0.25, statusDuration: 1.2,
     fxType: 'earthquake', description: 'Shakes the colosseum floor, hitting everything grounded nearby.',
   },
   blizzard: {
     id: 'blizzard', name: 'Blizzard', type: 'Ice', basePower: 105, attackSpeed: 0.7,
-    delivery: 'cone',
+    delivery: 'cone', heavy: true,
     range: 18, projectileSpeed: 32, splashRadius: 6.5,
     statusEffect: 'freeze', statusChance: 0.7, statusDuration: 4.0,
     fxType: 'blizzard', description: 'A howling whiteout that nearly halts an entire wave.',
@@ -453,7 +474,7 @@ export const MOVES: Record<string, MoveDefinition> = {
     id: 'sleep_powder', name: 'Sleep Powder', type: 'Grass', basePower: 3, attackSpeed: 1.0,
     delivery: 'cone',
     range: 14, projectileSpeed: 22, splashRadius: 4.5,
-    statusEffect: 'stun', statusChance: 0.7, statusDuration: 2.6,
+    statusEffect: 'sleep', statusChance: 0.7, statusDuration: 2.6,
     fxType: 'spore_cloud', description: 'Puts a whole cluster to sleep where they stand.',
   },
   leech_seed: {
@@ -467,7 +488,7 @@ export const MOVES: Record<string, MoveDefinition> = {
     id: 'hypnosis', name: 'Hypnosis', type: 'Psychic', basePower: 4, attackSpeed: 1.0,
     delivery: 'aura',
     range: 15, projectileSpeed: 30, splashRadius: 3.0,
-    statusEffect: 'stun', statusChance: 0.75, statusDuration: 2.8,
+    statusEffect: 'sleep', statusChance: 0.75, statusDuration: 2.8,
     fxType: 'psychic_wave', description: 'Lulls approaching invaders into a dead stop.',
   },
   confuse_ray: {

@@ -230,6 +230,17 @@ export class Tower {
     return true;
   }
 
+  /** Psychic and Ghost towers can aim at Phantoms; everyone else can't. */
+  public get seesPhantoms(): boolean {
+    const form = formOf(this.pokemon);
+    return [form.type, form.secondaryType].some(type => type === 'Psychic' || type === 'Ghost');
+  }
+
+  /** A move's range against one creep, stretched when the tower stands above it. */
+  public reachAgainst(range: number, creep: Creep): number {
+    return range * highGroundRangeScale(this.position.y - TOWER_BASE_HEIGHT, creep.position.y - LANE_RIDE_HEIGHT);
+  }
+
   /** Widest reach across every known move — what the range ring shows. */
   public getMaxRange(): number {
     return this.getKnownMoves().reduce((max, m) => Math.max(max, m.range), 0);
@@ -324,7 +335,7 @@ export class Tower {
       const move = this.getActiveMove(i);
       if (!move) continue;
 
-      const target = this.findTarget(creeps, move.range);
+      const target = this.findTarget(creeps, move);
       if (this.cooldowns[i] > 0) {
         this.cooldowns[i] -= dt;
         // Becoming ready with nobody in range is an idle state, not a bank of
@@ -358,16 +369,21 @@ export class Tower {
     this.animPokemon.update(time, dt, state);
   }
 
-  private findTarget(creeps: Creep[], range: number): Creep | null {
+  private findTarget(creeps: Creep[], move: MoveDefinition): Creep | null {
     let bestCreep: Creep | null = null;
     let bestMetric = -Infinity;
+    // Fields and auras don't aim, so a Phantom can set them off; a field
+    // passes under Airborne creeps, so they alone never trigger one.
+    const untargeted = move.delivery === 'field' || move.delivery === 'aura';
+    const canTargetPhantoms = untargeted || this.seesPhantoms;
 
     for (const creep of creeps) {
       if (!creep.alive || creep.captureLocked) continue;
+      if (!canTargetPhantoms && creep.hasTrait('phantom')) continue;
+      if (move.delivery === 'field' && creep.hasTrait('airborne')) continue;
       // Reach is measured across the ground; standing above the lane extends it.
       const dist = Math.hypot(this.position.x - creep.position.x, this.position.z - creep.position.z);
-      const towerGround = this.position.y - TOWER_BASE_HEIGHT;
-      if (dist > range * highGroundRangeScale(towerGround, creep.position.y - LANE_RIDE_HEIGHT)) continue;
+      if (dist > this.reachAgainst(move.range, creep)) continue;
 
       let metric = 0;
       switch (this.targetPriority) {

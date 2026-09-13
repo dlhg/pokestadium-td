@@ -307,19 +307,72 @@ Each phase is playable on its own.
 4. **The rest of the roster.** Full paths for every species from the roles table;
    delete the adapter and retire shared Hyper Beam / Toxic tiers.
 
-## Open questions
+## Decisions
 
-- **Cap strictness.** `3-2-0` leaves tier 2 of a second path, which is strong with only
-  three tiers. Is `3-1-0` better?
-- **Tier-3 level gates.** Tying tier 3 to the final-form level means most signatures
-  arrive late in a save. Should tier 3 need the middle form instead?
-- **Round 6 (pure Haunter).** With Phantom rules, a starter-only team leans on hazards,
-  auras and chains. Mix a targetable creep into the wave, or make sure Gastly/Abra
-  can be caught earlier?
-- **Round 3 (Granite Guard).** Armored at 50% on top of type resistances may be harsh
-  for Charmander and Pikachu this early. Tune the percentage or the wave?
-- **PP carry-over.** Should one unused PP carry into the next round, to reward saving?
-- **Auto-cast.** Offer an optional per-button auto mode (fire when an elite or Titan is
-  in range) for players who want fewer inputs?
-- **Water placement.** Should water-only and near-water towers (Lapras, Psyduck,
-  Magikarp) be part of phase 4, or its own pass on map terrain?
+Resolved for the first playable build. Each is a constant or a data edit, so
+playtesting can move them.
+
+- **Cap:** `3-2-0`. One constant (`SECONDARY_PATH_MAX_TIER`).
+- **Tier-3 level gate:** the middle form's level (Bulbasaur/Charmander/Squirtle Lv 16,
+  Pikachu Lv 18), so signatures arrive early enough to playtest. Tier 2 is Lv 8.
+  This overrides the tier-3 levels in the starter tables above.
+- **Round 6:** a few Zubat escorts join the Haunters so a starter team always has
+  something to aim at.
+- **Round 3:** armor stays at 50% (`ARMOR_LIGHT_MULTIPLIER`); tune after playtesting.
+- **PP carry-over:** none.
+- **Auto-cast:** not in this build.
+- **Water placement:** deferred. Psyduck and Lapras get roles that don't need water.
+- **Trait callouts:** shown the first time a trait appears in each match, not once per
+  save, so there is no save schema change.
+
+## Build checklist
+
+Tick each box as it lands. Each phase ends with `npm run build`,
+`npm run test:gameplay`, a screenshot, and a commit.
+
+### Phase 1 · Hit shapes and creep traits
+
+- [x] `MoveDefinition` gains `heavy`, `pierce`, `coneAngle`; mark Heavy moves
+- [x] `resolveMoveHit` resolves by shape: projectile (target + splash), beam (line
+      to full range), cone (arc), field (ring around the tower), aura (target + splash)
+- [x] Beam / cone / field visuals match what they hit
+- [x] Creep traits from types: Airborne, Phantom, Armored
+- [x] Airborne ignores `field`; Phantom can't be targeted except by Psychic/Ghost
+      towers or untargeted shapes; Armored takes 50% from Light hits
+- [x] Titans: stops become slows, durations halved
+- [x] Status slots: one damage-over-time plus one movement effect; new `sleep` status
+      that breaks on direct damage; Sleep Powder and Hypnosis use it
+- [x] Trait badges on the HP bar; first-appearance callout each match
+- [x] Round 6 escorts
+- [x] Regression tests for shapes, traits and status slots
+
+### Phase 2 · Basic attack and paths
+
+- [ ] `SpeciesDef.basicAttack` + `paths`; `PathTier.effects` folded over the basic attack
+- [ ] New move data the starter paths need (BubbleBeam, Rage, Slash, …)
+- [ ] `Tower` fires one attack; `canBuy` enforces `3-2-0` and level gates
+- [ ] Effects: replace attack, modify attack, rate, on-hit status, chain, hazard, aura,
+      rage stacking
+- [ ] Lane hazards (`Hazard` entity: patches on the lane, miss Airborne)
+- [ ] Auras (passive slow, tower buff)
+- [ ] Bulbasaur, Charmander, Squirtle, Pikachu paths
+- [ ] Adapter so unconverted species still play (old lines become paths)
+- [ ] Shop panel: path columns, closed-path state and warning, tower chips
+- [ ] Placement preview, team/summary screens and dev save read the new shape
+- [ ] Regression tests for the cap and effect folding
+
+### Phase 3 · Signature moves
+
+- [ ] Signature definitions; tier 3 unlocks one per path
+- [ ] PP per tower, refilled at round start
+- [ ] Signature bar with portraits, PP pips and hotkeys
+- [ ] Targeting: instant, aimed (click the map), auto
+- [ ] Each starter signature's effect
+- [ ] Announcer call and a short action-cam cut (setting to turn it off)
+- [ ] Regression tests for PP and refills
+
+### Phase 4 · The rest of the roster
+
+- [ ] Paths for the remaining 19 species from the roles table
+- [ ] Remove the adapter and unused legacy moves
+- [ ] Update `CLAUDE.md` subsystem notes

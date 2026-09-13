@@ -190,20 +190,26 @@ const AUTHORED_WAVES: WaveDefinition[] = [
     cupName: 'PRIME CUP',
     name: 'Prime Cup: Spectral Apparitions',
     spawns: [
-      {
-        config: {
-          id: 'haunter_1',
-          name: 'Haunter',
-          type: 'Ghost',
-          secondaryType: 'Poison',
-          maxHp: 220,
-          speed: 4.5,
-          reward: 30,
-          modelType: 'zubat'
+      // Phantoms can't be aimed at by most towers, so targetable Zubat
+      // escorts are threaded through the ghosts to keep a starter team busy.
+      ...[0, 1].flatMap(half => [
+        {
+          config: {
+            id: `zubat_escort_6_${half}`, name: 'Zubat', type: 'Poison' as const, secondaryType: 'Flying' as const,
+            maxHp: 160, speed: 4.5, reward: 20, modelType: 'zubat' as const
+          },
+          count: 3 - half,
+          interval: 1.2
         },
-        count: 14,
-        interval: 1.1
-      }
+        {
+          config: {
+            id: `haunter_1_${half}`, name: 'Haunter', type: 'Ghost' as const, secondaryType: 'Poison' as const,
+            maxHp: 220, speed: 4.5, reward: 30, modelType: 'zubat' as const
+          },
+          count: 7,
+          interval: 1.1
+        },
+      ])
     ]
   },
   {
