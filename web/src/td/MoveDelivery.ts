@@ -65,7 +65,7 @@ export function moveColor(move: MoveDefinition): number {
 }
 
 /** Chest height on a creep — where impacts and beams are aimed. */
-function centerMass(creep: Creep): THREE.Vector3 {
+export function centerMass(creep: Creep): THREE.Vector3 {
   return creep.position.clone().add(new THREE.Vector3(0, 1.0, 0));
 }
 
@@ -102,21 +102,8 @@ export function collectVictims(
   const shape = geometry ? move.delivery : 'projectile';
 
   switch (shape) {
-    case 'beam': {
-      const { origin, direction, reach } = geometry!;
-      const caught: { creep: Creep; along: number }[] = [];
-      for (const creep of creeps) {
-        if (!hittable(creep)) continue;
-        const dx = creep.position.x - origin.x;
-        const dz = creep.position.z - origin.z;
-        const along = dx * direction.x + dz * direction.z;
-        if (along < 0 || along > reach) continue;
-        const across = Math.abs(dx * direction.z - dz * direction.x);
-        if (across <= BEAM_HALF_WIDTH) caught.push({ creep, along });
-      }
-      caught.sort((a, b) => a.along - b.along);
-      return caught.slice(0, move.pierce ?? caught.length).map(entry => entry.creep);
-    }
+    case 'beam':
+      return creepsOnBeam(geometry!, creeps, move.pierce);
 
     case 'cone': {
       const { origin, direction, reach } = geometry!;
@@ -148,6 +135,23 @@ export function collectVictims(
   }
 }
 
+/** Creeps along a beam's corridor, nearest first, stopping after `pierce` of them. */
+export function creepsOnBeam(geometry: MoveGeometry, creeps: Creep[], pierce?: number): Creep[] {
+  const { origin, direction, reach } = geometry;
+  const caught: { creep: Creep; along: number }[] = [];
+  for (const creep of creeps) {
+    if (!creep.alive || creep.captureLocked) continue;
+    const dx = creep.position.x - origin.x;
+    const dz = creep.position.z - origin.z;
+    const along = dx * direction.x + dz * direction.z;
+    if (along < 0 || along > reach) continue;
+    const across = Math.abs(dx * direction.z - dz * direction.x);
+    if (across <= BEAM_HALF_WIDTH) caught.push({ creep, along });
+  }
+  caught.sort((a, b) => a.along - b.along);
+  return caught.slice(0, pierce ?? caught.length).map(entry => entry.creep);
+}
+
 /** Damage a move deals to one creep before the caster's stats: type, then armor. */
 export function hitDamage(move: MoveDefinition, victim: Creep): { damage: number; multiplier: number } {
   const multiplier = move.ignoresType ? 1 : getCombinedEffectiveness(move.type, victim.types);
@@ -169,8 +173,6 @@ export function resolveMoveHit(
   geometry: MoveGeometry | null = null,
   extras: HitExtras = {},
 ): void {
-  // The caster's level and stats scale every hit; a sourceless hit is neutral.
-  const mods = source?.modifiers ?? { damage: 1, rate: 1, status: 1 };
   const color = moveColor(move);
   const hitList = collectVictims(move, target, ctx.creeps, geometry);
   if (!geometry || move.delivery === 'aura') {
@@ -180,22 +182,70 @@ export function resolveMoveHit(
     for (const victim of hitList) ctx.particles.emitImpact(centerMass(victim), color, 8, 5);
   }
 
-  let hasSuperEffective = false;
-  const struck = new Set<Creep>();
+  const strikes = strikeCreeps(move, hitList, ctx, source, extras);
+  const { struck } = strikes;
 
-  const strike = (victim: Creep, share: number) => {
+  // Chains leap from the last creep struck to the nearest one not yet hit.
+  let from = target;
+  for (let jump = 0; jump < (extras.chain ?? 0); jump++) {
+    let next: Creep | null = null;
+    let nearest = CHAIN_JUMP_RANGE;
+    for (const creep of ctx.creeps) {
+      if (struck.has(creep) || !creep.alive || creep.captureLocked) continue;
+      const distance = creep.position.distanceTo(from.position);
+      if (distance <= nearest) {
+        nearest = distance;
+        next = creep;
+      }
+    }
+    if (!next) break;
+    ctx.particles.emitBeam(centerMass(from), centerMass(next), color, 0.22, 0.25);
+    const leap = strikeCreeps(move, [next], ctx, source, extras, CHAIN_DAMAGE_SHARE);
+    leap.struck.forEach(creep => struck.add(creep));
+    strikes.superEffective ||= leap.superEffective;
+    from = next;
+  }
+
+  ctx.audio.playHit(strikes.superEffective);
+
+  if (extras.crit && Math.random() < 0.3) {
+    ctx.announcer.trigger('critical_hit');
+  } else if (strikes.superEffective && Math.random() < 0.4) {
+    ctx.announcer.trigger('super_effective');
+  }
+}
+
+/**
+ * Damage, statuses, status spread and knockback for each creep a move has
+ * already caught. Shared by ordinary attacks and signature moves, so both
+ * obey type, armor and the caster's stats identically.
+ */
+export function strikeCreeps(
+  move: MoveDefinition,
+  victims: Creep[],
+  ctx: HitContext,
+  source: Tower | null,
+  extras: HitExtras = {},
+  share = 1,
+): { struck: Set<Creep>; superEffective: boolean } {
+  const mods = source?.modifiers ?? { damage: 1, rate: 1, status: 1 };
+  const color = moveColor(move);
+  const struck = new Set<Creep>();
+  let superEffective = false;
+
+  for (const victim of victims) {
     struck.add(victim);
     const { damage, multiplier } = hitDamage(move, victim);
-    if (multiplier >= 2.0) hasSuperEffective = true;
+    if (multiplier >= 2.0) superEffective = true;
 
     const died = victim.takeDamage(Math.floor(damage * share * mods.damage * (extras.damageMultiplier ?? 1)), source);
     if (died) {
       ctx.onFaint(victim);
-      return;
+      continue;
     }
     // Elemental immunity blocks the whole move, including its secondary
     // effect. A capture target is also protected from splash while locked.
-    if (multiplier <= 0 || victim.captureLocked) return;
+    if (multiplier <= 0 || victim.captureLocked) continue;
 
     const statuses = [
       { status: move.statusEffect, chance: move.statusChance, duration: move.statusDuration },
@@ -215,36 +265,9 @@ export function resolveMoveHit(
     }
 
     if (extras.knockback && !victim.isBoss) victim.pushBack(extras.knockback);
-  };
-
-  for (const victim of hitList) strike(victim, 1);
-
-  // Chains leap from the last creep struck to the nearest one not yet hit.
-  let from = target;
-  for (let jump = 0; jump < (extras.chain ?? 0); jump++) {
-    let next: Creep | null = null;
-    let nearest = CHAIN_JUMP_RANGE;
-    for (const creep of ctx.creeps) {
-      if (struck.has(creep) || !creep.alive || creep.captureLocked) continue;
-      const distance = creep.position.distanceTo(from.position);
-      if (distance <= nearest) {
-        nearest = distance;
-        next = creep;
-      }
-    }
-    if (!next) break;
-    ctx.particles.emitBeam(centerMass(from), centerMass(next), color, 0.22, 0.25);
-    strike(next, CHAIN_DAMAGE_SHARE);
-    from = next;
   }
 
-  ctx.audio.playHit(hasSuperEffective);
-
-  if (extras.crit && Math.random() < 0.3) {
-    ctx.announcer.trigger('critical_hit');
-  } else if (hasSuperEffective && Math.random() < 0.4) {
-    ctx.announcer.trigger('super_effective');
-  }
+  return { struck, superEffective };
 }
 
 /**
