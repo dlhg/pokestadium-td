@@ -563,9 +563,12 @@ export class StadiumUI {
 
         .tower-rail-header {
           flex: 0 0 auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           padding: 2px 3px 7px;
           border-bottom: 1px solid rgba(82, 128, 184, 0.65);
-          text-align: left;
+          text-align: center;
         }
 
         .tower-rail-title {
@@ -586,6 +589,11 @@ export class StadiumUI {
           line-height: 1.15;
           letter-spacing: 0.65px;
           text-transform: uppercase;
+        }
+
+        #placement-hint:empty {
+          min-height: 0;
+          margin-top: 0;
         }
 
         .tower-card {
@@ -1484,8 +1492,8 @@ export class StadiumUI {
       <div class="tower-rail-header">
         <span class="pokeball-emblem" aria-hidden="true"></span>
         <span class="tower-rail-copy">
-          <span class="tower-rail-title">TEAM ROSTER</span>
-          <span id="placement-hint">SELECT A POKÉMON</span>
+          <span class="tower-rail-title">ROSTER</span>
+          <span id="placement-hint"></span>
         </span>
       </div>
     `;
@@ -2302,8 +2310,7 @@ export class StadiumUI {
       placementHint.innerText = `PLACE ${displayName(state.selectedMember).toUpperCase()} · ESC TO CANCEL`;
       placementHint.style.color = '#00f0ff';
     } else {
-      placementHint.innerText = 'SELECT A POKÉMON';
-      placementHint.style.color = '#8faecf';
+      placementHint.innerText = '';
     }
 
     // Evolutions and renames change a card's model and title; rebuild only then.
