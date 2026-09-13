@@ -304,6 +304,9 @@ export class Creep {
   }
 
   public update(dt: number, onDeath: (creep: Creep) => void): void {
+    // Do not advance paths, status ticks, or faint timers while paused.
+    if (dt <= 0) return;
+
     const time = performance.now() * 0.001;
     if (this.threatAura) {
       const pulse = 1 + Math.sin(time * (this.threat === 'titan' ? 4 : 3)) * 0.12;
