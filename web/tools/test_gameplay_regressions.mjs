@@ -19,6 +19,7 @@ const result = await build({
       "export { HAZARDS } from './src/td/Hazard.ts';",
       "export { Hazard } from './src/td/Hazard.ts';",
       "export { SummonSequence } from './src/td/SummonSequence.ts';",
+      "export { CaptureSequence } from './src/td/CaptureSequence.ts';",
       "export { castSignature, SIGNATURES } from './src/td/Signatures.ts';",
       "export * as THREE from 'three';",
     ].join('\n'),
@@ -32,7 +33,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Starting the next match must release a keyboard-only pause, or the wave
@@ -239,6 +240,40 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   sequence.dispose(scene);
   assert.equal(released, 1, 'summon returns camera control');
   assert.equal(sequence.group.parent, null, 'summon presentation is removed');
+}
+
+// A capture resting shot searches around authored scenery instead of blindly
+// parking the camera on the pitch-centre side of the ball.
+{
+  const target = {
+    name: 'Pidgey', threat: 'normal', position: new THREE.Vector3(10, 0.34, 0),
+    group: new THREE.Group(),
+  };
+  let openingAngle = 0;
+  const noop = () => {};
+  const camera = {
+    beginCinematic: (_focus, _distance, _height, angle) => { openingAngle = angle; },
+    cinematicPositionAt: (focus, distance, height, angle, result = new THREE.Vector3()) =>
+      result.set(focus.x + Math.sin(angle) * distance, focus.y + height, focus.z + Math.cos(angle) * distance),
+    setCinematicAngle: noop, setCinematicFraming: noop, punchZoom: noop, shake: noop, releaseCinematic: noop,
+  };
+  const obstacle = { x: 5, z: 0, radius: 2, label: 'test rock', style: 'rock' };
+  const sequence = new CaptureSequence(target, 'poke', 0.5, {
+    particles: {}, camera,
+    audio: { duckCrowd: noop, playCaptureWindup: noop },
+    announcer: {},
+    arena: {
+      getNoBuildZones: () => [obstacle], setCrowdMood: noop,
+      terrain: { heightAt: () => 0 },
+    },
+  });
+  const eye = camera.cinematicPositionAt(target.position, 9.5, 3.2, openingAngle);
+  const dx = target.position.x - eye.x, dz = target.position.z - eye.z;
+  const lengthSq = dx * dx + dz * dz;
+  const t = Math.max(0, Math.min(1, ((obstacle.x-eye.x)*dx + (obstacle.z-eye.z)*dz) / lengthSq));
+  assert.ok(Math.hypot(obstacle.x-(eye.x+dx*t), obstacle.z-(eye.z+dz*t)) > obstacle.radius,
+    'capture camera chooses an unobstructed resting sightline');
+  sequence.dispose(new THREE.Scene());
 }
 
 // Hit shapes decide who a move catches: a beam pierces its line, a cone its
