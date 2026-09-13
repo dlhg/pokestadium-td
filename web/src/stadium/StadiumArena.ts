@@ -142,12 +142,25 @@ export class StadiumArena {
         arrow.position.set(point.x,point.y+0.05,point.z);
         this.gameplayGroup.add(arrow);
       }
-      this.addGate(points[0],points[1],true,routeIndex);
-      this.addGate(points[points.length-1],points[points.length-2],false,routeIndex);
     });
+    // Routes that meet at one endpoint share one gate and one label.
+    // Average their approach directions so the shared gate faces both lanes.
+    for (const entry of [true, false]) {
+      const gates: { point: THREE.Vector3; direction: THREE.Vector3 }[] = [];
+      for (const points of this.routes) {
+        const point = points[entry ? 0 : points.length-1];
+        const adjacent = points[entry ? 1 : points.length-2];
+        const direction = adjacent.clone().sub(point).setY(0).normalize();
+        const shared = gates.find(gate => gate.point.distanceToSquared(point) < 0.0001);
+        if (shared) shared.direction.add(direction);
+        else gates.push({ point, direction });
+      }
+      gates.forEach((gate,index) => this.addGate(gate.point, gate.point.clone().add(gate.direction),
+        entry, gates.length > 1 ? index+1 : undefined));
+    }
   }
 
-  private addGate(point: THREE.Vector3, adjacent: THREE.Vector3, entry: boolean, index: number): void {
+  private addGate(point: THREE.Vector3, adjacent: THREE.Vector3, entry: boolean, number?: number): void {
     const gate=new THREE.Group();
     gate.position.set(point.x,point.y-LANE_RIDE_HEIGHT,point.z);
     gate.rotation.y=Math.atan2(adjacent.x-point.x,adjacent.z-point.z);
@@ -162,7 +175,7 @@ export class StadiumArena {
     ctx.fillStyle='#152f47';ctx.fillRect(0,0,256,64);
     ctx.strokeStyle=color;ctx.lineWidth=5;ctx.strokeRect(3,3,250,58);
     ctx.fillStyle=color;ctx.font='bold 36px sans-serif';ctx.textAlign='center';
-    ctx.fillText(`${entry?'IN':'OUT'}${this.routes.length>1?' '+(index+1):''}`,128,46);
+    ctx.fillText(`${entry?'IN':'OUT'}${number === undefined ? '' : ' '+number}`,128,46);
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
     const sign=new THREE.Sprite(new THREE.SpriteMaterial({map:texture}));
     sign.scale.set(4.3,1.1,1);sign.position.y=3;gate.add(sign);
