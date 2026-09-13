@@ -62,6 +62,18 @@ export class DevPanel {
           </div>
         </fieldset>
 
+        <fieldset><legend>MUSIC LAB</legend>
+          <div class="dev-row">
+            <select data-field="music" aria-label="Music track"><option value="">Loading local tracks…</option></select>
+          </div>
+          <div class="dev-row">
+            <button data-dev="music-play">PLAY LOOP</button>
+            <button data-dev="music-stop">STOP</button>
+          </div>
+          <label class="dev-volume">VOLUME <input data-field="music-volume" type="range" min="0" max="100" value="45"></label>
+          <div class="dev-summary dev-music-note">Optional local ROM extraction only; no tracks are bundled.</div>
+        </fieldset>
+
         <fieldset><legend>SAVE</legend>
           <div class="dev-row">
             <button data-dev="luck-up">LUCK +1</button>
@@ -78,6 +90,9 @@ export class DevPanel {
     container.appendChild(this.root);
     this.body = this.root.querySelector('.dev-body')!;
     this.status = this.root.querySelector('.dev-status')!;
+    game.audio.onMusicCatalogChanged = () => this.refreshMusicTracks();
+    game.audio.prepare();
+    this.refreshMusicTracks();
 
     this.root.addEventListener('click', (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-dev]');
@@ -86,6 +101,9 @@ export class DevPanel {
     this.root.querySelector<HTMLInputElement>('[data-field="always-catch"]')!.addEventListener('change', (event) => {
       this.game.devAlwaysCatch = (event.target as HTMLInputElement).checked;
       this.say(this.game.devAlwaysCatch ? 'Every throw catches' : 'Normal catch odds');
+    });
+    this.root.querySelector<HTMLInputElement>('[data-field="music-volume"]')!.addEventListener('input', (event) => {
+      this.game.audio.setMusicVolume(Number((event.target as HTMLInputElement).value) / 100);
     });
     // Keys typed into the panel's fields stay out of the game.
     this.body.addEventListener('keydown', event => event.stopPropagation());
@@ -116,6 +134,15 @@ export class DevPanel {
     switch (action) {
       case 'toggle':
         return this.toggle();
+      case 'music-play': {
+        const id = this.root.querySelector<HTMLSelectElement>('[data-field="music"]')!.value;
+        if (!id) return this.say('No local music tracks found');
+        this.game.audio.startMusic(id);
+        return this.say(`Playing ${this.musicLabel(id)}`);
+      }
+      case 'music-stop':
+        this.game.audio.stopMusic();
+        return this.say('Music stopped');
       case 'add': {
         const speciesId = this.root.querySelector<HTMLSelectElement>('[data-field="species"]')!.value;
         const pokemon = createPokemon(speciesId, this.level, origin);
@@ -209,5 +236,20 @@ export class DevPanel {
     const { data } = this.store;
     this.root.querySelector('.dev-summary')!.textContent =
       `${data.collection.length} owned · team ${data.team.filter(Boolean).length}/6 · luck ${data.captureLuck} · ${data.matchesPlayed} matches`;
+  }
+
+  private refreshMusicTracks(): void {
+    const select = this.root.querySelector<HTMLSelectElement>('[data-field="music"]');
+    if (!select) return;
+    const current = select.value;
+    const tracks = this.game.audio.getMusicTracks();
+    select.innerHTML = tracks.length
+      ? tracks.map(id => `<option value="${id}">${this.musicLabel(id)}</option>`).join('')
+      : '<option value="">No local music manifest</option>';
+    if (tracks.includes(current)) select.value = current;
+  }
+
+  private musicLabel(id: string): string {
+    return id.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
   }
 }

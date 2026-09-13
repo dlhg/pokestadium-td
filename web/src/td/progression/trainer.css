@@ -199,3 +199,5 @@ input.tr-input, .tr-starter-names input, .tr-rename input, .trophy-nickname inpu
 #dev-panel input[type="number"] { width: 52px; }
 #dev-panel .dev-check { display: flex; align-items: center; gap: 5px; cursor: pointer; }
 #dev-panel .dev-summary { color: #9aa7ba; margin: 2px 0 4px; }
+#dev-panel .dev-volume { display: flex; align-items: center; gap: 6px; color: #9aa7ba; }
+#dev-panel input[type="range"] { flex: 1; min-width: 100px; accent-color: #ffcf5a; }
