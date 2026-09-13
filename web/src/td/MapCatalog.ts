@@ -49,6 +49,7 @@ export interface StadiumMap {
 
 // Victory Road → Indigo Plateau tiers. Outlines run past the arena rim; the rim trims them.
 const TIER_ROUTE_23 = 3, TIER_BADGE_CHECK = 6, TIER_SUMMIT = 9;
+const TIER_SILVER_PINE = 3, TIER_SILVER_BALCONY = 6, TIER_SILVER_SADDLE = 9, TIER_SILVER_CROWN = 12;
 
 export const STADIUM_MAPS: StadiumMap[] = [
   {
@@ -152,8 +153,8 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ]],
     water:[
       { points:[[-6,9],[-2,9],[-1,15],[1,21],[0.5,30],[1.5,37],[-5,37],[-5,30],[-4.5,22],[-6.5,15]] },
-      // Spring-fed pool at the base of the summit cliff, catching the first drop.
-      { height:TIER_BADGE_CHECK, points:[[-10,-21.6],[-8.3,-22],[-6.2,-21.5],[-6,-20],[-7.7,-19.3],[-10,-19.7]] },
+      // Spring-fed pool right at the cave mouth, tucked under the summit's cliff.
+      { height:TIER_BADGE_CHECK, points:[[-10,-21.9],[-8.3,-22.1],[-6.2,-21.7],[-6,-20],[-7.7,-19.3],[-10,-19.7]] },
       // The river down Route 23, fed by the second drop, crossing the road on its way to the falls.
       { height:TIER_ROUTE_23, points:[[-7.4,-4],[-7.6,-2],[-7.2,1],[-6.8,5],[-6.4,8.4],[-2.2,8.4],[-2.6,6],[-3,2.5],[-3.6,-1.8],[-5.2,-4.2]] },
     ],
@@ -180,10 +181,8 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ],
     decor:[
       { kind:'cave', x:-30, z:16.3, angle:0.86 },
-      // The river's source: a spring in the summit's cliff face, cascading down through both lower terraces.
-      { kind:'cave', x:-8, z:-23.6, angle:0 },
-      { kind:'waterfall', x:-8, z:-23.6, angle:0, width:2.6, top:TIER_SUMMIT, drop:TIER_SUMMIT-TIER_BADGE_CHECK },
-      { kind:'waterfall', x:-6.3, z:-4.7, angle:0, width:2.8, top:TIER_BADGE_CHECK, drop:TIER_BADGE_CHECK-TIER_ROUTE_23 },
+      // The river's source: a spring pool emerging straight from a cave at the summit's cliff foot.
+      { kind:'cave', x:-8, z:-21.8, angle:0 },
       { kind:'waterfall', x:-4.2, z:8.4, angle:0, width:3.4, top:TIER_ROUTE_23, drop:TIER_ROUTE_23 },
       { kind:'arch', x:8.4, z:25.4, angle:-1.218, span:8.1, text:'BADGE CHECK' },
       { kind:'arch', x:0, z:-28, angle:0, span:7.2, text:'INDIGO PLATEAU' },
@@ -192,6 +191,72 @@ export const STADIUM_MAPS: StadiumMap[] = [
       { kind:'torch', x:2.4, z:-25.5 }, { kind:'torch', x:-2.4, z:-25.5 },
       { kind:'flowers', x:-12, z:22, radius:2 }, { kind:'flowers', x:14, z:14.5, radius:1.6 },
       { kind:'flowers', x:-26, z:-8, radius:1.8 }, { kind:'flowers', x:6, z:-24.5, radius:1.4 },
+    ],
+  },
+  {
+    id:'mt-silver-crown', name:'Mt. Silver Crown', venue:'TWIN-TRAIL SUMMIT', difficulty:'hard',
+    description:'Two mountain trails coil up five shrinking shelves before rejoining beneath the summit gate.',
+    strategy:'The steep red trail is slow and direct; the long blue trail doubles back beneath your high ground. Control the middle shelves.',
+    theme:'plateau',
+    palette:{ ground:'#405f4c', patch:'#658069', path:'#c9b28c', edge:'#665b55', accent:'#a9d9e8' },
+    buildableRadius:31, laneWidth:2.8,
+    terrain:{ plateaus:[
+      { label:'Pine shelf', height:TIER_SILVER_PINE,
+        points:[[-40,8],[-25,9],[-16,7],[-6,9],[5,7],[15,9],[25,8],[40,9],[40,-40],[-40,-40]] },
+      { label:'Doubleback balcony', height:TIER_SILVER_BALCONY,
+        points:[[-40,-5],[-25,-6],[-15,-6],[-6,-4],[3,-5],[13,-4],[24,-6],[40,-5],[40,-40],[-40,-40]] },
+      { label:'Wind saddle', height:TIER_SILVER_SADDLE,
+        points:[[-40,-15],[-27,-14],[-17,-16],[-7,-12],[4,-13],[15,-12],[27,-15],[40,-14],[40,-40],[-40,-40]] },
+      { label:'Frozen crown', height:TIER_SILVER_CROWN,
+        points:[[-17,-24],[-11,-21.5],[-3,-23],[5,-21.5],[16,-24],[18,-40],[-18,-40]] },
+    ]},
+    routes:[
+      [
+        [-29,19],[-25,24],[-16,27],[-7,26],[2,23],[10,19],[16,14],
+        [18,10,0],[18,4,TIER_SILVER_PINE],
+        [12,2],[4,3],[-4,3],[-11,1],[-17,-1],
+        [-18,-3,TIER_SILVER_PINE],[-15,-9,TIER_SILVER_BALCONY],
+        [-8,-8],[0,-7],[8,-8],[15,-10],
+        [18,-12,TIER_SILVER_BALCONY],[15,-18,TIER_SILVER_SADDLE],
+        [8,-18],[1,-17],[-6,-18],[-12,-20],
+        [-12,-22,TIER_SILVER_SADDLE],[-7,-27,TIER_SILVER_CROWN],
+        [-1,-24],[7,-24],[11,-27],[7,-29],[0,-29],
+      ],
+      [
+        [29,19],[25,24],[16,27],[7,26],[-2,23],[-10,19],[-16,14],
+        [-18,10,0],[-18,4,TIER_SILVER_PINE],
+        [-12,7],[-4,8],[4,8],[11,7],[17,4],
+        [18,1,TIER_SILVER_PINE],[15,-5,TIER_SILVER_BALCONY],
+        [9,-3],[1,-2],[-7,-3],[-14,-5],[-18,-8],
+        [-18,-10,TIER_SILVER_BALCONY],[-15,-16,TIER_SILVER_SADDLE],
+        [-8,-13],[-1,-12],[6,-13],[12,-15],
+        [13,-21,TIER_SILVER_SADDLE],[7,-27,TIER_SILVER_CROWN],
+        [1,-23],[-7,-24],[-11,-27],[-7,-29],[0,-29],
+      ],
+    ],
+    obstacles:[
+      { x:-23,z:16,radius:2.2,label:'Silver pines',style:'pine' },
+      { x:23,z:16,radius:2.2,label:'Silver pines',style:'pine' },
+      { x:-2,z:13,radius:2.4,label:'Base-camp pines',style:'pine' },
+      { x:-8,z:5.5,radius:0.7,label:'Doubleback spine',style:'rock' },
+      { x:0,z:5.5,radius:0.7,label:'Doubleback spine',style:'rock' },
+      { x:8,z:5.5,radius:0.7,label:'Doubleback spine',style:'rock' },
+      { x:0,z:-4.8,radius:0.7,label:'Balcony ridge',style:'boulder' },
+      { x:-23,z:-6,radius:2.2,label:'Cliff pines',style:'pine' },
+      { x:23,z:-7,radius:2.2,label:'Cliff pines',style:'pine' },
+      { x:0,z:-14.8,radius:0.8,label:'Wind-carved stones',style:'boulder' },
+      { x:-16,z:-26,radius:1.4,label:'Frozen pines',style:'pine' },
+      { x:16,z:-26,radius:1.4,label:'Frozen pines',style:'pine' },
+    ],
+    water:[], bridges:[],
+    decor:[
+      { kind:'cave', x:-30.5, z:18, angle:0.82 },
+      { kind:'cave', x:30.5, z:18, angle:-0.82 },
+      { kind:'arch', x:0, z:-29.5, angle:0, span:7.2, text:'MT. SILVER' },
+      { kind:'torch', x:15.6, z:5 }, { kind:'torch', x:-15.6, z:5 },
+      { kind:'torch', x:-13.8, z:-8.5 }, { kind:'torch', x:13.8, z:-10.7 },
+      { kind:'torch', x:-13.2, z:-18.5 }, { kind:'torch', x:13.2, z:-18.5 },
+      { kind:'flowers', x:-26, z:8, radius:1.5 }, { kind:'flowers', x:26, z:8, radius:1.5 },
     ],
   },
 ];
