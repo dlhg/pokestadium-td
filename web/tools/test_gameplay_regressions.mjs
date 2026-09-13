@@ -218,6 +218,24 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   assert.equal(game.activeCapture, null, 'fainted target does not start capture');
 }
 
+// Catch controls throw in one click with the ball selected in the capture kit.
+{
+  const game = new StadiumTDGame();
+  const throws = [];
+  game.ui = {};
+  game.audio = { playSelect() {} };
+  game.balls = { poke: 2, great: 1, ultra: 0 };
+  game.tryCapture = (target, ball) => throws.push([target, ball]);
+  game.bindUIEvents();
+  const target = { name: 'Rattata' };
+  game.ui.onSelectBall('great');
+  game.ui.onCatch(target);
+  assert.equal(game.selectedBall, 'great', 'stock row selects the next capture ball');
+  assert.deepEqual(throws, [[target, 'great']], 'catch button immediately throws the selected ball');
+  game.ui.onSelectBall('ultra');
+  assert.equal(game.selectedBall, 'great', 'an empty ball type cannot replace the selection');
+}
+
 // Zero simulation time is a hard pause for every gameplay entity. This also
 // catches the fresh-tower case, whose initial cooldown is ready to fire.
 {

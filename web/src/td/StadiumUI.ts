@@ -46,8 +46,8 @@ export interface UIState {
   balls: Record<BallType, number>;
   /** Every Pokémon weak enough to catch right now, nearest the exit first. */
   catchables: CatchSlot[];
-  /** The catchable Pokémon whose ball picker is open. */
-  catchTarget: Creep | null;
+  /** The ball thrown by catch tags, tray buttons, and the Q shortcut. */
+  selectedBall: BallType;
   captureHint: string | null;
   /** Live capture set piece, or null when no ball is in the air. */
   captureCinema: CaptureHud | null;
@@ -173,9 +173,8 @@ export class StadiumUI {
   public onSfxVolumeChange: (value: number) => void = () => {};
   public onQuitToMenu: () => void = () => {};
   public onRetryMap: () => void = () => {};
-  /** Opens the ball picker on a catchable Pokémon; the same one again, or null, closes it. */
-  public onOpenCatch: (creep: Creep | null) => void = () => {};
-  public onThrowBall: (creep: Creep, ball: BallType) => void = () => {};
+  public onCatch: (creep: Creep) => void = () => {};
+  public onSelectBall: (ball: BallType) => void = () => {};
   public onBuyBall: (ball: BallType) => void = () => {};
   public onSelectMap: (map: StadiumMap) => void = () => {};
 
@@ -442,12 +441,17 @@ export class StadiumUI {
         #capture-kit { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:grid; gap:5px; }
         .capture-kit-title { color:#f6c437; font-family:'Teko','Impact',sans-serif; font-size:15px; line-height:.9; letter-spacing:1.2px; }
         .capture-row { display:grid; grid-template-columns:1fr auto; gap:5px; }
-        .ball-stock { display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px; min-width:118px; padding:4px 8px 4px 6px; color:#fff; font-family:'Teko','Impact',sans-serif; font-size:17px; letter-spacing:.6px; }
+        .ball-stock { display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px; min-width:118px; padding:4px 8px 4px 6px; border:2px solid transparent; border-radius:6px; background:#07182f; color:#fff; cursor:pointer; text-align:left; font-family:'Teko','Impact',sans-serif; font-size:17px; letter-spacing:.6px; }
+        .ball-stock:hover:not(:disabled) { border-color:#7fa6c9; background:#123766; }
+        .ball-stock.selected { border-color:#ffe766; background:linear-gradient(180deg,#765a0d,#302205); box-shadow:0 0 10px rgba(255,215,0,.4); }
+        .ball-stock.selected::after { content:'READY'; grid-column:1 / -1; color:#ffe766; font-size:11px; line-height:.7; letter-spacing:1.4px; text-align:center; }
+        .ball-stock.selected.empty::after { content:'EMPTY'; color:#ff9b8e; }
         .ball-stock.empty { opacity:.45; }
+        .ball-stock:disabled { cursor:not-allowed; filter:saturate(.35); }
         .ball-count { display:inline-block; color:#f6c437; }
         .ball-buy:disabled { opacity:.45; cursor:not-allowed; filter:saturate(.4); }
 
-        /* ---- Catching: tags over weakened Pokémon, the ball picker, and the CATCH NOW tray ---- */
+        /* ---- Catching: one-click tags over weakened Pokémon and the CATCH NOW tray ---- */
         #catch-layer { position:absolute; inset:0; z-index:29; pointer-events:none; overflow:hidden; }
         .catch-tag {
           position:absolute; left:0; top:0; height:${CATCH_TAG_HEIGHT}px; display:flex; align-items:center; gap:5px;
@@ -461,32 +465,15 @@ export class StadiumUI {
           content:''; position:absolute; left:50%; top:100%; width:2px; height:var(--stem,6px);
           background:#ffe766; box-shadow:0 0 0 1px #5c3a05; transform:translateX(-50%);
         }
-        .catch-tag:hover, .catch-tag.open { background:linear-gradient(180deg,#fff,#ffd84a); animation:none; }
+        .catch-tag:hover:not(:disabled) { background:linear-gradient(180deg,#fff,#ffd84a); animation:none; }
+        .catch-tag:disabled { opacity:.48; cursor:not-allowed; animation:none; filter:saturate(.35); }
         .catch-tag.elite { border-color:#8ee7ff; }
         .catch-tag.titan { border-color:#ff8a4d; }
         .catch-tag .ball-icon { width:14px; height:14px; }
         @keyframes catch-tag-pulse { 50% { box-shadow:0 0 0 2px #5c3a05, 0 0 14px 3px rgba(255,224,90,.75); } }
         @media (prefers-reduced-motion: reduce) { .catch-tag { animation:none; } }
-        .catch-picker {
-          position:absolute; left:0; top:0; width:212px; padding:8px; display:grid; gap:5px; pointer-events:auto;
-          background:linear-gradient(180deg,#123766,#071a38); border:2px solid #f6c437; border-radius:10px;
-          box-shadow:0 0 0 2px #07162f, 0 8px 18px rgba(0,0,0,.55); color:#fff;
-          font-family:'Teko','Impact',sans-serif;
-        }
-        .catch-picker[hidden] { display:none; }
-        .catch-picker-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:20px; line-height:.9; letter-spacing:.6px; }
-        .catch-picker-head em { font-style:normal; font-size:14px; color:#ffb4a8; }
-        .catch-ball {
-          display:grid; grid-template-columns:18px 1fr auto auto; align-items:center; gap:7px; padding:4px 6px;
-          border:2px solid #7fa6c9; border-radius:6px; background:linear-gradient(180deg,#2d629a,#113463);
-          color:#fff; cursor:pointer; text-align:left; font:inherit; font-size:18px; line-height:1;
-        }
-        .catch-ball:hover:not(:disabled), .catch-ball:focus-visible { border-color:#ffe766; box-shadow:0 0 10px rgba(255,215,0,.45); }
-        .catch-ball:disabled { opacity:.4; cursor:not-allowed; filter:saturate(.3); }
-        .catch-ball .ball-count { font-size:15px; }
         .catch-odds { min-width:38px; text-align:right; color:#8dff8d; }
         .catch-key { position:relative; min-width:15px; padding:1px 3px; background:#f6c437; color:#07162f; font-size:13px; text-align:center; border:1px solid #07162f; }
-        .catch-picker-foot { font-size:12px; letter-spacing:1px; color:#9fbad4; text-align:center; }
         #catch-tray { display:grid; gap:4px; padding-bottom:6px; margin-bottom:2px; border-bottom:1px solid #476f99; }
         #catch-tray[hidden] { display:none; }
         .catch-tray-title { display:flex; align-items:center; gap:6px; color:#ffe766; font-family:'Teko','Impact',sans-serif; font-size:16px; line-height:.9; letter-spacing:1.2px; }
@@ -495,7 +482,9 @@ export class StadiumUI {
           display:flex; align-items:center; gap:4px; padding:2px 7px 2px 4px; border:2px solid #f6c437; border-radius:10px;
           background:#2a2106; color:#fff3b0; cursor:pointer; font-family:'Teko','Impact',sans-serif; font-size:15px; line-height:1; letter-spacing:.5px;
         }
-        .catch-chip:hover, .catch-chip.open { background:#f6c437; color:#1a1204; }
+        .catch-chip:hover:not(:disabled) { background:#f6c437; color:#1a1204; }
+        .catch-chip:disabled { opacity:.48; cursor:not-allowed; filter:saturate(.35); }
+        .catch-chip .catch-odds { min-width:auto; margin-left:2px; }
         .catch-chip i { width:7px; height:7px; border-radius:50%; border:1px solid rgba(0,0,0,.6); }
         .ball-buy { min-width:58px; padding:4px 7px; color:#8dff8d; }
         .ball-count.bump { animation:ball-count-bump .35s ease-out; }
@@ -1316,10 +1305,9 @@ export class StadiumUI {
 
       <div id="capture-hint"></div>
 
-      <!-- Catch tags ride above weakened Pokémon; the picker opens from a tag or the tray -->
+      <!-- Catch tags immediately throw the ball selected in the capture kit -->
       <div id="catch-layer">
         <div class="catch-tags"></div>
-        <div class="catch-picker interactive" hidden></div>
       </div>
 
       <div id="pause-screen" class="interactive" hidden>
@@ -1397,11 +1385,11 @@ export class StadiumUI {
         <strong class="capture-kit-title">CAPTURE BALLS</strong>
         ${BALL_ORDER.map(type => `
           <div class="capture-row" data-ball-row="${type}">
-            <div class="ball-stock" data-ball-type="${type}">
+            <button class="ball-stock" data-ball-type="${type}" data-select-ball="${type}" aria-pressed="false">
               <span class="ball-icon ${type}" aria-hidden="true"></span>
               <span class="ball-name">${BALL_NAMES[type]}</span>
               <span class="ball-count">×0</span>
-            </div>
+            </button>
             <button class="stadium-btn ball-buy" data-buy-ball="${type}">+$${BALL_PRICES[type]}</button>
           </div>`).join('')}
       </div>
@@ -1419,6 +1407,7 @@ export class StadiumUI {
 
     this.bindEvents();
     this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => button.addEventListener('click', () => this.onBuyBall(button.dataset.buyBall as BallType)));
+    this.container.querySelectorAll<HTMLButtonElement>('[data-select-ball]').forEach(button => button.addEventListener('click', () => this.onSelectBall(button.dataset.selectBall as BallType)));
     this.bindCatchEvents();
     this.renderCardDeck();
     this.setMapSelectVisible(true);
@@ -1998,7 +1987,6 @@ export class StadiumUI {
   private catchCreeps = new Map<number, Creep>();
   private catchTags = new Map<number, HTMLButtonElement>();
   private catchTrayKey = '';
-  private catchPickerFor: Creep | null = null;
 
   private catchId(creep: Creep): number {
     let id = this.catchIds.get(creep);
@@ -2010,8 +1998,8 @@ export class StadiumUI {
   }
 
   private bindCatchEvents(): void {
-    // Tags, chips and picker rows are patched every frame but only rebuilt when
-    // the set changes, so delegation keeps a held click working.
+    // Tags and chips are patched every frame but only rebuilt when the set
+    // changes, so delegation keeps a held click working.
     const creepFrom = (event: Event, attr: string): Creep | null => {
       const el = (event.target as HTMLElement).closest<HTMLElement>(`[${attr}]`);
       return el ? this.catchCreeps.get(Number(el.getAttribute(attr))) ?? null : null;
@@ -2019,19 +2007,17 @@ export class StadiumUI {
     const layer = this.container.querySelector<HTMLElement>('#catch-layer')!;
     layer.querySelector('.catch-tags')!.addEventListener('click', event => {
       const creep = creepFrom(event, 'data-catch');
-      if (creep) this.onOpenCatch(creep);
-    });
-    layer.querySelector('.catch-picker')!.addEventListener('click', event => {
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-throw-ball]');
-      if (button && !button.disabled && this.catchPickerFor) this.onThrowBall(this.catchPickerFor, button.dataset.throwBall as BallType);
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-catch]');
+      if (creep && !button?.disabled) this.onCatch(creep);
     });
     this.container.querySelector('#catch-tray')!.addEventListener('click', event => {
       const creep = creepFrom(event, 'data-catch-chip');
-      if (creep) this.onOpenCatch(creep);
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-catch-chip]');
+      if (creep && !button?.disabled) this.onCatch(creep);
     });
   }
 
-  /** Tags over every catchable Pokémon, the CATCH NOW tray, and the open ball picker. */
+  /** One-click targets for every catchable Pokémon, using the selected ball. */
   private renderCatching(state: UIState): void {
     this.catchCreeps.clear();
     state.catchables.forEach(slot => this.catchCreeps.set(this.catchId(slot.creep), slot.creep));
@@ -2051,7 +2037,6 @@ export class StadiumUI {
     const visible = state.catchables
       .filter(slot => slot.onScreen && slot.x >= 0 && slot.x <= width && slot.y >= 0 && slot.y <= height)
       .sort((a, b) => b.y - a.y);
-    let pickerAnchor: { x: number; y: number; w: number } | null = null;
     const shown = new Set<number>();
     for (const slot of visible) {
       const id = this.catchId(slot.creep);
@@ -2060,10 +2045,15 @@ export class StadiumUI {
         tag = document.createElement('button');
         tag.className = `catch-tag interactive ${slot.creep.threat}`;
         tag.dataset.catch = String(id);
-        tag.innerHTML = `<span class="ball-icon poke" aria-hidden="true"></span>CATCH ${escapeHtml(slot.creep.name.replace(/^Titan /, '').toUpperCase())}`;
+        tag.innerHTML = `<span class="ball-icon" aria-hidden="true"></span><span class="catch-label"></span><span class="catch-odds"></span>`;
         tagsEl.appendChild(tag);
         this.catchTags.set(id, tag);
       }
+      tag.disabled = state.balls[state.selectedBall] <= 0;
+      tag.title = tag.disabled ? `No ${BALL_NAMES[state.selectedBall]} Balls left` : `Throw a ${BALL_NAMES[state.selectedBall]} Ball`;
+      tag.querySelector<HTMLElement>('.ball-icon')!.className = `ball-icon ${state.selectedBall}`;
+      tag.querySelector<HTMLElement>('.catch-label')!.textContent = `CATCH ${slot.creep.name.replace(/^Titan /, '').toUpperCase()}`;
+      tag.querySelector<HTMLElement>('.catch-odds')!.textContent = `${Math.round(slot.odds[state.selectedBall] * 100)}%`;
       shown.add(id);
       const w = tag.offsetWidth;
       const rect = { left: slot.x - w / 2, right: slot.x + w / 2, top: slot.y - CATCH_TAG_HEIGHT - 6, bottom: slot.y - 6 };
@@ -2084,85 +2074,28 @@ export class StadiumUI {
       tag.style.zIndex = String(visible.length - placed.length + 1);
       tag.style.transform = `translate(${Math.round(rect.left)}px, ${Math.round(rect.top)}px)`;
       tag.style.setProperty('--stem', `${Math.max(6, Math.round(slot.y - rect.bottom))}px`);
-      const open = slot.creep === state.catchTarget;
-      tag.classList.toggle('open', open);
-      if (open) pickerAnchor = { x: rect.left, y: rect.top, w };
     }
     for (const [id, tag] of this.catchTags) if (!shown.has(id)) tag.hidden = true;
 
     // Tray: every catchable creep, even off screen or hidden behind the stands.
     const tray = this.container.querySelector<HTMLElement>('#catch-tray')!;
-    const trayKey = state.catchables.map(slot => this.catchId(slot.creep)).join('|');
+    const trayKey = `${state.selectedBall}|${state.catchables.map(slot => this.catchId(slot.creep)).join('|')}`;
     if (trayKey !== this.catchTrayKey) {
       this.catchTrayKey = trayKey;
       tray.hidden = state.catchables.length === 0;
       tray.querySelector('.catch-chips')!.innerHTML = state.catchables.map(slot => {
         const creep = slot.creep;
         const color = TYPE_COLORS[creep.type]?.hex ?? '#fff';
-        return `<button class="catch-chip" data-catch-chip="${this.catchId(creep)}" title="Open the ball picker for ${escapeHtml(creep.name)}"><i style="background:${color}"></i>${escapeHtml(creep.name.replace(/^Titan /, '').toUpperCase())}</button>`;
+        const odds = Math.round(slot.odds[state.selectedBall] * 100);
+        return `<button class="catch-chip" data-catch-chip="${this.catchId(creep)}"><i style="background:${color}"></i>${escapeHtml(creep.name.replace(/^Titan /, '').toUpperCase())}<span class="catch-odds">${odds}%</span></button>`;
       }).join('');
     }
-    tray.querySelectorAll<HTMLElement>('[data-catch-chip]').forEach(chip => {
-      chip.classList.toggle('open', this.catchCreeps.get(Number(chip.dataset.catchChip)) === state.catchTarget);
+    tray.querySelectorAll<HTMLButtonElement>('[data-catch-chip]').forEach(chip => {
+      chip.disabled = state.balls[state.selectedBall] <= 0;
+      chip.title = chip.disabled ? `No ${BALL_NAMES[state.selectedBall]} Balls left` : `Throw a ${BALL_NAMES[state.selectedBall]} Ball`;
+      const slot = state.catchables.find(candidate => this.catchId(candidate.creep) === Number(chip.dataset.catchChip));
+      if (slot) chip.querySelector<HTMLElement>('.catch-odds')!.textContent = `${Math.round(slot.odds[state.selectedBall] * 100)}%`;
     });
-
-    // Picker: next to the open tag, or beside the kit when the target is off screen.
-    const picker = layer.querySelector<HTMLElement>('.catch-picker')!;
-    const slot = state.catchables.find(candidate => candidate.creep === state.catchTarget);
-    if (!slot) {
-      picker.hidden = true;
-      this.catchPickerFor = null;
-      return;
-    }
-    if (this.catchPickerFor !== slot.creep) {
-      this.catchPickerFor = slot.creep;
-      picker.innerHTML = `
-        <div class="catch-picker-head"><span>${escapeHtml(slot.creep.name.toUpperCase())}</span><em></em></div>
-        ${BALL_ORDER.map((ball, i) => `
-          <button class="catch-ball" data-throw-ball="${ball}">
-            <span class="ball-icon ${ball}" aria-hidden="true"></span>
-            <span>${BALL_NAMES[ball]} <span class="ball-count"></span></span>
-            <span class="catch-odds"></span>
-            <span class="catch-key">${i + 1}</span>
-          </button>`).join('')}
-        <div class="catch-picker-foot"></div>`;
-    }
-    picker.hidden = false;
-    const hpEl = picker.querySelector<HTMLElement>('.catch-picker-head em')!;
-    const hp = `HP ${Math.max(1, Math.round(slot.creep.hpFraction * 100))}%`;
-    if (hpEl.textContent !== hp) hpEl.textContent = hp;
-    picker.querySelectorAll<HTMLButtonElement>('[data-throw-ball]').forEach(button => {
-      const ball = button.dataset.throwBall as BallType;
-      button.disabled = state.balls[ball] <= 0;
-      const count = `×${state.balls[ball]}`;
-      const countEl = button.querySelector<HTMLElement>('.ball-count')!;
-      if (countEl.textContent !== count) countEl.textContent = count;
-      const odds = `${Math.round(slot.odds[ball] * 100)}%`;
-      const oddsEl = button.querySelector<HTMLElement>('.catch-odds')!;
-      if (oddsEl.textContent !== odds) oddsEl.textContent = odds;
-    });
-    const outOfBalls = BALL_ORDER.every(ball => state.balls[ball] <= 0);
-    const foot = outOfBalls ? 'OUT OF BALLS · RESTOCK BETWEEN MATCHES' : 'Q NEXT · ESC CLOSE';
-    const footEl = picker.querySelector<HTMLElement>('.catch-picker-foot')!;
-    if (footEl.textContent !== foot) footEl.textContent = foot;
-
-    const pw = picker.offsetWidth;
-    const ph = picker.offsetHeight;
-    let left: number;
-    let top: number;
-    if (pickerAnchor) {
-      left = pickerAnchor.x + pickerAnchor.w + 8;
-      if (left + pw > width - 8) left = pickerAnchor.x - pw - 8;
-      top = pickerAnchor.y + CATCH_TAG_HEIGHT / 2 - ph / 2;
-    } else {
-      const kit = this.container.querySelector<HTMLElement>('#capture-kit')!.getBoundingClientRect();
-      const box = layer.getBoundingClientRect();
-      left = kit.right - box.left + 10;
-      top = kit.bottom - box.top - ph;
-    }
-    left = Math.min(Math.max(8, left), width - pw - 8);
-    top = Math.min(Math.max(8, top), height - ph - 8);
-    picker.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
 
   private signatureBarKey = '';
@@ -2264,6 +2197,10 @@ export class StadiumUI {
     captureKit.querySelectorAll<HTMLElement>('[data-ball-type]').forEach(stock => {
       const type = stock.dataset.ballType as BallType;
       stock.classList.toggle('empty', state.balls[type] <= 0);
+      stock.classList.toggle('selected', type === state.selectedBall);
+      stock.setAttribute('aria-pressed', String(type === state.selectedBall));
+      (stock as HTMLButtonElement).disabled = state.balls[type] <= 0;
+      stock.title = type === state.selectedBall ? `${BALL_NAMES[type]} Ball selected` : state.balls[type] > 0 ? `Select ${BALL_NAMES[type]} Ball` : `No ${BALL_NAMES[type]} Balls available`;
       const countEl = stock.querySelector<HTMLElement>('.ball-count')!;
       const count = `×${state.balls[type]}`;
       if (countEl.textContent !== count) {
