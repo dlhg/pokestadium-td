@@ -28,6 +28,11 @@ function typeChip(type: PokemonType): string {
   return `<span class="tr-type" style="background:${color}">${type.toUpperCase()}</span>`;
 }
 
+function typeArtStyle(type: PokemonType): string {
+  const art = `/ui/types/${type.toLowerCase()}.jpg`;
+  return `background-image: linear-gradient(rgba(4,17,63,.35), rgba(4,17,63,.88)), url('${art}'); background-size: cover; background-position: center;`;
+}
+
 function typeChips(pokemon: OwnedPokemon): string {
   const form = formOf(pokemon);
   return [form.type, form.secondaryType].filter((t): t is PokemonType => !!t).map(typeChip).join('');
@@ -205,7 +210,7 @@ export class TrainerScreens {
       const record = options.map ? data.maps[options.map.id] : undefined;
 
       const slots = team.map((pokemon, slot) => pokemon
-        ? `<button class="tr-slot filled" data-slot="${slot}" title="Remove from team">
+        ? `<button class="tr-slot filled" data-slot="${slot}" title="Remove from team" style="${typeArtStyle(formOf(pokemon).type)}">
             <span class="tr-model" data-model="${formOf(pokemon).name}" data-species="${pokemon.speciesId}"></span>
             <span class="tr-slot-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
             <span class="tr-slot-meta">LV ${pokemon.level} ${typeChips(pokemon)}</span>
@@ -217,7 +222,7 @@ export class TrainerScreens {
         const onTeam = data.team.includes(pokemon.uid);
         const strong = strongAgainst(pokemon, threats);
         return `<div class="tr-card ${onTeam ? 'on-team' : ''}">
-          <button class="tr-card-main" data-toggle="${pokemon.uid}" aria-pressed="${onTeam}" title="${onTeam ? 'Remove from team' : 'Add to team'}">
+          <button class="tr-card-main" data-toggle="${pokemon.uid}" aria-pressed="${onTeam}" title="${onTeam ? 'Remove from team' : 'Add to team'}" style="${typeArtStyle(formOf(pokemon).type)}">
             <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
             <span class="tr-card-form">${pokemon.nickname ? formOf(pokemon).name : '&nbsp;'}</span>
             <span class="tr-card-meta">LV ${pokemon.level} ${typeChips(pokemon)}</span>

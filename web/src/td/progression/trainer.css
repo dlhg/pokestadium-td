@@ -56,13 +56,16 @@
 .tr-starter-card, .tr-card-main, .tr-slot {
   font: inherit; color: #fff; text-align: left; cursor: pointer;
   border: 4px solid transparent; border-radius: 11px;
-  background-image: linear-gradient(rgba(25, 58, 176, .62), rgba(4, 17, 63, .9)), url('/ui/cobalt-plastic.png'), linear-gradient(#dce1dc, #89969f);
-  background-size: auto, 180px 180px, auto;
   background-origin: padding-box, padding-box, border-box;
   background-clip: padding-box, padding-box, border-box;
   box-shadow: 0 0 0 2px var(--broadcast-ink), 3px 4px 0 rgba(0,0,0,.5);
   transition: transform .15s;
 }
+.tr-starter-card, .tr-slot {
+  background-image: linear-gradient(rgba(25, 58, 176, .62), rgba(4, 17, 63, .9)), url('/ui/cobalt-plastic.png'), linear-gradient(#dce1dc, #89969f);
+  background-size: auto, 180px 180px, auto;
+}
+/* .tr-slot.filled and .tr-card-main get their per-Pokémon type background inline (see typeArtStyle in TrainerScreens.ts). */
 .tr-starter-card { display: flex; flex-direction: column; gap: 5px; padding: 10px; }
 .tr-starter-card .tr-model { height: 150px; }
 .tr-starter-card strong { font: 700 28px/1 'Teko', Impact, sans-serif; color: var(--broadcast-cream-bright); }
@@ -92,7 +95,7 @@ input.tr-input, .tr-starter-names input, .tr-rename input, .trophy-nickname inpu
 .tr-collection { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 9px; max-height: min(38vh, 360px); overflow-y: auto; padding: 4px 6px 6px 2px; scrollbar-width: thin; scrollbar-color: #5280b8 #071326; }
 .tr-card { position: relative; }
 .tr-card-main { display: flex; flex-direction: column; width: 100%; padding: 7px 9px 8px; }
-.tr-card.on-team .tr-card-main { background-image: linear-gradient(rgba(25, 58, 176, .62), rgba(4, 17, 63, .9)), url('/ui/cobalt-plastic.png'), linear-gradient(#ffe65b, #bf7210); }
+.tr-card.on-team .tr-card-main { box-shadow: 0 0 0 2px var(--broadcast-ink), 0 0 0 4px #ffe65b, 3px 4px 0 rgba(0,0,0,.5); }
 .tr-card-name { font: 700 20px/1 'Teko', Impact, sans-serif; color: var(--broadcast-cream-bright); padding-right: 44px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-card-form { color: #9fb9ce; font-size: 11px; font-weight: 700; letter-spacing: .6px; }
 .tr-matchup { color: #8dffb0; font: 13px/1.1 'Teko', sans-serif; letter-spacing: .6px; }
