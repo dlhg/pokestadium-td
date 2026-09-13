@@ -11,7 +11,7 @@ import type { StadiumMap } from '../MapCatalog';
 import { openingThreatTypes, WIN_ROUNDS } from '../WaveManager';
 import { MOVES } from '../../stadium/MoveDatabase';
 import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../../stadium/TypeMatrix';
-import { GIFT_ID, getSpecies, STARTER_IDS } from './Species';
+import { GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
 import { levelProgress, MAX_DV, MAX_LEVEL, STAT_KEYS, towerModifiers, xpForLevel } from './Stats';
 import {
   displayName, formOf, NICKNAME_MAX, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore,
@@ -44,9 +44,8 @@ function xpBar(pokemon: OwnedPokemon): string {
 
 /** Threat types this Pokémon hits super-effectively with moves it can already buy. */
 function strongAgainst(pokemon: OwnedPokemon, threats: PokemonType[]): PokemonType[] {
-  const moveTypes = new Set(speciesOf(pokemon).lines.flatMap(line =>
-    line.tiers.filter(tier => (tier.requiresLevel ?? 0) <= pokemon.level).map(tier => MOVES[tier.moveId]?.type).filter(Boolean)));
-  return threats.filter(threat => [...moveTypes].some(type => getCombinedEffectiveness(type!, [threat]) >= 2));
+  const moveTypes = new Set(reachableMoveIds(speciesOf(pokemon), pokemon.level).map(id => MOVES[id].type));
+  return threats.filter(threat => [...moveTypes].some(type => getCombinedEffectiveness(type, [threat]) >= 2));
 }
 
 /** Shared by the quit report and the defeat card. */
@@ -332,12 +331,11 @@ export class TrainerScreens {
               <p class="tr-record-text">${pokemon.record.knockouts} KOs · ${pokemon.record.damageDealt.toLocaleString()} damage · ${pokemon.record.matches} matches<br>${origin}</p>
             </div>
             <div>
-              <h3>MOVE LINES</h3>
-              ${species.lines.map(line => `<div class="tr-line"><span class="tr-line-label">${line.label}</span>
-                ${line.tiers.map(tier => {
-                  const move = MOVES[tier.moveId];
+              <h3>${species.role} · ${MOVES[species.basicAttack].name.toUpperCase()}</h3>
+              ${species.paths.map(path => `<div class="tr-line"><span class="tr-line-label">${path.label}</span>
+                ${path.tiers.map(tier => {
                   const locked = (tier.requiresLevel ?? 0) > pokemon.level;
-                  return `<span class="tr-tier ${locked ? 'locked' : ''}"><b>${move.name}</b><small>${tier.cost ? `$${tier.cost}` : 'FREE'}${tier.requiresLevel ? ` · LV ${tier.requiresLevel}` : ''}</small></span>`;
+                  return `<span class="tr-tier ${locked ? 'locked' : ''}" title="${tier.description}"><b>${tier.name}</b><small>$${tier.cost}${tier.requiresLevel ? ` · LV ${tier.requiresLevel}` : ''}</small></span>`;
                 }).join('')}
               </div>`).join('')}
             </div>

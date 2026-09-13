@@ -24,9 +24,10 @@ import {
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
 import { Creep, type CreepTrait } from './Creep';
 import { Projectile } from './Projectile';
+import { Hazard } from './Hazard';
 import { WaveManager, getMilestone } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
-import { HitContext, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
+import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 import { BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
@@ -81,6 +82,7 @@ export class StadiumTDGame {
   public towers: Tower[] = [];
   public creeps: Creep[] = [];
   public projectiles: Projectile[] = [];
+  public hazards: Hazard[] = [];
 
   /** The team this match was started with, plus anything caught during it. */
   public roster: OwnedPokemon[] = [];
@@ -249,9 +251,11 @@ export class StadiumTDGame {
     this.towers.forEach(tower => tower.destroy(this.renderer.scene));
     this.creeps.forEach(creep => creep.destroy(this.renderer.scene));
     this.projectiles.forEach(projectile => projectile.destroy(this.renderer.scene));
+    this.hazards.forEach(hazard => hazard.destroy(this.renderer.scene));
     this.towers = [];
     this.creeps = [];
     this.projectiles = [];
+    this.hazards = [];
     this.renderer.scene.remove(this.arena.group);
     this.arena.dispose();
     this.arena = new StadiumArena(map);
@@ -664,7 +668,7 @@ export class StadiumTDGame {
     const color = valid ? 0x00f0ff : 0xd90429;
     if (this.placementPreviewTemplateId !== member.uid) {
       this.placementPreview.clear();
-      const range = MOVES[speciesOf(member).lines[0].tiers[0].moveId].range;
+      const range = MOVES[speciesOf(member).basicAttack].range;
 
       const rangeFill = new THREE.Mesh(
         new THREE.CircleGeometry(range, 64),
@@ -768,14 +772,23 @@ export class StadiumTDGame {
       (round) => this.handleRoundCleared(round)
     );
 
+    // Auras are passive: refresh who is slowed and who is sped up before anyone acts.
+    this.applyAuras();
+
     // Update Towers
     this.towers.forEach(tower => {
-      tower.update(dt, this.creeps, (t, target, move) => {
+      tower.update(dt, this.creeps, (t, target, attack, shot) => {
         // Fire attack!
+        const move = attack.move;
         this.audio.playAttack(move.fxType);
+        const extras = hitExtrasFor(attack, shot);
+
+        if (shot.dropsHazard && attack.hazard) {
+          this.hazards.push(new Hazard(attack.hazard.hazard, target.position, t, this.renderer.scene));
+        }
 
         if (move.delivery === 'projectile') {
-          this.projectiles.push(new Projectile(move, t.position, target, this.renderer.scene, t));
+          this.projectiles.push(new Projectile(move, t.position, target, this.renderer.scene, t, extras));
           return;
         }
 
@@ -783,9 +796,18 @@ export class StadiumTDGame {
         // delivery, then resolve everything its shape catches.
         const geometry = moveGeometry(move, t, target);
         playInstantDelivery(move, geometry, target, this.particles, this.camera);
-        resolveMoveHit(move, target, this.hitContext(), t, geometry);
+        resolveMoveHit(move, target, this.hitContext(), t, geometry, extras);
       });
     });
+
+    // Update Hazards
+    for (let i = this.hazards.length - 1; i >= 0; i--) {
+      const hazard = this.hazards[i];
+      if (!hazard.update(dt, this.creeps, (creep) => this.handleCreepDefeat(creep))) {
+        hazard.destroy(this.renderer.scene);
+        this.hazards.splice(i, 1);
+      }
+    }
 
     // Update Projectiles
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
@@ -907,6 +929,30 @@ export class StadiumTDGame {
     );
   }
 
+  /** Slow auras reach creeps in a tower's range; rate auras reach towers in it. */
+  private applyAuras(): void {
+    for (const creep of this.creeps) creep.auraSlow = 0;
+    for (const tower of this.towers) tower.rateBuff = 0;
+    for (const source of this.towers) {
+      const { slowAura, rateAura } = source.attack;
+      if (!slowAura && !rateAura) continue;
+      const range = source.getMaxRange();
+      if (slowAura) {
+        for (const creep of this.creeps) {
+          if (!creep.alive) continue;
+          if (Math.hypot(creep.position.x - source.position.x, creep.position.z - source.position.z) > source.reachAgainst(range, creep)) continue;
+          creep.auraSlow = Math.max(creep.auraSlow, creep.isBoss ? slowAura * 0.5 : slowAura);
+        }
+      }
+      if (rateAura) {
+        for (const tower of this.towers) {
+          if (Math.hypot(tower.position.x - source.position.x, tower.position.z - source.position.z) > range) continue;
+          tower.rateBuff = Math.max(tower.rateBuff, rateAura);
+        }
+      }
+    }
+  }
+
   /** The first creep with a trait each match gets the announcer's explanation. */
   private introduceTraits(creep: Creep): void {
     for (const trait of creep.traits) {
@@ -956,6 +1002,7 @@ export class StadiumTDGame {
 
   private handleCreepDefeat(creep: Creep): void {
     this.money += creep.reward;
+    this.spreadSeed(creep);
     this.applyXp(this.progress.awardKnockout(creep, this.towers));
     this.particles.emitImpact(creep.position, 0xffd700, 20, 6);
 
@@ -969,6 +1016,27 @@ export class StadiumTDGame {
     } else if (Math.random() < 0.25) {
       this.announcer.trigger('creep_faint');
     }
+  }
+
+  /** A creep that faints while seeded by a Spreading Roots tower passes the seed on. */
+  private spreadSeed(fallen: Creep): void {
+    const seed = fallen.damageStatus;
+    const seeder = seed?.effect === 'poison' ? seed.source : null;
+    const radius = seeder?.attack.seedJumpRadius ?? 0;
+    if (!seeder || !radius) return;
+    let nearest: Creep | null = null;
+    let best = radius;
+    for (const creep of this.creeps) {
+      if (creep === fallen || !creep.alive || creep.captureLocked) continue;
+      const distance = creep.position.distanceTo(fallen.position);
+      if (distance <= best) {
+        best = distance;
+        nearest = creep;
+      }
+    }
+    if (!nearest) return;
+    nearest.applyStatus('poison', Math.max(4, seed!.timer), seeder);
+    this.particles.emitBeam(fallen.position.clone().setY(fallen.position.y + 1), nearest.position.clone().setY(nearest.position.y + 1), 0x78c850, 0.18, 0.4);
   }
 
   /** Level-ups flash on the tower; evolutions queue the cinematic set piece. */

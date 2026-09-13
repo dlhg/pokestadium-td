@@ -10,19 +10,45 @@
  */
 
 import * as THREE from 'three';
-import { isHeavy, MoveDefinition } from '../stadium/MoveDatabase';
+import { isDamageStatus, isHeavy, MoveDefinition, StatusEffectType } from '../stadium/MoveDatabase';
 import { TYPE_COLORS, getCombinedEffectiveness } from '../stadium/TypeMatrix';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { StadiumAudio } from '../engine/StadiumAudio';
 import { StadiumCamera } from '../engine/StadiumCamera';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { ARMOR_LIGHT_MULTIPLIER, Creep } from './Creep';
-import type { Tower } from './Tower';
+import type { ShotInfo, Tower } from './Tower';
+import type { AttackProfile } from './TowerAttack';
 
 /** Half the width of a beam's hit corridor, in arena units. */
 export const BEAM_HALF_WIDTH = 1.4;
 /** Arc a cone covers when its move doesn't specify one, in degrees. */
 export const DEFAULT_CONE_ANGLE = 70;
+/** How far a chained hit can jump from one creep to the next. */
+export const CHAIN_JUMP_RANGE = 5.5;
+/** Damage share each chained jump carries. */
+export const CHAIN_DAMAGE_SHARE = 0.7;
+
+/** What a path-shaped attack adds to a hit beyond its move. */
+export interface HitExtras {
+  damageMultiplier?: number;
+  crit?: boolean;
+  onHitStatus?: { status: StatusEffectType; chance: number; duration: number } | null;
+  chain?: number;
+  knockback?: number;
+  spreadStatusRadius?: number;
+}
+
+export function hitExtrasFor(attack: AttackProfile, shot: ShotInfo): HitExtras {
+  return {
+    damageMultiplier: shot.damageMultiplier,
+    crit: shot.crit,
+    onHitStatus: attack.onHitStatus,
+    chain: attack.chain,
+    knockback: attack.knockback,
+    spreadStatusRadius: attack.spreadStatusRadius,
+  };
+}
 
 /** Everything a landing move needs in order to apply itself and react. */
 export interface HitContext {
@@ -131,8 +157,9 @@ export function hitDamage(move: MoveDefinition, victim: Creep): { damage: number
 
 /**
  * Applies a move: collects what its shape catches, then damage, status, and
- * the announcer's reaction for each. `geometry` is omitted for projectiles,
- * which have already travelled to the target.
+ * the announcer's reaction for each, then any chains the attack carries.
+ * `geometry` is omitted for projectiles, which have already travelled to the
+ * target.
  */
 export function resolveMoveHit(
   move: MoveDefinition,
@@ -140,6 +167,7 @@ export function resolveMoveHit(
   ctx: HitContext,
   source: Tower | null = null,
   geometry: MoveGeometry | null = null,
+  extras: HitExtras = {},
 ): void {
   // The caster's level and stats scale every hit; a sourceless hit is neutral.
   const mods = source?.modifiers ?? { damage: 1, rate: 1, status: 1 };
@@ -153,26 +181,68 @@ export function resolveMoveHit(
   }
 
   let hasSuperEffective = false;
+  const struck = new Set<Creep>();
 
-  for (const victim of hitList) {
+  const strike = (victim: Creep, share: number) => {
+    struck.add(victim);
     const { damage, multiplier } = hitDamage(move, victim);
     if (multiplier >= 2.0) hasSuperEffective = true;
 
-    const died = victim.takeDamage(Math.floor(damage * mods.damage), source);
-
+    const died = victim.takeDamage(Math.floor(damage * share * mods.damage * (extras.damageMultiplier ?? 1)), source);
+    if (died) {
+      ctx.onFaint(victim);
+      return;
+    }
     // Elemental immunity blocks the whole move, including its secondary
     // effect. A capture target is also protected from splash while locked.
-    if (!died && multiplier > 0 && !victim.captureLocked && move.statusEffect !== 'none'
-      && Math.random() < Math.min(1, move.statusChance * mods.status)) {
-      victim.applyStatus(move.statusEffect, move.statusDuration * mods.status, source);
+    if (multiplier <= 0 || victim.captureLocked) return;
+
+    const statuses = [
+      { status: move.statusEffect, chance: move.statusChance, duration: move.statusDuration },
+      ...(extras.onHitStatus ? [extras.onHitStatus] : []),
+    ];
+    for (const { status, chance, duration } of statuses) {
+      if (status === 'none' || Math.random() >= Math.min(1, chance * mods.status)) continue;
+      const landed = victim.applyStatus(status, duration * mods.status, source);
+      if (landed && extras.spreadStatusRadius && !isDamageStatus(status)) {
+        for (const neighbour of ctx.creeps) {
+          if (neighbour === victim || !neighbour.alive || neighbour.captureLocked) continue;
+          if (neighbour.position.distanceTo(victim.position) > extras.spreadStatusRadius) continue;
+          neighbour.applyStatus(status, duration * mods.status, source);
+          ctx.particles.emitAura(centerMass(neighbour), color, 6, 0.8);
+        }
+      }
     }
 
-    if (died) ctx.onFaint(victim);
+    if (extras.knockback && !victim.isBoss) victim.pushBack(extras.knockback);
+  };
+
+  for (const victim of hitList) strike(victim, 1);
+
+  // Chains leap from the last creep struck to the nearest one not yet hit.
+  let from = target;
+  for (let jump = 0; jump < (extras.chain ?? 0); jump++) {
+    let next: Creep | null = null;
+    let nearest = CHAIN_JUMP_RANGE;
+    for (const creep of ctx.creeps) {
+      if (struck.has(creep) || !creep.alive || creep.captureLocked) continue;
+      const distance = creep.position.distanceTo(from.position);
+      if (distance <= nearest) {
+        nearest = distance;
+        next = creep;
+      }
+    }
+    if (!next) break;
+    ctx.particles.emitBeam(centerMass(from), centerMass(next), color, 0.22, 0.25);
+    strike(next, CHAIN_DAMAGE_SHARE);
+    from = next;
   }
 
   ctx.audio.playHit(hasSuperEffective);
 
-  if (hasSuperEffective && Math.random() < 0.4) {
+  if (extras.crit && Math.random() < 0.3) {
+    ctx.announcer.trigger('critical_hit');
+  } else if (hasSuperEffective && Math.random() < 0.4) {
     ctx.announcer.trigger('super_effective');
   }
 }

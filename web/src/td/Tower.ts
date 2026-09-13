@@ -1,19 +1,22 @@
 /**
  * Tower.ts — 3D Pokémon Tower Entity
  *
- * Manages tower stats, targeting AI, range rings, attack cycles, and the
- * move-shop progression: every tower owns three independent move lines that
- * are bought tier by tier. A tower is one of the player's own Pokémon, so its
- * level gates which tiers can be bought, its stats scale every attack, and it
- * evolves in place when a knockout carries it over a threshold.
+ * Manages tower stats, targeting AI, range rings, the attack cycle, and path
+ * progression: a tower fires one basic attack, and the paths it buys into
+ * reshape that attack (see TowerAttack.ts). It can commit to two paths at
+ * most, and only one of them climbs to the top tier. A tower is one of the
+ * player's own Pokémon, so its level gates which tiers can be bought, its
+ * stats scale every attack, and it evolves in place when a knockout carries
+ * it over a threshold.
  */
 
 import * as THREE from 'three';
 import { AnimatedPokemon, disposePokemonModel, PokemonModelFactory } from '../stadium/PokemonModels';
-import { MoveDefinition, MOVES } from '../stadium/MoveDatabase';
+import { MoveDefinition } from '../stadium/MoveDatabase';
 import { Creep } from './Creep';
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
-import { MoveTier, SpeciesDef } from './progression/Species';
+import { PathTier, SpeciesDef } from './progression/Species';
+import { AttackProfile, buildAttackProfile, MAX_PATHS_BOUGHT, SECONDARY_PATH_MAX_TIER } from './TowerAttack';
 import { towerModifiers, TowerModifiers } from './progression/Stats';
 import { displayName, formOf, OwnedPokemon, speciesOf, statsOf } from './progression/TrainerStore';
 
@@ -34,7 +37,21 @@ export function highGroundRangeScale(towerGround: number, targetGround: number):
   return 1 + THREE.MathUtils.clamp(towerGround - targetGround, 0, HIGH_GROUND_MAX_DROP) * HIGH_GROUND_RANGE_PER_UNIT;
 }
 
-export type UpgradeBlockReason = 'maxed' | 'needs_level' | null;
+/**
+ * Why a path's next tier can't be bought: it's topped out, the Pokémon is
+ * under-leveled, the tower already committed to two other paths, or another
+ * path has already claimed the top tier.
+ */
+export type UpgradeBlockReason = 'maxed' | 'needs_level' | 'path_closed' | 'tier_capped' | null;
+
+/** What a single attack carries beyond its move, decided the moment it fires. */
+export interface ShotInfo {
+  /** Rage stacks and crits, multiplied together. */
+  damageMultiplier: number;
+  crit: boolean;
+  /** This attack also drops the tower's lane hazard. */
+  dropsHazard: boolean;
+}
 
 export class Tower {
   public id: string;
@@ -45,8 +62,12 @@ export class Tower {
   public targetPriority: TargetPriority = 'first';
   public totalInvested: number;
 
-  /** Moves bought per line; the active move is at index tiers[i] - 1. */
-  public tiers: number[] = [1, 0, 0];
+  /** Tiers bought on each path, in the species' path order. */
+  public tiers: number[];
+  /** The one attack this tower fires, rebuilt whenever a tier is bought. */
+  public attack: AttackProfile;
+  /** Attack-rate bonus from a nearby tower's aura, refreshed every frame by the game. */
+  public rateBuff = 0;
   /** The evolution stage the on-screen model was built for. */
   private renderedStage: number;
   public modifiers: TowerModifiers;
@@ -55,8 +76,10 @@ export class Tower {
   public animPokemon: AnimatedPokemon;
   private rangeRing: THREE.Mesh;
 
-  /** Each line attacks on its own independent cooldown. */
-  private cooldowns: number[] = [0, 0, 0];
+  private cooldown = 0;
+  private attackCount = 0;
+  private rageTarget: Creep | null = null;
+  private rageStacks = 0;
   private isAttackingAnim: boolean = false;
   private attackAnimTimer: number = 0;
   /** Plays the freshly-evolved model's entrance clip instead of idle, briefly. */
@@ -73,6 +96,8 @@ export class Tower {
     this.modifiers = towerModifiers(statsOf(pokemon), pokemon.level);
     this.position = pos.clone();
     this.totalInvested = this.species.deployCost;
+    this.tiers = this.species.paths.map(() => 0);
+    this.attack = this.buildAttack();
 
     this.group.position.copy(pos);
     // Lets a raycast against any child mesh resolve back to this tower.
@@ -184,48 +209,71 @@ export class Tower {
     this.entranceAnimTimer = 1.8;
   }
 
-  /** The move a given line currently fires, or null if the line is unbought. */
-  public getActiveMove(lineIdx: number): MoveDefinition | null {
-    const bought = this.tiers[lineIdx];
-    if (!bought) return null;
-    return MOVES[this.species.lines[lineIdx].tiers[bought - 1].moveId];
-  }
-
-  public getKnownMoves(): MoveDefinition[] {
-    return this.species.lines
-      .map((_, i) => this.getActiveMove(i))
-      .filter((m): m is MoveDefinition => m !== null);
-  }
-
-  /** The primary attack, used for placement previews and UI headlines. */
+  /** The move the tower fires right now, for placement previews and UI headlines. */
   public get primaryMove(): MoveDefinition {
-    return this.getActiveMove(0) ?? MOVES[this.species.lines[0].tiers[0].moveId];
+    return this.attack.move;
   }
 
-  public getNextTier(lineIdx: number): MoveTier | null {
-    const line = this.species.lines[lineIdx];
-    const bought = this.tiers[lineIdx];
-    return bought >= line.tiers.length ? null : line.tiers[bought];
+  /**
+   * Paths in fold order: the secondary path first, the main path (most tiers,
+   * earliest in the species on a tie) last, so its swaps win a crosspath.
+   */
+  private buildAttack(): AttackProfile {
+    const order = this.species.paths
+      .map((path, i) => ({ path, bought: this.tiers[i], i }))
+      .filter(entry => entry.bought > 0)
+      .sort((a, b) => a.bought - b.bought || b.i - a.i);
+    return buildAttackProfile(this.species.basicAttack, order.map(entry =>
+      entry.path.tiers.slice(0, entry.bought).flatMap(t => t.effects)));
   }
 
-  public getUpgradeBlockReason(lineIdx: number): UpgradeBlockReason {
-    const next = this.getNextTier(lineIdx);
+  public getNextTier(pathIdx: number): PathTier | null {
+    const path = this.species.paths[pathIdx];
+    const bought = this.tiers[pathIdx];
+    return bought >= path.tiers.length ? null : path.tiers[bought];
+  }
+
+  public getUpgradeBlockReason(pathIdx: number): UpgradeBlockReason {
+    const next = this.getNextTier(pathIdx);
     if (!next) return 'maxed';
+    const others = this.tiers.filter((bought, i) => i !== pathIdx && bought > 0);
+    if (this.tiers[pathIdx] === 0 && others.length >= MAX_PATHS_BOUGHT) return 'path_closed';
+    if (this.tiers[pathIdx] + 1 > SECONDARY_PATH_MAX_TIER && others.some(bought => bought > SECONDARY_PATH_MAX_TIER)) {
+      return 'tier_capped';
+    }
     if ((next.requiresLevel ?? 0) > this.pokemon.level) return 'needs_level';
     return null;
   }
 
-  public getUpgradeCost(lineIdx: number): number | null {
-    const next = this.getNextTier(lineIdx);
+  /**
+   * What buying this tier gives up for good, so the shop can warn first:
+   * `closes` are paths shut when this becomes the second path bought into;
+   * `caps` are bought paths held at tier 2 once this one claims the top tier.
+   */
+  public upgradeConsequences(pathIdx: number): { closes: number[]; caps: number[] } {
+    const others = this.tiers.map((bought, i) => ({ bought, i })).filter(entry => entry.i !== pathIdx);
+    const opened = others.filter(entry => entry.bought > 0);
+    const closes = this.tiers[pathIdx] === 0 && opened.length === MAX_PATHS_BOUGHT - 1
+      ? others.filter(entry => entry.bought === 0).map(entry => entry.i)
+      : [];
+    const caps = this.tiers[pathIdx] === SECONDARY_PATH_MAX_TIER
+      ? opened.filter(entry => this.species.paths[entry.i].tiers.length > SECONDARY_PATH_MAX_TIER).map(entry => entry.i)
+      : [];
+    return { closes, caps };
+  }
+
+  public getUpgradeCost(pathIdx: number): number | null {
+    const next = this.getNextTier(pathIdx);
     return next ? next.cost : null;
   }
 
-  public buyUpgrade(lineIdx: number): boolean {
-    const next = this.getNextTier(lineIdx);
-    if (!next || this.getUpgradeBlockReason(lineIdx)) return false;
+  public buyUpgrade(pathIdx: number): boolean {
+    const next = this.getNextTier(pathIdx);
+    if (!next || this.getUpgradeBlockReason(pathIdx)) return false;
 
-    this.tiers[lineIdx]++;
+    this.tiers[pathIdx]++;
     this.totalInvested += next.cost;
+    this.attack = this.buildAttack();
     this.updateRangeRing();
     return true;
   }
@@ -241,9 +289,9 @@ export class Tower {
     return range * highGroundRangeScale(this.position.y - TOWER_BASE_HEIGHT, creep.position.y - LANE_RIDE_HEIGHT);
   }
 
-  /** Widest reach across every known move — what the range ring shows. */
+  /** The attack's reach — what the range ring shows, and how far auras spread. */
   public getMaxRange(): number {
-    return this.getKnownMoves().reduce((max, m) => Math.max(max, m.range), 0);
+    return this.attack.move.range;
   }
 
   private loadAuthenticModel(): void {
@@ -311,7 +359,7 @@ export class Tower {
   public update(
     dt: number,
     creeps: Creep[],
-    onFire: (tower: Tower, target: Creep, move: MoveDefinition) => void,
+    onFire: (tower: Tower, target: Creep, attack: AttackProfile, shot: ShotInfo) => void,
   ): void {
     // A zero delta means the simulation is paused. In particular, a freshly
     // deployed tower has a ready cooldown and must not fire during that frame.
@@ -327,39 +375,31 @@ export class Tower {
     }
     if (this.entranceAnimTimer > 0) this.entranceAnimTimer -= dt;
 
-    // Each line acquires its own target and fires on its own cooldown, so a
-    // fully-bought tower genuinely attacks three times over.
-    let primaryTarget: Creep | null = null;
-
-    for (let i = 0; i < this.species.lines.length; i++) {
-      const move = this.getActiveMove(i);
-      if (!move) continue;
-
-      const target = this.findTarget(creeps, move);
-      if (this.cooldowns[i] > 0) {
-        this.cooldowns[i] -= dt;
-        // Becoming ready with nobody in range is an idle state, not a bank of
-        // missed attacks to unleash when the next creep enters range.
-        if (!target && this.cooldowns[i] < 0) this.cooldowns[i] = 0;
-      }
-      if (i === 0 || !primaryTarget) primaryTarget = primaryTarget ?? target;
-
-      if (target && this.cooldowns[i] <= 0) {
-        // Add the interval to the overdue deadline so a slow frame does not
-        // permanently lower this line's attack rate by discarding overshoot.
-        this.cooldowns[i] += 1.0 / (move.attackSpeed * this.modifiers.rate);
-        this.isAttackingAnim = true;
-        this.attackAnimTimer = 0.35;
-        this.animPokemon.playMove?.(move.name);
-        onFire(this, target, move);
-      }
+    const attack = this.attack;
+    const move = attack.move;
+    const target = this.findTarget(creeps, move);
+    if (this.cooldown > 0) {
+      this.cooldown -= dt;
+      // Becoming ready with nobody in range is an idle state, not a bank of
+      // missed attacks to unleash when the next creep enters range.
+      if (!target && this.cooldown < 0) this.cooldown = 0;
     }
 
-    this.currentTarget = primaryTarget;
+    if (target && this.cooldown <= 0) {
+      // Add the interval to the overdue deadline so a slow frame does not
+      // permanently lower the attack rate by discarding overshoot.
+      this.cooldown += 1.0 / (move.attackSpeed * attack.rate * (1 + this.rateBuff) * this.modifiers.rate);
+      this.isAttackingAnim = true;
+      this.attackAnimTimer = 0.35;
+      this.animPokemon.playMove?.(move.name);
+      onFire(this, target, attack, this.rollShot(target));
+    }
 
-    if (primaryTarget) {
+    this.currentTarget = target;
+
+    if (target) {
       // Smoothly rotate toward whatever the tower is engaging
-      const lookPos = primaryTarget.position.clone();
+      const lookPos = target.position.clone();
       lookPos.y = this.position.y;
       this.animPokemon.mesh.lookAt(lookPos);
     }
@@ -367,6 +407,25 @@ export class Tower {
     // Update 3D model animation
     const state = this.isAttackingAnim ? 'attack' : this.entranceAnimTimer > 0 ? 'entrance' : 'idle';
     this.animPokemon.update(time, dt, state);
+  }
+
+  /** Rage, crits and hazard timing for the attack about to fire at `target`. */
+  private rollShot(target: Creep): ShotInfo {
+    const { rage, crit, hazard } = this.attack;
+    this.attackCount++;
+    let damageMultiplier = 1;
+    if (rage) {
+      this.rageStacks = target === this.rageTarget ? Math.min(rage.maxStacks, this.rageStacks + 1) : 0;
+      this.rageTarget = target;
+      damageMultiplier *= 1 + rage.perStack * this.rageStacks;
+    }
+    const critical = !!crit && Math.random() < crit.chance;
+    if (critical) damageMultiplier *= crit!.multiplier;
+    return {
+      damageMultiplier,
+      crit: critical,
+      dropsHazard: !!hazard && this.attackCount % hazard.everyNth === 0,
+    };
   }
 
   private findTarget(creeps: Creep[], move: MoveDefinition): Creep | null {

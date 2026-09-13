@@ -15,6 +15,8 @@ const result = await build({
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
       "export { createPokemon, formOf, statsOf, TrainerStore } from './src/td/progression/TrainerStore.ts';",
       "export { xpForLevel } from './src/td/progression/Stats.ts';",
+      "export { getSpecies } from './src/td/progression/Species.ts';",
+      "export { Hazard } from './src/td/Hazard.ts';",
       "export * as THREE from 'three';",
     ].join('\n'),
     resolveDir: fileURLToPath(new URL('../', import.meta.url)),
@@ -27,7 +29,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, MOVES,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, Hazard, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Starting the next match must release a keyboard-only pause, or the wave
@@ -52,8 +54,8 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
     let shots = 0;
     const target = { position: new THREE.Vector3() };
     const tower = {
-      species: { lines: [{}] }, cooldowns: [0], modifiers: { rate: 1 },
-      getActiveMove: () => ({ range: 10, attackSpeed: 2, name: 'Test' }),
+      attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0,
+      modifiers: { rate: 1 }, rollShot: () => ({}),
       findTarget: () => target,
       animPokemon: { mesh: new THREE.Group(), update() {} },
       position: new THREE.Vector3(), attackAnimTimer: 0, entranceAnimTimer: 0,
@@ -70,8 +72,8 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   let burstShots = 0;
   const target = { position: new THREE.Vector3() };
   const idleTower = {
-    species: { lines: [{}] }, cooldowns: [0], modifiers: { rate: 1 },
-    getActiveMove: () => ({ range: 10, attackSpeed: 2, name: 'Test' }),
+    attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0,
+    modifiers: { rate: 1 }, rollShot: () => ({}),
     findTarget: () => hasTarget ? target : null,
     animPokemon: { mesh: new THREE.Group(), update() {} },
     position: new THREE.Vector3(), attackAnimTimer: 0, entranceAnimTimer: 0,
@@ -269,4 +271,81 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
     'titans are slowed, briefly, instead of stopped');
 }
 
-console.log('PASS: gameplay timing, capture, defeat, save repair, evolution, pause, hit shape, armor, and status regressions.');
+// Paths cap at 3-2-0: a second path closes the third, and only one path
+// climbs past tier 2. On a crosspath the main path's attack swap wins.
+{
+  const pathTower = (speciesId, level) => {
+    const tower = Object.create(Tower.prototype);
+    Object.assign(tower, { species: getSpecies(speciesId), pokemon: { level }, totalInvested: 0, updateRangeRing() {} });
+    tower.tiers = tower.species.paths.map(() => 0);
+    tower.attack = tower.buildAttack();
+    return tower;
+  };
+
+  const pikachu = pathTower('pikachu', 50);
+  assert.equal(pikachu.attack.move.id, 'thundershock', 'starts on the basic attack');
+  assert.ok(pikachu.buyUpgrade(0) && pikachu.buyUpgrade(0), 'storm to tier 2');
+  assert.deepEqual(pikachu.upgradeConsequences(2), { closes: [1], caps: [] }, 'opening a second path warns it closes the third');
+  assert.ok(pikachu.buyUpgrade(2) && pikachu.buyUpgrade(2), 'agility to tier 2');
+  assert.equal(pikachu.getUpgradeBlockReason(1), 'path_closed', 'third path is closed');
+  assert.equal(pikachu.attack.move.id, 'thunderbolt', 'on a tie the earlier path is main; Quick Attack is ignored');
+  assert.equal(pikachu.attack.chain, 4, 'crosspath effects still apply');
+  assert.deepEqual(pikachu.upgradeConsequences(2), { closes: [], caps: [0] }, 'claiming tier 3 warns it caps the other path');
+  assert.ok(pikachu.buyUpgrade(2), 'agility claims tier 3');
+  assert.equal(pikachu.attack.move.id, 'quick_attack', 'the main path now decides the attack');
+  assert.equal(pikachu.getUpgradeBlockReason(0), 'tier_capped', 'storm is capped at tier 2');
+
+  const lowLevel = pathTower('charmander', 5);
+  assert.ok(lowLevel.buyUpgrade(0), 'tier 1 needs no level');
+  assert.equal(lowLevel.getUpgradeBlockReason(0), 'needs_level', 'tier 2 waits on level');
+}
+
+// Chains jump to the nearest unhit creep in reach; knockback walks a creep
+// back along its route without passing the start.
+{
+  const hits = [];
+  const creepAt = (name, x) => ({
+    name, alive: true, captureLocked: false, isBoss: false, types: ['Water'], position: new THREE.Vector3(x, 0, 0),
+    hasTrait: () => false, applyStatus: () => false, takeDamage: amount => { hits.push([name, amount]); return false; },
+  });
+  const creeps = [creepAt('a', 0), creepAt('b', 4), creepAt('c', 8), creepAt('far', 30)];
+  const context = {
+    creeps, particles: { emitImpact() {}, emitBeam() {}, emitAura() {} }, audio: { playHit() {} },
+    announcer: { trigger() {} }, onFaint() {},
+  };
+  resolveMoveHit({ ...MOVES.thunderbolt, statusEffect: 'none' }, creeps[0], context, null, null, { chain: 4 });
+  assert.deepEqual(hits.map(([name]) => name), ['a', 'b', 'c'], 'chain hops creep to creep within reach');
+  assert.ok(hits[1][1] < hits[0][1], 'chained hits carry reduced damage');
+
+  const walker = {
+    alive: true, captureLocked: false, group: new THREE.Group(),
+    waypoints: [new THREE.Vector3(0, 0, 0), new THREE.Vector3(10, 0, 0), new THREE.Vector3(10, 0, 10)],
+    remainingAtWaypoint: [20, 10, 0], currentWpIdx: 2, position: new THREE.Vector3(10, 0, 3), pathProgress: -7,
+  };
+  Creep.prototype.pushBack.call(walker, 5);
+  assert.ok(walker.position.distanceTo(new THREE.Vector3(8, 0, 0)) < 1e-6, 'knockback rounds the corner backwards');
+  assert.equal(walker.pathProgress, -12, 'path progress follows the push');
+  Creep.prototype.pushBack.call(walker, 50);
+  assert.ok(walker.position.equals(walker.waypoints[0]), 'knockback stops at the start of the route');
+}
+
+// Lane hazards catch Phantoms (they never aim) but not Airborne creeps, and
+// burn out after their duration.
+{
+  const scene = new THREE.Scene();
+  const hazard = new Hazard('ember_patch', new THREE.Vector3(), null, scene);
+  const statuses = [];
+  const creep = (name, traits) => ({
+    name, alive: true, captureLocked: false, types: ['Normal'], position: new THREE.Vector3(0.5, 0, 0),
+    hasTrait: trait => traits.includes(trait), takeDamage: () => false,
+    applyStatus: effect => { statuses.push([name, effect]); return true; },
+  });
+  const ghost = creep('ghost', ['phantom']);
+  const bird = creep('bird', ['airborne']);
+  assert.equal(hazard.update(0.1, [ghost, bird], () => {}), true, 'hazard is live');
+  assert.deepEqual(statuses, [['ghost', 'burn']], 'phantoms burn, flyers pass over');
+  assert.equal(hazard.update(5, [], () => {}), false, 'hazard burns out');
+  hazard.destroy(scene);
+}
+
+console.log('PASS: gameplay timing, capture, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, and hazard regressions.');
