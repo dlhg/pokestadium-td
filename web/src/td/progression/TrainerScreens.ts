@@ -11,7 +11,7 @@ import type { StadiumMap } from '../MapCatalog';
 import { openingThreatTypes, WIN_ROUNDS } from '../WaveManager';
 import { MOVES } from '../../stadium/MoveDatabase';
 import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../../stadium/TypeMatrix';
-import { GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
+import { dexNumber, GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
 import { levelProgress, MAX_DV, MAX_LEVEL, STAT_KEYS, towerModifiers, xpForLevel } from './Stats';
 import {
   displayName, formOf, NICKNAME_MAX, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore,
@@ -23,7 +23,7 @@ export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
-function typeChip(type: PokemonType): string {
+export function typeChip(type: PokemonType): string {
   const color = TYPE_COLORS[type]?.hex ?? '#888';
   return `<span class="tr-type" style="background:${color}">${type.toUpperCase()}</span>`;
 }
@@ -46,6 +46,47 @@ function xpBar(pokemon: OwnedPokemon): string {
 function strongAgainst(pokemon: OwnedPokemon, threats: PokemonType[]): PokemonType[] {
   const moveTypes = new Set(reachableMoveIds(speciesOf(pokemon), pokemon.level).map(id => MOVES[id].type));
   return threats.filter(threat => [...moveTypes].some(type => getCombinedEffectiveness(type, [threat]) >= 2));
+}
+
+/** Set in `unlocks` once the player has been told new catches go to the bench. */
+const BENCH_INTRO_UNLOCK = 'bench-intro';
+/** Below this many benched Pokémon the search, sort and filter toolbar stays hidden. */
+const BENCH_TOOLS_MIN = 8;
+
+type BenchSort = 'level' | 'recent' | 'name' | 'dex' | 'matchup';
+
+interface BenchFilter {
+  query: string;
+  sort: BenchSort;
+  types: Set<PokemonType>;
+  strongOnly: boolean;
+}
+
+type StrongLookup = (pokemon: OwnedPokemon) => PokemonType[];
+type BenchCompare = (a: OwnedPokemon, b: OwnedPokemon) => number;
+
+const byName: BenchCompare = (a, b) => displayName(a).localeCompare(displayName(b));
+const byLevel: BenchCompare = (a, b) => b.level - a.level || byName(a, b);
+
+const BENCH_SORTS: Record<BenchSort, { label: string; compare: (strong: StrongLookup) => BenchCompare }> = {
+  level: { label: 'LEVEL', compare: () => byLevel },
+  recent: { label: 'RECENTLY CAUGHT', compare: () => (a, b) => b.origin.at - a.origin.at || byLevel(a, b) },
+  name: { label: 'NAME', compare: () => (a, b) => byName(a, b) || b.level - a.level },
+  dex: { label: 'POKÉDEX NO.', compare: () => (a, b) => dexNumber(a.speciesId, a.stage) - dexNumber(b.speciesId, b.stage) || byLevel(a, b) },
+  matchup: { label: 'BEST VS THIS COURSE', compare: strong => (a, b) => strong(b).length - strong(a).length || byLevel(a, b) },
+};
+
+function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[]): string {
+  const form = formOf(pokemon);
+  return `<div class="tr-card" draggable="true" data-drag-uid="${pokemon.uid}">
+    <button class="tr-card-main" data-toggle="${pokemon.uid}" title="Add to team · drag onto a slot to swap" style="${typeArtStyle(form.type)}">
+      <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}${pokemon.nickname ? `<small>${form.name.toUpperCase()}</small>` : ''}</span>
+      <span class="tr-card-meta">LV ${pokemon.level}</span>
+      <span class="tr-card-types">${typeChips(pokemon)}</span>
+      ${strong.length ? `<span class="tr-matchup" title="Strong vs ${strong.join(', ')}">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
+    </button>
+    <button class="tr-info stadium-btn" data-info="${pokemon.uid}" title="Summary">INFO</button>
+  </div>`;
 }
 
 /** Shared by the quit report and the defeat card. */
@@ -197,79 +238,220 @@ export class TrainerScreens {
 
   // ---- Team select ---------------------------------------------------------
 
+  /**
+   * The six slots re-render when the store commits; the bench re-renders on
+   * store commits and on every search, sort or filter change. The toolbar is
+   * built once so the search box keeps focus while typing.
+   */
   public openTeamSelect(options: TeamSelectOptions): void {
     const threats = options.map ? openingThreatTypes(10, WIN_ROUNDS[options.map.difficulty]) : [];
-    const scrollKey = '.tr-collection';
-    this.open(() => {
-      const scroll = this.root.querySelector(scrollKey)?.scrollTop ?? 0;
+    const filter: BenchFilter = { query: '', sort: 'level', types: new Set(), strongOnly: false };
+    const strongCache = new Map<string, PokemonType[]>();
+    const strong = (pokemon: OwnedPokemon) => {
+      const key = `${pokemon.speciesId}:${pokemon.level}`;
+      if (!strongCache.has(key)) strongCache.set(key, strongAgainst(pokemon, threats));
+      return strongCache.get(key)!;
+    };
+    const showBenchIntro = !!options.map && this.store.data.collection.length > TEAM_SIZE
+      && !this.store.data.unlocks.includes(BENCH_INTRO_UNLOCK);
+
+    const renderSlots = () => {
       this.clearViews();
       const { data } = this.store;
       const team = data.team.map(uid => (uid ? this.store.get(uid) : null));
-      const collection = [...data.collection].sort((a, b) => b.level - a.level || displayName(a).localeCompare(displayName(b)));
-      const record = options.map ? data.maps[options.map.id] : undefined;
-
-      const slots = team.map((pokemon, slot) => pokemon
-        ? `<button class="tr-slot filled" data-slot="${slot}" title="Remove from team" style="${typeArtStyle(formOf(pokemon).type)}">
+      const teamCount = team.filter(Boolean).length;
+      this.root.querySelector('.tr-slots')!.innerHTML = team.map((pokemon, slot) => pokemon
+        ? `<button class="tr-slot filled" data-slot="${slot}" data-drop-slot="${slot}" data-drag-uid="${pokemon.uid}" draggable="true" title="Click to remove · drag to swap" style="${typeArtStyle(formOf(pokemon).type)}">
             <span class="tr-model" data-model="${formOf(pokemon).name}" data-species="${pokemon.speciesId}"></span>
             <span class="tr-slot-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
             <span class="tr-slot-meta">LV ${pokemon.level}</span>
             <span class="tr-slot-types">${typeChips(pokemon)}</span>
             ${xpBar(pokemon)}
           </button>`
-        : `<div class="tr-slot empty"><span>SLOT ${slot + 1}</span></div>`).join('');
-
-      const bench = collection.filter(pokemon => !data.team.includes(pokemon.uid));
-      const cards = bench.map(pokemon => {
-        const strong = strongAgainst(pokemon, threats);
-        return `<div class="tr-card">
-          <button class="tr-card-main" data-toggle="${pokemon.uid}" title="Add to team" style="${typeArtStyle(formOf(pokemon).type)}">
-            <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
-            <span class="tr-card-form">${pokemon.nickname ? formOf(pokemon).name : '&nbsp;'}</span>
-            <span class="tr-card-meta">LV ${pokemon.level}</span>
-            <span class="tr-card-types">${typeChips(pokemon)}</span>
-            ${strong.length ? `<span class="tr-matchup">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
-            ${xpBar(pokemon)}
-            <span class="tr-check">+ ADD</span>
-          </button>
-          <button class="tr-info stadium-btn" data-info="${pokemon.uid}">INFO</button>
-        </div>`;
-      }).join('');
-
-      const teamCount = team.filter(Boolean).length;
-      this.root.innerHTML = `
-        <section class="tr-panel stadium-panel tr-team">
-          <div class="tr-eyebrow">${options.map ? `TEAM SELECT / ${options.map.name.toUpperCase()}` : 'MY POKÉMON'}</div>
-          <h1 class="tr-title">${options.map ? 'PICK YOUR TEAM' : 'COLLECTION'}</h1>
-          ${options.map ? `<div class="tr-threats"><span>OPENING WAVES</span>${threats.map(typeChip).join('')}
-            ${record ? `<span class="tr-record">BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}</span>` : ''}</div>` : ''}
-          <div class="tr-slots">${slots}</div>
-          <div class="tr-collection-head"><span>${bench.length} AVAILABLE · ${collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT</span><span>One tower per Pokémon on the field. Catch duplicates to field more.</span></div>
-          <div class="tr-collection">${cards || `<p class="tr-empty">${collection.length ? 'Everyone you own is already on your team.' : 'No Pokémon yet.'}</p>`}</div>
-          <div class="tr-footer">
-            <button class="stadium-btn" data-back>${options.map ? 'BACK TO COURSES' : 'DONE'}</button>
-            ${options.onConfirm ? `<button class="stadium-btn active tr-confirm" data-confirm ${teamCount ? '' : 'disabled'}>${teamCount ? `START MATCH · ${teamCount}/${TEAM_SIZE}` : 'ADD A POKÉMON'}</button>` : ''}
-          </div>
-        </section>`;
+        : `<div class="tr-slot empty" data-drop-slot="${slot}"><span>SLOT ${slot + 1}</span></div>`).join('');
       this.mountModels(this.root.querySelector('.tr-slots')!);
-      this.root.querySelector(scrollKey)!.scrollTop = scroll;
+      this.root.querySelector('[data-team-count]')!.textContent = `TEAM ${teamCount}/${TEAM_SIZE}`;
+      this.root.querySelector<HTMLButtonElement>('[data-clear-team]')!.disabled = !teamCount;
+      const confirm = this.root.querySelector<HTMLButtonElement>('[data-confirm]');
+      if (confirm) {
+        confirm.disabled = !teamCount;
+        confirm.textContent = teamCount ? `START MATCH · ${teamCount}/${TEAM_SIZE}` : 'ADD A POKÉMON';
+      }
+    };
 
-      this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach(button =>
-        button.addEventListener('click', () => this.store.setTeamSlot(Number(button.dataset.slot), null)));
-      this.root.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach(button =>
-        button.addEventListener('click', () => {
-          if (!this.store.toggleTeam(button.dataset.toggle!)) this.flash('TEAM IS FULL · REMOVE ONE FIRST');
-        }));
-      this.root.querySelectorAll<HTMLButtonElement>('[data-info]').forEach(button =>
-        button.addEventListener('click', () => this.openSummary(button.dataset.info!)));
-      this.root.querySelector('[data-back]')!.addEventListener('click', () => {
+    const renderBench = () => {
+      const list = this.root.querySelector<HTMLElement>('.tr-collection');
+      if (!list) return;
+      const { data } = this.store;
+      const bench = data.collection.filter(pokemon => !data.team.includes(pokemon.uid));
+      const query = filter.query.trim().toLowerCase();
+      const shown = bench.filter(pokemon => {
+        const form = formOf(pokemon);
+        if (query && ![displayName(pokemon), form.name, pokemon.speciesId].some(name => name.toLowerCase().includes(query))) return false;
+        if (filter.types.size && !filter.types.has(form.type) && !(form.secondaryType && filter.types.has(form.secondaryType))) return false;
+        return !filter.strongOnly || strong(pokemon).length > 0;
+      }).sort(BENCH_SORTS[filter.sort].compare(strong));
+
+      const scroll = list.scrollTop;
+      list.innerHTML = shown.map(pokemon => benchTileHtml(pokemon, strong(pokemon))).join('')
+        || `<p class="tr-empty">${!data.collection.length ? 'No Pokémon yet.' : !bench.length ? 'Everyone you own is already on your team.' : 'No Pokémon match these filters.'}</p>`;
+      list.scrollTop = scroll;
+
+      const filtering = !!query || filter.types.size > 0 || filter.strongOnly;
+      this.root.querySelector('[data-bench-count]')!.textContent = `${filtering ? `SHOWING ${shown.length} OF ${bench.length}` : bench.length} ON BENCH · ${data.collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT`;
+      // A handful of Pokémon doesn't need a toolbar; keep it while any filter is on so it can be cleared.
+      this.root.querySelector<HTMLElement>('.tr-bench-tools')!.hidden = bench.length < BENCH_TOOLS_MIN && !filtering;
+      this.root.querySelector<HTMLButtonElement>('[data-clear-filters]')!.hidden = !filtering;
+      const benchTypes = new Set(bench.flatMap(pokemon => [formOf(pokemon).type, formOf(pokemon).secondaryType]));
+      this.root.querySelectorAll<HTMLButtonElement>('[data-type-filter]').forEach(chip => {
+        const type = chip.dataset.typeFilter as PokemonType;
+        const on = filter.types.has(type);
+        chip.setAttribute('aria-pressed', String(on));
+        chip.disabled = !on && !benchTypes.has(type);
+      });
+    };
+
+    this.open(() => {
+      if (!this.root.querySelector('.tr-team')) this.buildTeamShell(options, threats, filter, showBenchIntro, renderBench);
+      renderSlots();
+      renderBench();
+    });
+
+    if (showBenchIntro) {
+      this.store.data.unlocks.push(BENCH_INTRO_UNLOCK);
+      this.store.commit();
+    }
+  }
+
+  /** Static chrome and delegated listeners for team select, built once per opening. */
+  private buildTeamShell(options: TeamSelectOptions, threats: PokemonType[], filter: BenchFilter, showBenchIntro: boolean, renderBench: () => void): void {
+    this.clearViews();
+    const record = options.map ? this.store.data.maps[options.map.id] : undefined;
+    this.root.innerHTML = `
+      <section class="tr-panel stadium-panel tr-team">
+        <div class="tr-eyebrow">${options.map ? `TEAM SELECT / ${options.map.name.toUpperCase()}` : 'MY POKÉMON'}</div>
+        <h1 class="tr-title">${options.map ? 'PICK YOUR TEAM' : 'COLLECTION'}</h1>
+        ${options.map ? `<div class="tr-threats"><span>OPENING WAVES</span>${threats.map(typeChip).join('')}
+          ${record ? `<span class="tr-record">BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}</span>` : ''}</div>` : ''}
+        ${showBenchIntro ? '<p class="tr-intro">Your team is full, so new catches wait on the bench. Click one, or drag it onto a slot, to swap it in.</p>' : ''}
+        <div class="tr-team-head">
+          <span data-team-count></span>
+          <span class="tr-team-hint">Click a slot to bench it · drag to swap</span>
+          <button class="stadium-btn tr-mini" data-clear-team>CLEAR TEAM</button>
+        </div>
+        <div class="tr-slots"></div>
+        <div class="tr-collection-head"><span data-bench-count></span><span>One tower per Pokémon on the field. Catch duplicates to field more.</span></div>
+        <div class="tr-bench-tools">
+          <div class="tr-bench-row">
+            <input type="search" class="tr-input tr-search" placeholder="Search name" aria-label="Search Pokémon" autocomplete="off">
+            <label class="tr-sort">SORT
+              <select class="tr-input" aria-label="Sort bench">
+                ${(Object.keys(BENCH_SORTS) as BenchSort[]).filter(key => options.map || key !== 'matchup')
+                  .map(key => `<option value="${key}" ${key === filter.sort ? 'selected' : ''}>${BENCH_SORTS[key].label}</option>`).join('')}
+              </select>
+            </label>
+            ${options.map ? '<button class="tr-filter-toggle" data-strong-only aria-pressed="false">STRONG VS OPENING WAVES</button>' : ''}
+            <button class="tr-filter-toggle clear" data-clear-filters hidden>CLEAR FILTERS</button>
+          </div>
+          <div class="tr-type-filters" aria-label="Filter by type">
+            ${(Object.keys(TYPE_COLORS) as PokemonType[]).map(type =>
+              `<button class="tr-type tr-type-filter" data-type-filter="${type}" aria-pressed="false" style="background:${TYPE_COLORS[type].hex}">${type.toUpperCase()}</button>`).join('')}
+          </div>
+        </div>
+        <div class="tr-collection" data-drop-bench></div>
+        <div class="tr-footer">
+          <button class="stadium-btn" data-back>${options.map ? 'BACK TO COURSES' : 'DONE'}</button>
+          ${options.onConfirm ? '<button class="stadium-btn active tr-confirm" data-confirm></button>' : ''}
+        </div>
+      </section>`;
+
+    const section = this.root.querySelector<HTMLElement>('.tr-team')!;
+    const search = section.querySelector<HTMLInputElement>('.tr-search')!;
+    const strongToggle = section.querySelector<HTMLButtonElement>('[data-strong-only]');
+
+    section.addEventListener('click', (event) => {
+      const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+      if (!target || target.disabled) return;
+      const { dataset } = target;
+      if (dataset.slot !== undefined) this.store.setTeamSlot(Number(dataset.slot), null);
+      else if (dataset.toggle) {
+        if (!this.store.toggleTeam(dataset.toggle)) this.flash('TEAM IS FULL · REMOVE ONE OR DRAG ONTO A SLOT');
+      } else if (dataset.info) this.openSummary(dataset.info);
+      else if (dataset.clearTeam !== undefined) this.store.clearTeam();
+      else if (dataset.typeFilter) {
+        const type = dataset.typeFilter as PokemonType;
+        if (!filter.types.delete(type)) filter.types.add(type);
+        renderBench();
+      } else if (dataset.strongOnly !== undefined) {
+        filter.strongOnly = !filter.strongOnly;
+        target.setAttribute('aria-pressed', String(filter.strongOnly));
+        renderBench();
+      } else if (dataset.clearFilters !== undefined) {
+        filter.query = search.value = '';
+        filter.types.clear();
+        filter.strongOnly = false;
+        strongToggle?.setAttribute('aria-pressed', 'false');
+        renderBench();
+      } else if (dataset.back !== undefined) {
         this.close();
         options.onBack();
-      });
-      this.root.querySelector('[data-confirm]')?.addEventListener('click', () => {
+      } else if (dataset.confirm !== undefined) {
         if (!this.store.team.length) return;
         this.close();
         options.onConfirm!();
-      });
+      }
+    });
+    search.addEventListener('input', () => {
+      filter.query = search.value;
+      renderBench();
+    });
+    section.querySelector('select')!.addEventListener('change', (event) => {
+      filter.sort = (event.target as HTMLSelectElement).value as BenchSort;
+      renderBench();
+    });
+
+    // Drag a bench tile onto a slot to swap it in, a slot onto a slot to swap
+    // places, or a slot back onto the bench to remove it.
+    let dragUid: string | null = null;
+    const dropTarget = (event: DragEvent) => (event.target as HTMLElement).closest<HTMLElement>('[data-drop-slot], [data-drop-bench]');
+    const clearDropMarks = () => section.querySelectorAll('.drop-over').forEach(el => el.classList.remove('drop-over'));
+    section.addEventListener('dragstart', (event) => {
+      const source = (event.target as HTMLElement).closest<HTMLElement>('[data-drag-uid]');
+      if (!source) return;
+      dragUid = source.dataset.dragUid!;
+      event.dataTransfer?.setData('text/plain', dragUid);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      source.classList.add('dragging');
+      section.classList.add('is-dragging');
+    });
+    section.addEventListener('dragover', (event) => {
+      const target = dropTarget(event);
+      if (!dragUid || !target) return;
+      if (target.dataset.dropBench !== undefined && !this.store.data.team.includes(dragUid)) return;
+      event.preventDefault();
+      if (!target.classList.contains('drop-over')) {
+        clearDropMarks();
+        target.classList.add('drop-over');
+      }
+    });
+    section.addEventListener('dragleave', (event) => {
+      const target = dropTarget(event);
+      if (target && !target.contains(event.relatedTarget as Node)) target.classList.remove('drop-over');
+    });
+    section.addEventListener('drop', (event) => {
+      const target = dropTarget(event);
+      const uid = dragUid;
+      if (!target || !uid) return;
+      event.preventDefault();
+      clearDropMarks();
+      if (target.dataset.dropSlot !== undefined) this.store.setTeamSlot(Number(target.dataset.dropSlot), uid);
+      else if (this.store.data.team.includes(uid)) this.store.toggleTeam(uid);
+    });
+    section.addEventListener('dragend', () => {
+      dragUid = null;
+      clearDropMarks();
+      section.classList.remove('is-dragging');
+      section.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
     });
   }
 

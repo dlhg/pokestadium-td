@@ -858,6 +858,17 @@ export function speciesForCreepName(name: string): { speciesId: string; stage: n
   return FORM_INDEX.get(name.replace(/^(titan|boss)\s+/i, '').trim().toLowerCase()) ?? null;
 }
 
+/** National Pokédex number of each line's first form; every line here evolves in dex order. */
+const BASE_DEX: Record<string, number> = {
+  bulbasaur: 1, charmander: 4, squirtle: 7, pidgey: 16, rattata: 19, pikachu: 25, zubat: 41, oddish: 43,
+  paras: 46, psyduck: 54, abra: 63, machop: 66, geodude: 74, ponyta: 77, gastly: 92, onix: 95, voltorb: 100,
+  exeggcute: 102, rhyhorn: 111, scyther: 123, magikarp: 129, lapras: 131, dratini: 147,
+};
+
+export function dexNumber(speciesId: string, stage: number): number {
+  return (BASE_DEX[speciesId] ?? 999) + stage;
+}
+
 export function getSpecies(id: string): SpeciesDef {
   const species = SPECIES[id];
   if (!species) throw new Error(`Unknown species "${id}"`);

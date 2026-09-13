@@ -40,6 +40,8 @@
 .map-name { display: block; font: 25px 'Teko', Impact, sans-serif; line-height: 1; letter-spacing: .3px; color: #fff2c6; }
 .map-venue { display: block; color: #83b7d4; font-size: 9px; font-weight: 800; letter-spacing: 1px; margin-top: 6px; }
 .map-description { display: block; margin: 13px 0 16px; color: #dceafa; font: 13px/1.4 'Rajdhani', sans-serif; }
+.map-record { display: block; margin-bottom: 6px; color: #e9d89a; font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: .8px; }
+.map-record[hidden] { display: none; }
 .map-obstacles { display: block; margin-top: auto; padding-top: 9px; border-top: 1px solid #436183; color: #e9d89a; font-size: 11px; letter-spacing: .5px; }
 .map-select-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 20px; color: #9fb9ce; font-size: 12px; }
 .map-legend { display: inline-flex; gap: 14px; }

@@ -25,7 +25,7 @@ import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
 import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
-import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
+import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import type { MatchReportEntry } from './progression/MatchProgress';
 import './map-select.css';
@@ -1176,7 +1176,8 @@ export class StadiumUI {
               ${mapPreview(map)}
               <span class="map-difficulty ${map.difficulty}">${map.difficulty.toUpperCase()}</span>
               <span class="map-card-body"><strong class="map-name">${map.name}</strong><span class="map-venue">${map.venue}</span>
-              <span class="map-description">${map.description}</span><span class="map-obstacles">${map.terrain?'3 TERRACES · HIGH GROUND':map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
+              <span class="map-description">${map.description}</span>
+              <span class="map-record" data-map-record="${map.id}"></span><span class="map-obstacles">${map.terrain?'3 TERRACES · HIGH GROUND':map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
             </button>`).join('')}
           </div>
           <div class="map-select-footer"><div class="map-legend"><span>Entrance</span><span>Exit</span></div><span>Choose a course, then pick your team.</span><button id="btn-open-team" class="stadium-btn">MY POKÉMON</button><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>
@@ -1341,8 +1342,15 @@ export class StadiumUI {
       button.addEventListener('click', () => {
         const map = STADIUM_MAPS.find(candidate => candidate.id === button.dataset.mapId);
         if (!map) return;
-        // A course leads to team select; the match starts only once a team is confirmed.
         this.setMapSelectVisible(false);
+        // With six or fewer Pokémon everyone plays, so there is nothing to pick.
+        const owned = this.store.data.collection.length;
+        if (owned > 0 && owned <= TEAM_SIZE) {
+          this.store.fillTeam();
+          this.onSelectMap(map);
+          return;
+        }
+        // Otherwise the course leads to team select; the match starts once a team is confirmed.
         this.trainer.openTeamSelect({
           map,
           onConfirm: () => this.onSelectMap(map),
@@ -1357,6 +1365,15 @@ export class StadiumUI {
     });
   }
 
+  /** Course cards show the trainer's best run, which changes after every match. */
+  private refreshMapRecords(): void {
+    this.container.querySelectorAll<HTMLElement>('[data-map-record]').forEach(el => {
+      const record = this.store.data.maps[el.dataset.mapRecord!];
+      el.textContent = record ? `BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}` : '';
+      el.hidden = !record;
+    });
+  }
+
   public setMapSelectVisible(visible: boolean, canResume=false): void {
     const chooser=this.container.querySelector<HTMLElement>('#map-select')!;
     chooser.style.display=visible?'grid':'none';
@@ -1365,6 +1382,7 @@ export class StadiumUI {
       this.container.querySelector<HTMLElement>(`#${id}`)!.inert=visible;
     });
     this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
+    if(visible) this.refreshMapRecords();
     if(visible) chooser.querySelector<HTMLButtonElement>('.map-filter.active')?.focus();
     else this.container.querySelector<HTMLButtonElement>('#btn-wave')?.focus();
   }

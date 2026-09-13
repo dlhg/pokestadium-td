@@ -291,6 +291,21 @@ export class TrainerStore {
     this.commit();
   }
 
+  /** Puts everyone not yet on the team into the open slots, in collection order. */
+  public fillTeam(): void {
+    for (const pokemon of this.data.collection) {
+      const open = this.data.team.indexOf(null);
+      if (open === -1) break;
+      if (!this.data.team.includes(pokemon.uid)) this.data.team[open] = pokemon.uid;
+    }
+    this.commit();
+  }
+
+  public clearTeam(): void {
+    this.data.team = this.data.team.map(() => null);
+    this.commit();
+  }
+
   /** Toggles a Pokémon on or off the team; returns false when the team is full. */
   public toggleTeam(uid: string): boolean {
     const slot = this.data.team.indexOf(uid);
