@@ -42,7 +42,7 @@ for (const map of STADIUM_MAPS) {
   for(let x=-30;x<=30;x+=2) for(let z=-30;z<=30;z+=2) {
     if(mapBuildBlock(map,routes,x,z,1.6,terrain)===null) buildSites++;
   }
-  assert.ok(buildSites>100,`${map.id}: insufficient usable terrain`);
+  assert.ok(buildSites>100,`${map.id}: insufficient usable terrain (${buildSites} legal sample sites)`);
   assert.equal(mapBuildBlock(map,routes,32,0,1.6),'out_of_bounds');
   if(map.id==='cerulean-crossing') assert.equal(mapBuildBlock(map,routes,0,0,1.6),'water');
   if(map.water.length) {

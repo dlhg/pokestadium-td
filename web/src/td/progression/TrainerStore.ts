@@ -89,8 +89,10 @@ export function createPokemon(
   return {
     uid: `pkmn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     speciesId,
-    // A caught evolved form keeps its form even below that form's evolution level.
-    stage: Math.max(options.stage ?? 0, stageForLevel(species, clamped)),
+    // A caught Pokémon keeps the exact form it had in the field, even if its
+    // level happens to reach the next evolution's threshold. Without an
+    // explicit stage (e.g. dev/starter spawns), fall back to level-based stage.
+    stage: options.stage ?? stageForLevel(species, clamped),
     nickname: options.nickname ?? null,
     level: clamped,
     xp: xpForLevel(clamped),
