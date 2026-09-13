@@ -29,6 +29,7 @@ import { MOVES } from '../stadium/MoveDatabase';
 import { HitContext, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 import { BallType, CaptureSequence } from './CaptureSequence';
+import { EvolutionSequence } from './EvolutionSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
 import { speciesForCreepName } from './progression/Species';
 import { createPokemon, displayName, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
@@ -99,6 +100,9 @@ export class StadiumTDGame {
   private selectedBall: BallType | null = null;
   private captureHint: string | null = null;
   private capture: { sequence: CaptureSequence; target: Creep; ball: BallType } | null = null;
+  private evolution: { sequence: EvolutionSequence } | null = null;
+  /** Queued so simultaneous evolutions (a multi-way knockout) play one at a time. */
+  private evolutionQueue: { tower: Tower; fromName: string; toName: string }[] = [];
   private cinemaDim = 0;
   private cinemaDimApplied = false;
   private cinemaFades = new Map<THREE.Object3D, number>();
@@ -255,6 +259,7 @@ export class StadiumTDGame {
     this.selectedBall = null;
     this.captureHint = null;
     this.abortCapture();
+    this.abortEvolution();
     this.roster = [...this.store.team];
     this.roster.forEach(member => member.record.matches++);
     this.progress.start(this.roster);
@@ -428,6 +433,21 @@ export class StadiumTDGame {
   /** The capture set piece currently on screen, if any. */
   public get activeCapture(): CaptureSequence | null {
     return this.capture?.sequence ?? null;
+  }
+
+  /** Public so the headless shot harness can stage an evolution set piece. */
+  public forceEvolution(tower: Tower, fromName: string, toName: string): void {
+    this.evolutionQueue.push({ tower, fromName, toName });
+    this.pumpEvolutionQueue();
+  }
+
+  /** Tears down an evolution set piece in progress, and drops anything still queued. */
+  private abortEvolution(): void {
+    if (this.evolution) {
+      this.evolution.sequence.dispose(this.renderer.scene);
+      this.evolution = null;
+    }
+    this.evolutionQueue = [];
   }
 
   /** Tears down a set piece in progress, returning the camera and the house lights. */
@@ -716,13 +736,16 @@ export class StadiumTDGame {
       if (this.capture.sequence.awaitingRelease && (input.clicked || input.isKeyJustPressed('Space'))) {
         this.capture.sequence.release();
       }
-    } else {
+    } else if (!this.evolution) {
       this.handleInput(input);
     }
 
-    // The capture sequence runs in real time while it drags the world into slow motion.
+    // A capture or evolution set piece runs in real time while it drags the
+    // rest of the world into slow motion. At most one of these is ever
+    // active, but multiplying both scales is harmless if that ever changes.
     const captureScale = this.capture ? this.capture.sequence.worldTimeScale : 1;
-    const dt = this.isPaused ? 0 : realDt * this.gameSpeed * captureScale;
+    const evolutionScale = this.evolution ? this.evolution.sequence.worldTimeScale : 1;
+    const dt = this.isPaused ? 0 : realDt * this.gameSpeed * captureScale * evolutionScale;
 
     // Update Wave Manager
     if (dt > 0) this.waveManager.update(
@@ -783,6 +806,7 @@ export class StadiumTDGame {
           this.gameOver = true;
           this.announcer.trigger('game_over');
           this.abortCapture();
+          this.abortEvolution();
           this.clearSelection();
           const report = this.finishMatch();
           this.ui.showDefeat(this.map.name, this.waveManager.round, this.waveManager.winRound, report);
@@ -795,6 +819,8 @@ export class StadiumTDGame {
 
     this.renderer.floodlightDim = this.capture
       ? this.capture.sequence.floodlightDim
+      : this.evolution
+      ? this.evolution.sequence.floodlightDim
       : Math.max(0, this.renderer.floodlightDim - realDt * 1.5);
     this.updateCinemaDim(realDt);
 
@@ -808,6 +834,15 @@ export class StadiumTDGame {
       }
     }
 
+    if (this.evolution) {
+      const done = this.evolution.sequence.update(realDt);
+      if (done) {
+        this.evolution.sequence.dispose(this.renderer.scene);
+        this.evolution = null;
+      }
+    }
+    this.pumpEvolutionQueue();
+
     // Update Subsystems
     this.particles.update(dt);
     this.announcer.update(realDt);
@@ -820,6 +855,8 @@ export class StadiumTDGame {
     if (this.capture) {
       const hud = this.capture.sequence.hud;
       this.arena.updateJumbotron(hud.targetName, 'CAPTURE ATTEMPT', hud.wobbles);
+    } else if (this.evolution) {
+      this.arena.updateJumbotron(this.evolution.sequence.hud.toName, 'EVOLUTION', currentWave.round);
     } else {
       this.arena.updateJumbotron(
         this.map.name.toUpperCase(),
@@ -837,6 +874,7 @@ export class StadiumTDGame {
         selectedBall: this.selectedBall,
         captureHint: this.captureHint,
         captureCinema: this.capture?.sequence.hud ?? null,
+        evolutionCinema: this.evolution?.sequence.hud ?? null,
         cupName: currentWave.cupName,
         round: currentWave.round,
         winRound: this.waveManager.winRound,
@@ -909,21 +947,34 @@ export class StadiumTDGame {
     }
   }
 
-  /** Level-ups flash on the tower; evolutions swap the model and get the announcer. */
+  /** Level-ups flash on the tower; evolutions queue the cinematic set piece. */
   private applyXp(awards: XpAward[]): void {
     for (const { tower, result } of awards) {
       if (result.levelsGained <= 0) continue;
-      const lift = tower.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-      if (tower.syncProgress()) {
-        this.particles.emitImpact(lift, 0x00f0ff, 40, 8);
-        this.audio.playFanfare();
-        this.camera.shake(0.35);
+      if (tower.syncProgress(true)) {
+        this.evolutionQueue.push({ tower, fromName: result.evolvedFrom!, toName: tower.formName });
         this.announcer.trigger('tower_evolve', (tower.pokemon.nickname ?? result.evolvedFrom!).toUpperCase());
       } else {
+        const lift = tower.position.clone().add(new THREE.Vector3(0, 1.4, 0));
         this.particles.emitImpact(lift, 0xffd700, 16, 4);
         this.announcer.trigger('level_up', `${tower.name.toUpperCase()} GREW TO LV ${tower.level}`);
       }
     }
+  }
+
+  /** Starts the next queued evolution once the pitch is clear for one. */
+  private pumpEvolutionQueue(): void {
+    if (this.evolution || this.evolutionQueue.length === 0) return;
+    const { tower, fromName, toName } = this.evolutionQueue.shift()!;
+    const sequence = new EvolutionSequence(tower, fromName, toName, {
+      particles: this.particles,
+      camera: this.camera,
+      audio: this.audio,
+      announcer: this.announcer,
+      arena: this.arena,
+    });
+    this.renderer.scene.add(sequence.group);
+    this.evolution = { sequence };
   }
 
   /** Re-reads every placed tower's owned Pokémon after an out-of-band change (dev panel). */

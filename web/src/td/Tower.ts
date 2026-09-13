@@ -59,6 +59,8 @@ export class Tower {
   private cooldowns: number[] = [0, 0, 0];
   private isAttackingAnim: boolean = false;
   private attackAnimTimer: number = 0;
+  /** Plays the freshly-evolved model's entrance clip instead of idle, briefly. */
+  private entranceAnimTimer: number = 0;
   private modelLoadGeneration = 0;
   public currentTarget: Creep | null = null;
 
@@ -160,14 +162,25 @@ export class Tower {
 
   /**
    * Picks up level and evolution changes made to the owned Pokémon. Returns
-   * true when the tower evolved and swapped its model.
+   * true when the tower has evolved. Pass `deferModelSwap` when an
+   * `EvolutionSequence` wants to stage the reveal itself — the caller must
+   * then invoke `completeEvolutionSwap()` at the moment it wants the new
+   * model to appear (typically hidden behind a flash).
    */
-  public syncProgress(): boolean {
+  public syncProgress(deferModelSwap = false): boolean {
     this.modifiers = towerModifiers(statsOf(this.pokemon), this.pokemon.level);
     if (this.pokemon.stage === this.renderedStage) return false;
+    if (!deferModelSwap) this.completeEvolutionSwap();
+    return true;
+  }
+
+  /** Swaps in the model for the Pokémon's current stage. */
+  public completeEvolutionSwap(): void {
     this.renderedStage = this.pokemon.stage;
     this.loadAuthenticModel();
-    return true;
+    // Long enough to cover an authored entrance clip; harmless for the
+    // procedural fallbacks, which just ignore the 'entrance' state.
+    this.entranceAnimTimer = 1.8;
   }
 
   /** The move a given line currently fires, or null if the line is unbought. */
@@ -265,6 +278,7 @@ export class Tower {
         this.isAttackingAnim = false;
       }
     }
+    if (this.entranceAnimTimer > 0) this.entranceAnimTimer -= dt;
 
     // Each line acquires its own target and fires on its own cooldown, so a
     // fully-bought tower genuinely attacks three times over.
@@ -298,7 +312,8 @@ export class Tower {
     }
 
     // Update 3D model animation
-    this.animPokemon.update(time, dt, this.isAttackingAnim ? 'attack' : 'idle');
+    const state = this.isAttackingAnim ? 'attack' : this.entranceAnimTimer > 0 ? 'entrance' : 'idle';
+    this.animPokemon.update(time, dt, state);
   }
 
   private findTarget(creeps: Creep[], range: number): Creep | null {
