@@ -12,6 +12,7 @@ browsing; **Resume Match** keeps it, and choosing a course starts a fresh match.
 | Cerulean Crossing | Medium | An unbuildable river divides two banks; two bridges concentrate passing enemies. |
 | Power Plant | Hard | Shorter twin circuits alternate spawns between entrances; shared junctions compete with exit coverage. |
 | Indigo Plateau | Hard | Three terraces climb from Victory Road to the League gate. High ground reaches further; stairs slow climbers; the summit is small. |
+| Mt. Silver Crown | Hard | Twin trails coil up five elevation bands. A short steep route and a long switchback route trade speed for exposure before looping around the summit. |
 
 ## Elevation (Indigo Plateau)
 
@@ -31,6 +32,23 @@ between two parallel lanes) → the grand stair between the Indigo pillars.
   half pace on a 0.4 grade.
 - **Sentinel Rock** is a lone mesa above the entry trail; the **east spur** hangs
   over the first stair; the **summit** holds only a few towers.
+
+## Twin ascent (Mt. Silver Crown)
+
+Mt. Silver expands the plateau idea into two asymmetric climbs. The red trail
+takes short, steep stairs while the blue trail runs longer switchbacks; climbing
+slowdown makes their travel times closer than their lengths suggest. The routes
+exchange the inside and outside edge on each shelf, repeatedly changing which
+high-ground positions can cover both.
+
+- **Five elevation bands** rise from the cave floor through the pine shelf,
+  doubleback balcony and wind saddle to the frozen crown.
+- **The middle shelves are the prize.** Parallel passes come within shared tower
+  range, but rock spines and lane clearance prevent building in the obvious
+  center pocket.
+- **The summit is a loop, not a straight finish.** Both trails pass around the
+  crown before meeting beneath the Mt. Silver gate, giving the final towers a
+  last crossfire opportunity.
 
 These are original procedural environments in the Stadium arena. The layouts
 take inspiration from the readable paths, terrain constraints and bridge
@@ -70,6 +88,9 @@ python3 take_screenshot.py map_power-plant
 python3 take_screenshot.py map_indigo-plateau
 python3 take_screenshot.py map3d_indigo-plateau    # same course from the stands
 python3 take_screenshot.py battle_indigo-plateau   # towers on each tier, climbers on the stairs
+python3 take_screenshot.py map_mt-silver-crown
+python3 take_screenshot.py map3d_mt-silver-crown
+python3 take_screenshot.py battle_mt-silver-crown
 ```
 
 Course captures use a paused tactical view without the opening announcer banner.

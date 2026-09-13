@@ -31,7 +31,7 @@ for (const map of STADIUM_MAPS) {
     }
   }
   for (const obstacle of map.obstacles) {
-    assert.equal(mapBuildBlock(map,routes,obstacle.x,obstacle.z,0),'restricted');
+    assert.equal(mapBuildBlock(map,routes,obstacle.x,obstacle.z,0),'restricted',`${map.id}: ${obstacle.label} center is on a lane`);
     for (const route of routes) for (let i=1; i<route.length; i++) {
       const a=route[i-1], b=route[i];
       const clearance=segmentDistance(obstacle.x,obstacle.z,a.x,a.z,b.x,b.z)-obstacle.radius-map.laneWidth/2;
@@ -74,7 +74,11 @@ for (const map of STADIUM_MAPS) {
       assert.ok(sites>=6,`${map.id}: ${plateau.label} has only ${sites} build sites`);
       console.log(`  ${plateau.label} (${plateau.height}): ${sites} build sites`);
     }
-    assert.equal(mapBuildBlock(map,routes,-20,8.6,1.6,terrain),'too_steep');
+    let cliffSite = false;
+    for(let x=-28;x<=28 && !cliffSite;x+=1) for(let z=-28;z<=28;z+=1) {
+      if(mapBuildBlock(map,routes,x,z,1.6,terrain)==='too_steep') { cliffSite=true; break; }
+    }
+    assert.ok(cliffSite,`${map.id}: no unbuildable cliff face found`);
     // Picking from the tactical camera lands on the terrace the player sees, not the plane below it.
     const THREE = await import('three');
     for (const [x,z] of [[-6,-25],[24,-2],[-14,17],[6,-12]]) {
@@ -87,6 +91,7 @@ for (const map of STADIUM_MAPS) {
 }
 assert.equal(signatures.size, STADIUM_MAPS.length, 'Maps share an identical route');
 assert.equal(STADIUM_MAPS.find(m=>m.id==='power-plant').routes.length,2);
+assert.equal(STADIUM_MAPS.find(m=>m.id==='mt-silver-crown').routes.length,2);
 
 // Edge clearance matters even when the tower centre is outside the water.
 const square=[[-2,-2],[2,-2],[2,2],[-2,2]];
