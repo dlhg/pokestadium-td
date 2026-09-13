@@ -156,7 +156,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
       // Spring-fed pool right at the cave mouth, tucked under the summit's cliff.
       { height:TIER_BADGE_CHECK, points:[[-10,-21.9],[-8.3,-22.1],[-6.2,-21.7],[-6,-20],[-7.7,-19.3],[-10,-19.7]] },
       // The river down Route 23, fed by the second drop, crossing the road on its way to the falls.
-      { height:TIER_ROUTE_23, points:[[-7.4,-4],[-7.6,-2],[-7.2,1],[-6.8,5],[-6.4,8.4],[-2.2,8.4],[-2.6,6],[-3,2.5],[-3.6,-1.8],[-5.2,-4.2]] },
+      { height:TIER_ROUTE_23, points:[[-7.4,-4],[-7.6,-2],[-7.2,1],[-6.8,5],[-5.9,8.4],[-2.5,8.4],[-2.6,6],[-3,2.5],[-3.6,-1.8],[-5.2,-4.2]] },
     ],
     bridges:[
       { x:-2, z:27, width:9, depth:3.8, rise:0.9 },
