@@ -62,6 +62,10 @@ const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
 /** A successful-capture prompt is informational, not a persistent mode hint. */
 const CAPTURE_DEPLOY_HINT_DURATION = 5;
 
+/** Course select, starter select and team select share one loop. */
+const MENU_MUSIC = 'pokemon_select';
+const CAPTURE_JINGLE = 'pikachu_learned_surf';
+
 export class StadiumTDGame {
   public renderer!: StadiumRenderer;
   public camera!: StadiumCamera;
@@ -108,6 +112,8 @@ export class StadiumTDGame {
   public roster: OwnedPokemon[] = [];
   /** True from a match's first frame until its XP and records are banked. */
   private matchActive = false;
+  /** Whether this match's battle loop has started, so resuming from a menu restores it. */
+  private battleMusicOn = false;
   /** The nickname prompt holds the match; only it may release the pause it took. */
   private namingHold = false;
   /** Dev panel: every throw catches. */
@@ -156,6 +162,16 @@ export class StadiumTDGame {
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
 
     this.bindUIEvents();
+    // The game opens on starter or course select. Browsers hold audio until the
+    // first gesture, so resume the context then and the requested loop starts.
+    this.audio.playMusic(MENU_MUSIC);
+    const unlockAudio = () => {
+      this.audio.prepare();
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+    window.addEventListener('pointerdown', unlockAudio);
+    window.addEventListener('keydown', unlockAudio);
     this.signatureCuts = readSignatureCutsSetting();
     this.ui.setSignatureCuts(this.signatureCuts);
     this.summonCinematics = readSummonCinematicsSetting();
@@ -172,7 +188,12 @@ export class StadiumTDGame {
       this.ui.setMapSelectVisible(true, !this.gameOver);
     };
     this.ui.onRetryMap = () => this.loadMap(this.map);
-    this.ui.onResumeMap = () => { this.isChoosingMap = false; };
+    this.ui.onResumeMap = () => {
+      this.isChoosingMap = false;
+      if (this.battleMusicOn) this.audio.startMusic();
+      else this.audio.stopMusic();
+    };
+    this.ui.onMenuShown = () => this.audio.playMusic(MENU_MUSIC);
     this.ui.onResumeGame = () => {
       this.pauseMenuOpen = false;
       this.isPaused = false;
@@ -188,6 +209,7 @@ export class StadiumTDGame {
       this.isPaused = true;
       this.ui.setPauseVisible(false);
       this.isChoosingMap = true;
+      this.audio.playMusic(MENU_MUSIC);
       this.ui.showMatchReport(report, this.map.name, () => this.ui.setMapSelectVisible(true, false));
       this.audio.playSelect();
     };
@@ -274,6 +296,7 @@ export class StadiumTDGame {
         this.waveManager.startNextWave();
         this.audio.playSelect();
         this.audio.startMusic();
+        this.battleMusicOn = true;
       }
     };
 
@@ -336,6 +359,9 @@ export class StadiumTDGame {
     this.camera.setMode('tactical');
     this.particles.update(60);
     this.ui.setMapSelectVisible(false);
+    // Menu music ends with the menus; the battle loop starts with the first wave.
+    this.battleMusicOn = false;
+    this.audio.stopMusic();
     this.audio.playSelect();
     this.announcer.trigger('battle_start');
   }
@@ -603,7 +629,7 @@ export class StadiumTDGame {
       this.timedCaptureHint = this.captureHint;
       this.captureHintTimer = CAPTURE_DEPLOY_HINT_DURATION;
       this.announcer.trigger('capture_success', target.name);
-      this.audio.playFanfare();
+      if (!this.audio.playJingle(CAPTURE_JINGLE)) this.audio.playFanfare();
       if (caught) this.promptNickname(caught);
     } else {
       this.store.data.captureLuck++;

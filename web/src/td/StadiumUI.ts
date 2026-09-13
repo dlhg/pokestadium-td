@@ -145,6 +145,8 @@ export class StadiumUI {
   public onChangeCamera: (mode: CameraMode) => void = () => {};
   public onOpenMaps: () => void = () => {};
   public onResumeMap: () => void = () => {};
+  /** Course select came up (team select and the collection open from it). */
+  public onMenuShown: () => void = () => {};
   public onResumeGame: () => void = () => {};
   public onCastSignature: (tower: Tower, signatureId: string) => void = () => {};
   public onToggleSignatureCuts: () => void = () => {};
@@ -1382,7 +1384,7 @@ export class StadiumUI {
       this.container.querySelector<HTMLElement>(`#${id}`)!.inert=visible;
     });
     this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
-    if(visible) this.refreshMapRecords();
+    if(visible) { this.refreshMapRecords(); this.onMenuShown(); }
     if(visible) chooser.querySelector<HTMLButtonElement>('.map-filter.active')?.focus();
     else this.container.querySelector<HTMLButtonElement>('#btn-wave')?.focus();
   }
