@@ -22,7 +22,12 @@ export class StadiumAudio {
   private nativeLoadStarted = false;
   private nativeBuffers = new Map<string, AudioBuffer>();
   private musicNode: AudioBufferSourceNode | null = null;
+  private musicGain: GainNode | null = null;
   private requestedMusicId: string | null = null;
+  private musicIds: string[] = [];
+
+  /** Called after the optional local music manifest has been discovered. */
+  public onMusicCatalogChanged: (() => void) | null = null;
 
   constructor() {
     // AudioContext will be lazily created on first user interaction to satisfy browser policies
@@ -49,6 +54,8 @@ export class StadiumAudio {
       if (!response.ok) return;
       const manifest = await response.json() as NativeAudioManifest;
       if (manifest.version !== 1) return;
+      this.musicIds = Object.keys(manifest.music ?? {});
+      this.onMusicCatalogChanged?.();
       const entries = [...Object.entries(manifest.sounds ?? {}), ...Object.entries(manifest.music ?? {})];
       await Promise.all(entries.map(async ([id, relativeUrl]) => {
         // Keep the manifest local to the generated audio directory.
@@ -62,6 +69,15 @@ export class StadiumAudio {
     } catch {
       // A missing local ROM-audio export is normal; procedural sound remains available.
     }
+  }
+
+  /** Initializes the suspended browser audio context and starts native-asset discovery. */
+  public prepare(): void {
+    this.initContext();
+  }
+
+  public getMusicTracks(): string[] {
+    return [...this.musicIds];
   }
 
   /** Returns true only when an extracted Stadium clip was actually played. */
@@ -83,7 +99,12 @@ export class StadiumAudio {
   public startMusic(id: string = 'battle_theme'): void {
     this.initContext();
     this.requestedMusicId = id;
-    if (!this.ctx || !this.enabled || this.musicNode) return;
+    if (!this.ctx || !this.enabled) return;
+    if (this.musicNode) {
+      this.musicNode.stop();
+      this.musicNode = null;
+      this.musicGain = null;
+    }
     const buffer = this.nativeBuffers.get(id);
     if (!buffer) return;
     const source = this.ctx.createBufferSource();
@@ -95,6 +116,7 @@ export class StadiumAudio {
     gain.connect(this.ctx.destination);
     source.start();
     this.musicNode = source;
+    this.musicGain = gain;
     source.onended = () => { if (this.musicNode === source) this.musicNode = null; };
   }
 
@@ -102,6 +124,13 @@ export class StadiumAudio {
     this.requestedMusicId = null;
     this.musicNode?.stop();
     this.musicNode = null;
+    this.musicGain = null;
+  }
+
+  public setMusicVolume(value: number): void {
+    if (this.musicGain && this.ctx) {
+      this.musicGain.gain.setTargetAtTime(Math.max(0, Math.min(1, value)), this.ctx.currentTime, 0.01);
+    }
   }
 
   private initCrowdAmbiance(): void {
