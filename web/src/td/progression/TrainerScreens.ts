@@ -218,17 +218,17 @@ export class TrainerScreens {
           </button>`
         : `<div class="tr-slot empty"><span>SLOT ${slot + 1}</span></div>`).join('');
 
-      const cards = collection.map(pokemon => {
-        const onTeam = data.team.includes(pokemon.uid);
+      const bench = collection.filter(pokemon => !data.team.includes(pokemon.uid));
+      const cards = bench.map(pokemon => {
         const strong = strongAgainst(pokemon, threats);
-        return `<div class="tr-card ${onTeam ? 'on-team' : ''}">
-          <button class="tr-card-main" data-toggle="${pokemon.uid}" aria-pressed="${onTeam}" title="${onTeam ? 'Remove from team' : 'Add to team'}" style="${typeArtStyle(formOf(pokemon).type)}">
+        return `<div class="tr-card">
+          <button class="tr-card-main" data-toggle="${pokemon.uid}" title="Add to team" style="${typeArtStyle(formOf(pokemon).type)}">
             <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
             <span class="tr-card-form">${pokemon.nickname ? formOf(pokemon).name : '&nbsp;'}</span>
             <span class="tr-card-meta">LV ${pokemon.level} ${typeChips(pokemon)}</span>
             ${strong.length ? `<span class="tr-matchup">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
             ${xpBar(pokemon)}
-            <span class="tr-check">${onTeam ? 'ON TEAM' : '+ ADD'}</span>
+            <span class="tr-check">+ ADD</span>
           </button>
           <button class="tr-info stadium-btn" data-info="${pokemon.uid}">INFO</button>
         </div>`;
@@ -242,8 +242,8 @@ export class TrainerScreens {
           ${options.map ? `<div class="tr-threats"><span>OPENING WAVES</span>${threats.map(typeChip).join('')}
             ${record ? `<span class="tr-record">BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}</span>` : ''}</div>` : ''}
           <div class="tr-slots">${slots}</div>
-          <div class="tr-collection-head"><span>${collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT</span><span>One tower per Pokémon on the field. Catch duplicates to field more.</span></div>
-          <div class="tr-collection">${cards || '<p class="tr-empty">No Pokémon yet.</p>'}</div>
+          <div class="tr-collection-head"><span>${bench.length} AVAILABLE · ${collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT</span><span>One tower per Pokémon on the field. Catch duplicates to field more.</span></div>
+          <div class="tr-collection">${cards || `<p class="tr-empty">${collection.length ? 'Everyone you own is already on your team.' : 'No Pokémon yet.'}</p>`}</div>
           <div class="tr-footer">
             <button class="stadium-btn" data-back>${options.map ? 'BACK TO COURSES' : 'DONE'}</button>
             ${options.onConfirm ? `<button class="stadium-btn active tr-confirm" data-confirm ${teamCount ? '' : 'disabled'}>${teamCount ? `START MATCH · ${teamCount}/${TEAM_SIZE}` : 'ADD A POKÉMON'}</button>` : ''}
