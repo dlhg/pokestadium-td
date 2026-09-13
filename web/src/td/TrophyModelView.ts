@@ -10,6 +10,10 @@ import * as THREE from 'three';
 import { AnimatedPokemon, PokemonAnimationState, PokemonModelFactory } from '../stadium/PokemonModels';
 
 const MODEL_HEIGHT = 2.2;
+// The trophy canvas is enlarged slightly by CSS, and flying clips can extend
+// well beyond their bind pose. Keep one generous, fixed shot for the whole
+// animation instead of chasing the changing animated bounds.
+const FRAMING_MARGIN = 1.42;
 
 export class TrophyModelView {
   public readonly canvas: HTMLCanvasElement;
@@ -57,6 +61,9 @@ export class TrophyModelView {
       this.entranceEnds = entrance ? entrance.getClip().duration : 0;
       loaded.update(0, 0, entrance ? 'entrance' : 'idle');
       loaded.mesh.updateMatrixWorld(true);
+      // Frame the stage once, like the roster portraits do. Recomputing this
+      // from the animated vertices makes wing beats change the camera distance
+      // and produces a distracting zoom pulse on flying Pokémon such as Pidgey.
       this.frameCamera(new THREE.Box3().setFromObject(loaded.mesh, true));
     });
   }
@@ -104,11 +111,6 @@ export class TrophyModelView {
       // Face the viewer through the send-out, then a gentle showcase sway.
       const sway = Math.max(0, this.elapsed - this.entranceEnds);
       this.pivot.rotation.y = Math.sin(sway * 0.9) * 0.45 * Math.min(1, sway);
-      // Stadium's flying clips translate the rig much farther than its bind
-      // pose. Frame the posed vertices so Pidgey stays inside the showcase
-      // through the entrance-to-idle transition as well.
-      this.pokemon.mesh.updateMatrixWorld(true);
-      this.frameCamera(new THREE.Box3().setFromObject(this.pokemon.mesh, true));
     }
     renderer.render(this.scene, this.camera);
   }
@@ -118,7 +120,7 @@ export class TrophyModelView {
     const center = bounds.getCenter(new THREE.Vector3());
     const height = size.y || MODEL_HEIGHT;
     const width = Math.max(size.x, size.z);
-    const framingHeight = Math.max(height, width / Math.max(this.camera.aspect, .01)) * 1.18;
+    const framingHeight = Math.max(height, width / Math.max(this.camera.aspect, .01)) * FRAMING_MARGIN;
     const distance = (framingHeight * .5) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
     this.cameraTarget.copy(center);
     this.camera.position.set(center.x, center.y, center.z + distance);
