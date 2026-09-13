@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { MapDecor, MapObstacle, StadiumMap } from '../td/MapCatalog';
 import { LANE_RIDE_HEIGHT, type MapTerrain } from '../td/MapTerrain';
-import { segmentDistance, touchesPolygon } from '../td/MapGeometry';
+import { BRIDGE_DECK_TOP, bridgeArch, segmentDistance, touchesPolygon } from '../td/MapGeometry';
 import { animateWater, waterMaterial } from './MapWater';
 
 function material(color: THREE.ColorRepresentation): THREE.MeshLambertMaterial {
@@ -108,9 +108,9 @@ export function buildMapGround(map: StadiumMap, terrain: MapTerrain, routes: THR
     const wood = material('#b78e60'), darkWood=material('#624a35');
     const deck = new THREE.Group(); deck.position.set(bridge.x,terrain.heightAt(bridge.x,bridge.z),bridge.z); group.add(deck);
     const halfWidth = bridge.width/2;
-    const archY = (x: number) => bridge.rise ? bridge.rise*(1-(x/halfWidth)**2) : 0;
+    const archY = (x: number) => bridgeArch(bridge,x);
     for (let x=-halfWidth+0.3;x<halfWidth;x+=0.65) {
-      mesh(deck,new THREE.BoxGeometry(0.6,0.16,bridge.depth),wood,x,0.42+archY(x),0);
+      mesh(deck,new THREE.BoxGeometry(0.6,0.16,bridge.depth),wood,x,BRIDGE_DECK_TOP-0.08+archY(x),0);
     }
     for (const side of [-1,1]) {
       const zSide = side*bridge.depth/2;
