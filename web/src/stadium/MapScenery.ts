@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { MapDecor, MapObstacle, StadiumMap } from '../td/MapCatalog';
 import { LANE_RIDE_HEIGHT, type MapTerrain } from '../td/MapTerrain';
 import { segmentDistance, touchesPolygon } from '../td/MapGeometry';
+import { animateWater, waterMaterial } from './MapWater';
 
 function material(color: THREE.ColorRepresentation): THREE.MeshLambertMaterial {
   return new THREE.MeshLambertMaterial({ color, flatShading: true });
@@ -57,23 +58,19 @@ export function buildMapGround(map: StadiumMap, terrain: MapTerrain, routes: THR
   for (const region of map.water) {
     const surface = region.height ?? 0;
     const shape = new THREE.Shape(region.points.map(([x,z])=>new THREE.Vector2(x,-z)));
-    const bank = mesh(group,new THREE.ShapeGeometry(shape),material('#345c66'),0,surface+0.025,0);
-    bank.rotation.x=-Math.PI/2;
-    const water = mesh(group,new THREE.ShapeGeometry(shape),new THREE.MeshPhongMaterial({color:'#318eb0',specular:'#b1eeff',shininess:70}),0,surface+0.045,0);
-    water.rotation.x=-Math.PI/2;
-    water.castShadow=false;
-    const shore = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(region.points.map(([x,z])=>new THREE.Vector3(x,surface+0.08,z))),new THREE.LineBasicMaterial({color:'#bcebd4'}));
-    group.add(shore);
-    const zs = region.points.map(p=>p[1]), xs = region.points.map(p=>p[0]);
-    for (let z=Math.min(...zs)+1.5;z<Math.max(...zs)-1;z+=3.7) {
-      for (let x=Math.min(...xs)+1;x<Math.max(...xs);x+=4) {
-        const rx = x+Math.sin(z)*1.2;
-        const inside = (px: number) => touchesPolygon(px,z,0,region.points);
-        if (!inside(rx) || !inside(rx-0.8) || !inside(rx+0.8)) continue;
-        const ripple=mesh(group,new THREE.PlaneGeometry(1.3,0.08),new THREE.MeshBasicMaterial({color:'#a0dfe0'}),rx,surface+0.08,z);
-        ripple.rotation.x=-Math.PI/2; ripple.castShadow=false;
-      }
+    const geometry = new THREE.ShapeGeometry(shape);
+    const positions = geometry.attributes.position;
+    const flow = new Float32Array(positions.count * 2);
+    for (let i = 0; i < positions.count; i++) {
+      flow[i*2] = positions.getX(i);
+      flow[i*2+1] = -positions.getY(i);
     }
+    geometry.setAttribute('flow', new THREE.BufferAttribute(flow, 2));
+    const water = new THREE.Mesh(geometry, waterMaterial(region.points));
+    water.position.y = surface+0.045;
+    water.rotation.x=-Math.PI/2;
+    animateWater(water);
+    group.add(water);
   }
   for (const bridge of map.bridges) {
     const wood = material('#b78e60'), darkWood=material('#624a35');
@@ -298,27 +295,23 @@ function buildDecor(item: MapDecor, map: StadiumMap, terrain: MapTerrain): THREE
     root.position.y = item.top;
     root.rotation.y = item.angle;
     const run = item.drop / 2.2 + 0.25;
-    const geometry = new THREE.PlaneGeometry(item.width, 1, 1, 8);
+    const geometry = new THREE.PlaneGeometry(item.width, 1, 8, 20);
     const pos = geometry.attributes.position;
+    const flow = new Float32Array(pos.count * 2);
     for (let i = 0; i < pos.count; i++) {
       const t = 0.5 - pos.getY(i); // 0 at the lip, 1 at the pool
-      pos.setXYZ(i, pos.getX(i), 0.06 - t*item.drop, run*Math.sqrt(t) + 0.05);
+      // A short upstream overlap rolls over the lip, then fans into the pool.
+      const fallT = Math.max(0, (t - 0.12) / 0.88);
+      const x = pos.getX(i) * (1 + 0.2 * fallT * fallT);
+      pos.setXYZ(i, x, 0.055 - fallT*fallT*item.drop, -0.32 + (run+0.52)*t);
+      flow[i*2] = x + item.x;
+      flow[i*2+1] = item.z + t * (run + item.drop);
     }
+    geometry.setAttribute('flow', new THREE.BufferAttribute(flow, 2));
     geometry.computeVertexNormals();
-    const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#4fb6d6'; ctx.fillRect(0,0,32,64);
-    for (let n = 0; n < 26; n++) {
-      ctx.fillStyle = n%3 ? '#bdf1ff' : '#ffffff';
-      ctx.fillRect(Math.floor(random()*32), Math.floor(random()*64), 1+Math.floor(random()*2), 6+Math.floor(random()*14));
-    }
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(item.width/1.6, 1);
-    texture.magFilter = THREE.NearestFilter;
-    const fall = mesh(root, geometry, new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.92, side: THREE.DoubleSide }));
-    fall.castShadow = false;
-    fall.onBeforeRender = () => { texture.offset.y = (performance.now() * 0.0011) % 1; };
+    const fall = new THREE.Mesh(geometry, waterMaterial());
+    root.add(fall);
+    animateWater(fall);
     const foam = material('#f2fdff');
     for (let n = 0; n < 7; n++) {
       const puff = mesh(root, new THREE.IcosahedronGeometry(0.28+random()*0.25, 0), foam, (n/6-0.5)*item.width, -item.drop+0.15, run+0.25+random()*0.4);
