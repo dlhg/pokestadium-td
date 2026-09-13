@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { MoveDefinition } from '../stadium/MoveDatabase';
 import { Creep } from './Creep';
-import { HitContext, moveColor, resolveMoveHit } from './MoveDelivery';
+import { HitContext, HitExtras, moveColor, resolveMoveHit } from './MoveDelivery';
 import type { Tower } from './Tower';
 
 export class Projectile {
@@ -30,6 +30,8 @@ export class Projectile {
     scene: THREE.Scene,
     /** The tower that fired it, credited with the hit. */
     private source: Tower | null = null,
+    /** Rage, crits, chains and the like, fixed when the shot was fired. */
+    private extras: HitExtras = {},
   ) {
     this.id = `proj_${Date.now()}_${Math.random()}`;
     this.move = move;
@@ -102,7 +104,7 @@ export class Projectile {
 
     // Landing on a dead target still detonates, so splash is never wasted.
     if (dist <= step || !this.target.alive) {
-      resolveMoveHit(this.move, this.target, ctx, this.source);
+      resolveMoveHit(this.move, this.target, ctx, this.source, null, this.extras);
       this.active = false;
       return false;
     }

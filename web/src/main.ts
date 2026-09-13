@@ -168,21 +168,21 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // Populate battle scene for screenshots — free placement means these are
       // just open turf coordinates, chosen clear of the creep lane.
-      // Lv 18: Thunderbolt and Flash are open, Thunder still waits on Lv 26.
+      // Lv 18: every Pikachu tier is open.
       const t0 = new Tower(shotPokemon('pikachu', 18), new THREE.Vector3(-8, TOWER_BASE_HEIGHT, -6));
       game.renderer.scene.add(t0.group);
       game.towers.push(t0);
 
       const t1 = new Tower(shotPokemon('charmander', 36), new THREE.Vector3(8, TOWER_BASE_HEIGHT, -6)); // Charizard
-      t1.buyUpgrade(0); // Flamethrower
-      t1.buyUpgrade(0); // Fire Blast — unlocked at Lv 36
-      t1.buyUpgrade(2); // Smokescreen
+      t1.buyUpgrade(0); // Inferno: Flamethrower
+      t1.buyUpgrade(0); // Inferno: Wide Flame
+      t1.buyUpgrade(2); // Rage: Rage
       game.renderer.scene.add(t1.group);
       game.towers.push(t1);
 
       const t3 = new Tower(shotPokemon('squirtle', 36), new THREE.Vector3(0, TOWER_BASE_HEIGHT, 8)); // Blastoise
-      t3.buyUpgrade(1); // Bite
-      t3.buyUpgrade(1); // Ice Beam
+      t3.buyUpgrade(0); // Pressure: BubbleBeam
+      t3.buyUpgrade(0); // Pressure: Full Pressure
       game.renderer.scene.add(t3.group);
       game.towers.push(t3);
 
@@ -195,11 +195,11 @@ window.addEventListener('DOMContentLoaded', () => {
         const projected = new THREE.Vector3(-9, TOWER_BASE_HEIGHT, 6).project(game.camera.camera);
         input.mouseNDC.set(projected.x, projected.y);
       } else if (shot !== 'hit_shapes') {
-        // Select Pikachu to showcase the move shop: one line part-bought, one
-        // untouched, and a top tier still locked behind a level.
-        t0.buyUpgrade(0); // Thunderbolt
-        t0.buyUpgrade(2); // Thunder Wave
-        t0.buyUpgrade(2); // Flash
+        // Select Pikachu to showcase the path shop: a main path, a crosspath
+        // that closed the third, and the cap warning on the next tier.
+        t0.buyUpgrade(0); // Storm: Thunderbolt
+        t0.buyUpgrade(0); // Storm: Chain Lightning
+        t0.buyUpgrade(2); // Agility: Quick Feet
         game.selectedTower = t0;
         t0.setSelected(true);
       }

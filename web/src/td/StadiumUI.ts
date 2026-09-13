@@ -10,6 +10,7 @@
  */
 
 import { Tower } from './Tower';
+import { attackChips } from './TowerAttack';
 import { TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
 import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
@@ -744,6 +745,7 @@ export class StadiumUI {
           font-weight: 700;
           color: #8faecf;
           letter-spacing: 0.3px;
+          line-height: 1.15;
         }
 
         .tp-buy {
@@ -804,6 +806,38 @@ export class StadiumUI {
           border-color: #ffd700;
           background: linear-gradient(180deg, #3a2f10 0%, #1c1707 100%);
         }
+
+        .tp-line.closed { opacity: 0.45; }
+
+        .tp-buy-warn {
+          font-size: 7.5px;
+          font-weight: 800;
+          letter-spacing: 0.3px;
+          color: #ff9a6b;
+          line-height: 1.05;
+        }
+
+        .tp-attack {
+          display: block;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 0.6px;
+          color: #fff;
+        }
+
+        .tp-chips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+
+        .tp-chip {
+          font-size: 7.5px;
+          font-weight: 800;
+          letter-spacing: 0.6px;
+          padding: 1px 4px;
+          border: 1px solid currentColor;
+          color: #cfe2f7;
+        }
+        .tp-chip.heavy { color: #ff7a7a; }
+        .tp-chip.sees-phantoms { color: #c3a8ff; }
+        .tp-chip.ground-only { color: #e0c068; }
 
         .tp-buy-note {
           font-size: 8px;
@@ -1028,6 +1062,7 @@ export class StadiumUI {
         .tp-pip { border-radius: 0; border-color: #5f91bd; }
         .tp-pip.on { background: #f6c437; border-color: #fff4af; }
         .tp-line-move { font-family: 'Teko', 'Impact', sans-serif; font-size: 19px; line-height: .85; letter-spacing: .45px; }
+        .tp-line-stats { line-height: 1.05; margin-top: 2px; }
         .tp-buy { border-radius: 0; border-color: #b9d1e2; background: linear-gradient(180deg, #3b75aa, #11345f); box-shadow: inset 0 1px rgba(255,255,255,.28); }
         .tp-buy.maxed, .tp-evolve.final { border-color: #f1c43f; background: linear-gradient(180deg, #77541a, #38270e); }
         .tp-evolve { border-radius: 0; border-color: #f4ca42; background: linear-gradient(180deg, #3e82a1, #0d4260 60%, #092d49); box-shadow: inset 0 1px rgba(255,255,255,.3); }
@@ -1356,18 +1391,17 @@ export class StadiumUI {
       `<div class="tp-stage-pip ${i < tower.pokemon.stage ? 'on' : ''}"></div>`
     ).join('');
 
-    const lineRows = tower.species.lines.map((line, idx) => {
-      const active = tower.getActiveMove(idx);
+    const pathName = (idx: number) => tower.species.paths[idx].label;
+    const lineRows = tower.species.paths.map((path, idx) => {
+      const bought = tower.tiers[idx];
       const next = tower.getNextTier(idx);
       const blocked = tower.getUpgradeBlockReason(idx);
+      // Show what buying gets you; once topped out, what the path became.
+      const shown = next ?? path.tiers[bought - 1];
 
-      const pips = line.tiers.map((_, t) =>
-        `<div class="tp-pip ${t < tower.tiers[idx] ? 'on' : ''}"></div>`
+      const pips = path.tiers.map((_, t) =>
+        `<div class="tp-pip ${t < bought ? 'on' : ''}"></div>`
       ).join('');
-
-      const stats = active
-        ? `${active.basePower} PWR · ${active.range} RNG${active.splashRadius > 0 ? ' · SPLASH' : ''}`
-        : 'NOT LEARNED';
 
       let buyInner: string;
       let buyClass = 'tp-buy';
@@ -1375,39 +1409,47 @@ export class StadiumUI {
       if (blocked === 'maxed') {
         buyClass += ' maxed';
         buyInner = `<span class="tp-buy-note">MASTERED</span>`;
+      } else if (blocked === 'path_closed') {
+        buyClass += ' locked';
+        buyInner = `<span class="tp-buy-note">PATH CLOSED</span>`;
+      } else if (blocked === 'tier_capped') {
+        buyClass += ' maxed';
+        buyInner = `<span class="tp-buy-note">TIER ${bought} CAP</span>`;
       } else if (blocked === 'needs_level' && next) {
-        const move = MOVES[next.moveId];
         buyClass += ' locked';
         buyInner = `
-          <span class="tp-buy-name">${move.name.toUpperCase()}</span>
           <span class="tp-buy-note">UNLOCKS AT</span>
           <span class="tp-buy-cost">LV ${next.requiresLevel}</span>
         `;
-      } else if (next) {
-        const move = MOVES[next.moveId];
-        const col = TYPE_COLORS[move.type]?.hex || '#fff';
-        buyInner = `
-          <span class="tp-buy-name">${move.name.toUpperCase()}</span>
-          ${glyph(move.fxType, col, 22)}
-          <span class="tp-buy-cost">$${next.cost}</span>
-        `;
       } else {
-        buyClass += ' maxed';
-        buyInner = `<span class="tp-buy-note">MASTERED</span>`;
+        const { closes, caps } = tower.upgradeConsequences(idx);
+        const warning = closes.length ? `CLOSES ${closes.map(pathName).join(' + ')}`
+          : caps.length ? `CAPS ${caps.map(pathName).join(' + ')}` : '';
+        buyInner = `
+          <span class="tp-buy-name">TIER ${bought + 1}</span>
+          <span class="tp-buy-cost">$${next!.cost}</span>
+          ${warning ? `<span class="tp-buy-warn">${warning}</span>` : ''}
+        `;
       }
 
+      const closedRow = blocked === 'path_closed' ? ' closed' : '';
       return `
-        <div class="tp-line">
+        <div class="tp-line${closedRow}">
           <div class="tp-pips">${pips}</div>
           <div class="tp-line-meta">
-            <span class="tp-line-label">${line.label}</span>
-            <span class="tp-line-move ${active ? '' : 'empty'}">${active ? active.name : 'No move'}</span>
-            <span class="tp-line-stats">${stats}</span>
+            <span class="tp-line-label">${path.label}${bought ? ` · TIER ${bought}` : ''}</span>
+            <span class="tp-line-move">${shown.name}</span>
+            <span class="tp-line-stats">${shown.description}</span>
           </div>
           <div class="${buyClass}" data-line="${idx}" ${next ? `data-cost="${next.cost}"` : ''}>${buyInner}</div>
         </div>
       `;
     }).join('');
+
+    const attack = tower.attack;
+    const shape = attack.move.delivery.toUpperCase();
+    const chips = attackChips(attack, tower.seesPhantoms)
+      .map(chip => `<span class="tp-chip ${chip.replace(/\s+/g, '-').toLowerCase()}">${chip}</span>`).join('');
 
     // Evolution is earned in battle now, so the track is a read-out, not a purchase.
     const nextEvo = nextEvolution(tower.pokemon);
@@ -1441,7 +1483,9 @@ export class StadiumUI {
         </div>
         <div class="tp-crest-meta">
           <span class="tp-crest-type" style="color: ${typeCol.light};">${tower.pokemon.nickname ? `${form.name.toUpperCase()} · ` : ''}${form.type.toUpperCase()} TYPE</span>
+          <span class="tp-attack">${escapeHtml(attack.move.name.toUpperCase())} · ${shape} · ${attack.move.basePower} PWR</span>
           <span class="tp-matchup" id="tp-matchup">—</span>
+          ${chips ? `<span class="tp-chips">${chips}</span>` : ''}
           <span class="tp-xp"><i id="tp-xp-fill"></i></span>
           <span class="tp-xp-label" id="tp-xp-label"></span>
         </div>
@@ -1500,7 +1544,7 @@ export class StadiumUI {
         matchup.innerText = `${move.type.toUpperCase()} → ${tower.currentTarget.types.join('/').toUpperCase()} ${multiplier}×`;
         matchup.style.color = getEffectivenessLabel(multiplier).color;
       } else {
-        matchup.innerText = `${tower.getKnownMoves().length} MOVE${tower.getKnownMoves().length === 1 ? '' : 'S'} KNOWN`;
+        matchup.innerText = tower.species.role;
         matchup.style.color = '#8faecf';
       }
     }
@@ -1667,10 +1711,9 @@ export class StadiumUI {
     const species = speciesOf(pokemon);
     const form = formOf(pokemon);
     const typeColor = TYPE_COLORS[form.type]?.hex || '#ffffff';
-    const moves = species.lines.map(line => {
-      const move = MOVES[line.tiers[0].moveId];
-      return `<div class="trophy-move"><span>${move ? move.name.toUpperCase() : line.label}</span><em>${line.label}</em></div>`;
-    }).join('');
+    const moves = species.paths.map(path =>
+      `<div class="trophy-move"><span>${path.tiers[0].name.toUpperCase()}</span><em>${path.label}</em></div>`
+    ).join('');
     card.innerHTML = `
       <div class="trophy-stage"></div>
       <div class="trophy-copy">

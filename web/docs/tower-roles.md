@@ -348,18 +348,18 @@ Tick each box as it lands. Each phase ends with `npm run build`,
 
 ### Phase 2 · Basic attack and paths
 
-- [ ] `SpeciesDef.basicAttack` + `paths`; `PathTier.effects` folded over the basic attack
-- [ ] New move data the starter paths need (BubbleBeam, Rage, Slash, …)
-- [ ] `Tower` fires one attack; `canBuy` enforces `3-2-0` and level gates
-- [ ] Effects: replace attack, modify attack, rate, on-hit status, chain, hazard, aura,
+- [x] `SpeciesDef.basicAttack` + `paths`; `PathTier.effects` folded over the basic attack
+- [x] New move data the starter paths need (BubbleBeam, Rage, Slash, …)
+- [x] `Tower` fires one attack; `canBuy` enforces `3-2-0` and level gates
+- [x] Effects: replace attack, modify attack, rate, on-hit status, chain, hazard, aura,
       rage stacking
-- [ ] Lane hazards (`Hazard` entity: patches on the lane, miss Airborne)
-- [ ] Auras (passive slow, tower buff)
-- [ ] Bulbasaur, Charmander, Squirtle, Pikachu paths
-- [ ] Adapter so unconverted species still play (old lines become paths)
-- [ ] Shop panel: path columns, closed-path state and warning, tower chips
-- [ ] Placement preview, team/summary screens and dev save read the new shape
-- [ ] Regression tests for the cap and effect folding
+- [x] Lane hazards (`Hazard` entity: patches on the lane, miss Airborne)
+- [x] Auras (passive slow, tower buff)
+- [x] Bulbasaur, Charmander, Squirtle, Pikachu paths
+- [x] Adapter so unconverted species still play (old lines become paths)
+- [x] Shop panel: path columns, closed-path state and warning, tower chips
+- [x] Placement preview, team/summary screens and dev save read the new shape
+- [x] Regression tests for the cap and effect folding
 
 ### Phase 3 · Signature moves
 

@@ -114,6 +114,8 @@ export class Creep {
   // Status effects: one damage-over-time and one movement effect can stack.
   public damageStatus: StatusSlot<DamageStatus> | null = null;
   public movementStatus: StatusSlot<MovementStatus> | null = null;
+  /** Share of speed taken by the strongest slow aura reaching this creep, refreshed each frame. */
+  public auraSlow = 0;
   private burnTickTimer: number = 0;
   private entranceTimer = 0.75;
   private hitAnimationTimer = 0;
@@ -298,6 +300,28 @@ export class Creep {
     return true;
   }
 
+  /** Shoves the creep back along its route, never past where it started. */
+  public pushBack(distance: number): void {
+    if (!this.alive || this.captureLocked) return;
+    let remaining = distance;
+    while (remaining > 0 && this.currentWpIdx > 0) {
+      const previous = this.waypoints[this.currentWpIdx - 1];
+      const gap = this.position.distanceTo(previous);
+      if (gap > remaining) {
+        this.position.lerp(previous, remaining / gap);
+        remaining = 0;
+      } else {
+        this.position.copy(previous);
+        remaining -= gap;
+        this.currentWpIdx--;
+      }
+    }
+    if (this.currentWpIdx < this.waypoints.length) {
+      this.pathProgress = -(this.position.distanceTo(this.waypoints[this.currentWpIdx]) + this.remainingAtWaypoint[this.currentWpIdx]);
+    }
+    this.group.position.copy(this.position);
+  }
+
   private credit(source: Tower, amount: number): void {
     if (amount > 0) this.contributors.set(source, (this.contributors.get(source) ?? 0) + amount);
   }
@@ -461,6 +485,7 @@ export class Creep {
       }
       if (hold.timer <= 0) this.movementStatus = null;
     }
+    this.speed *= 1 - this.auraSlow;
 
     // Spend the entire movement budget across sampled segments. Dense curves
     // must not slow creeps down by discarding leftover distance at every point.
