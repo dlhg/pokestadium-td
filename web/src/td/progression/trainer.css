@@ -87,7 +87,9 @@ input.tr-input, .tr-starter-names input, .tr-rename input, .trophy-nickname inpu
 .tr-threats > span:first-child { margin-right: 6px; }
 .tr-record { margin-left: auto; color: #e9d89a; }
 .tr-slots { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
-.tr-slot { display: flex; flex-direction: column; min-height: 176px; padding: 7px; }
+.tr-slot { box-sizing: border-box; display: flex; flex-direction: column; min-height: 202px; padding: 7px; }
+.tr-slot.filled { position: relative; }
+.tr-slot-main { display: flex; flex: 1; flex-direction: column; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .tr-slot.empty { align-items: center; justify-content: center; border: 3px dashed #5f7fb8; background: rgba(6, 18, 43, .6); box-shadow: none; cursor: default; color: #6f8fc0; font: 17px 'Teko', sans-serif; letter-spacing: 1px; }
 .tr-slot-name { font: 700 19px/1 'Teko', Impact, sans-serif; color: var(--broadcast-cream-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-slot-meta, .tr-card-meta { color: #ffe082; font: 15px/1.2 'Teko', sans-serif; letter-spacing: .5px; }
@@ -101,7 +103,7 @@ input.tr-input, .tr-starter-names input, .tr-rename input, .trophy-nickname inpu
 .tr-card-meta { font-size: 14px; }
 .tr-card-types .tr-type { padding: 0 5px; font-size: 11px; }
 .tr-matchup { overflow: hidden; margin-top: 2px; color: #8dffb0; font: 12px/1.1 'Teko', sans-serif; letter-spacing: .5px; white-space: nowrap; text-overflow: ellipsis; }
-.tr-card .tr-info.stadium-btn { position: absolute; top: 5px; right: 5px; padding: 1px 5px; font-size: 11px; }
+.tr-card .tr-info.stadium-btn, .tr-slot .tr-info.stadium-btn { position: absolute; top: 5px; right: 5px; padding: 1px 5px; font-size: 11px; }
 
 .tr-intro { margin: 10px 0 0; padding: 7px 10px; border-left: 4px solid var(--broadcast-gold); background: rgba(246,196,55,.12); color: #fff2a7; font: 16px/1.25 'Teko', sans-serif; letter-spacing: .6px; }
 .tr-team-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 12px; color: #bcd7ec; font: 15px 'Teko', sans-serif; letter-spacing: .8px; }
@@ -233,3 +235,6 @@ select.tr-input { padding: 4px 6px; border: 2px solid #9dc0dc; border-radius: 4p
 #dev-panel .dev-summary { color: #9aa7ba; margin: 2px 0 4px; }
 #dev-panel .dev-volume { display: flex; align-items: center; gap: 6px; color: #9aa7ba; }
 #dev-panel input[type="range"] { flex: 1; min-width: 100px; accent-color: #ffcf5a; }
+#dev-panel .dev-retro-row { margin-bottom: 4px; white-space: nowrap; }
+#dev-panel .dev-retro-row select { flex: 1; width: auto; }
+#dev-panel .dev-retro-value { width: 28px; text-align: right; color: #e6edf7; }

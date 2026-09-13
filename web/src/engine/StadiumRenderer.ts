@@ -6,6 +6,7 @@
  */
 
 import * as THREE from 'three';
+import { RetroFX } from './RetroFX';
 
 export class StadiumRenderer {
   public canvas: HTMLCanvasElement;
@@ -15,12 +16,15 @@ export class StadiumRenderer {
   public floodlightTargets: THREE.Object3D[] = [];
   public width: number = 0;
   public height: number = 0;
+  /** Scanlines, colour depth, CRT glass and other display effects. */
+  public retro: RetroFX;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x040c1a);
-    this.scene.fog = new THREE.FogExp2(0x040c1a, 0.008);
+    const fog = new THREE.FogExp2(0x040c1a, 0.008);
+    this.scene.fog = fog;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -39,6 +43,7 @@ export class StadiumRenderer {
     window.addEventListener('resize', () => this.handleResize());
 
     this.initLighting();
+    this.retro = new RetroFX(this.renderer, this.scene, fog.density);
   }
 
   private handleResize(): void {
@@ -117,7 +122,7 @@ export class StadiumRenderer {
   }
 
   public render(camera: THREE.Camera): void {
-    this.renderer.render(this.scene, camera);
+    this.retro.render(camera);
   }
 
   /**

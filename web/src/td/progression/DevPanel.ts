@@ -10,7 +10,22 @@ import type { StadiumTDGame } from '../StadiumTDGame';
 import { SPECIES, STARTER_IDS, GIFT_ID } from './Species';
 import { MAX_LEVEL } from './Stats';
 import { createPokemon, displayName, TrainerStore } from './TrainerStore';
+import { RETRO_CONTROLS, RETRO_PRESET_LABELS, type RetroControl } from '../../engine/RetroFX';
 import './trainer.css';
+
+function retroControlHtml(control: RetroControl): string {
+  const attr = `data-retro="${control.key}"`;
+  if (control.kind === 'check') {
+    return `<div class="dev-row"><label class="dev-check"><input type="checkbox" ${attr}> ${control.label}</label></div>`;
+  }
+  if (control.kind === 'select') {
+    const options = control.options.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+    return `<label class="dev-volume dev-retro-row">${control.label} <select ${attr}>${options}</select></label>`;
+  }
+  return `<label class="dev-volume dev-retro-row">${control.label}
+    <input type="range" ${attr} min="${control.min}" max="${control.max}" step="${control.step}">
+    <span class="dev-retro-value" data-retro-value="${control.key}"></span></label>`;
+}
 
 export class DevPanel {
   private root: HTMLElement;
@@ -74,6 +89,17 @@ export class DevPanel {
           <div class="dev-summary dev-music-note">Optional local ROM extraction only; no tracks are bundled.</div>
         </fieldset>
 
+        <fieldset class="dev-retro"><legend>RETRO FX</legend>
+          <div class="dev-row">
+            <select data-field="retro-preset" aria-label="Retro preset">
+              ${Object.entries(RETRO_PRESET_LABELS).map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}
+              <option value="custom" disabled>Custom</option>
+            </select>
+          </div>
+          ${RETRO_CONTROLS.map(retroControlHtml).join('')}
+          <div class="dev-summary">Curvature bends the picture but not the HUD or click picking.</div>
+        </fieldset>
+
         <fieldset><legend>SAVE</legend>
           <div class="dev-row">
             <button data-dev="luck-up">LUCK +1</button>
@@ -105,6 +131,7 @@ export class DevPanel {
     this.root.querySelector<HTMLInputElement>('[data-field="music-volume"]')!.addEventListener('input', (event) => {
       this.game.audio.setMusicVolume(Number((event.target as HTMLInputElement).value) / 100);
     });
+    this.bindRetro();
     // Keys typed into the panel's fields stay out of the game.
     this.body.addEventListener('keydown', event => event.stopPropagation());
     window.addEventListener('keydown', (event) => {
@@ -113,6 +140,42 @@ export class DevPanel {
     });
     store.subscribe(() => this.refreshSummary());
     this.refreshSummary();
+  }
+
+  private bindRetro(): void {
+    const retro = this.game.renderer.retro;
+    const fieldset = this.root.querySelector<HTMLElement>('.dev-retro')!;
+    const preset = fieldset.querySelector<HTMLSelectElement>('[data-field="retro-preset"]')!;
+
+    preset.addEventListener('change', () => {
+      retro.usePreset(preset.value);
+      this.syncRetro();
+      this.say(`Retro: ${RETRO_PRESET_LABELS[preset.value]}`);
+    });
+    fieldset.addEventListener('input', (event) => {
+      const input = (event.target as HTMLElement).closest<HTMLInputElement | HTMLSelectElement>('[data-retro]');
+      if (!input) return;
+      const control = RETRO_CONTROLS.find(c => c.key === input.dataset.retro)!;
+      const value = control.kind === 'check' ? (input as HTMLInputElement).checked
+        : control.kind === 'range' || control.key === 'resolution' ? Number(input.value)
+        : input.value;
+      retro.set(control.key, value as never);
+      this.syncRetro();
+    });
+    this.syncRetro();
+  }
+
+  private syncRetro(): void {
+    const { settings, preset } = this.game.renderer.retro;
+    this.root.querySelector<HTMLSelectElement>('[data-field="retro-preset"]')!.value = preset;
+    for (const control of RETRO_CONTROLS) {
+      const input = this.root.querySelector<HTMLInputElement>(`[data-retro="${control.key}"]`)!;
+      const value = settings[control.key];
+      if (control.kind === 'check') input.checked = Boolean(value);
+      else input.value = String(value);
+      const readout = this.root.querySelector(`[data-retro-value="${control.key}"]`);
+      if (readout) readout.textContent = String(value);
+    }
   }
 
   private toggle(): void {
