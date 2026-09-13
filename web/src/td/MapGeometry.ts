@@ -49,3 +49,45 @@ export function mapBuildBlock(map: StadiumMap, routes: THREE.Vector3[][], x: num
   }
   return null;
 }
+
+/** Taper the inside of tight bends so the swept road cannot fold over itself. */
+export function buildLaneRibbon(points: THREE.Vector3[], halfWidth: number, lift: number): THREE.BufferGeometry {
+  const normals = points.map((_, i) => {
+    const before = points[Math.max(0, i-1)], after = points[Math.min(points.length-1, i+1)];
+    return new THREE.Vector3(before.z-after.z, 0, after.x-before.x).normalize();
+  });
+  const limits = points.map(() => [Infinity, Infinity]);
+  for (let i=1; i<points.length-1; i++) {
+    const incoming = points[i].clone().sub(points[i-1]).setY(0);
+    const outgoing = points[i+1].clone().sub(points[i]).setY(0);
+    const angle = incoming.angleTo(outgoing);
+    if (angle < 1e-6) continue;
+    const radius = Math.min(incoming.length(), outgoing.length()) / (2*Math.tan(angle/2));
+    const side = incoming.x*outgoing.z-incoming.z*outgoing.x > 0 ? 0 : 1;
+    // Ease into the bend instead of abruptly pinching a single cross-section.
+    for (const step of [-1, 1]) {
+      let distance = 0;
+      for (let j=i; j>=0 && j<points.length; j+=step) {
+        if (j!==i) distance += points[j].distanceTo(points[j-step]);
+        if (distance > halfWidth*2) break;
+        limits[j][side] = Math.min(limits[j][side], radius*0.65 + distance*0.25);
+      }
+    }
+  }
+  const positions: number[] = [], indices: number[] = [];
+  points.forEach((point, i) => {
+    for (const side of [0, 1]) {
+      const width = Math.min(halfWidth, limits[i][side]) * (side===0 ? 1 : -1);
+      positions.push(point.x+normals[i].x*width, point.y-LANE_RIDE_HEIGHT+lift, point.z+normals[i].z*width);
+    }
+    if (i<points.length-1) {
+      const v=i*2;
+      indices.push(v,v+1,v+2,v+1,v+3,v+2);
+    }
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}

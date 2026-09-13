@@ -11,7 +11,7 @@
 
 import * as THREE from 'three';
 import { DEFAULT_STADIUM_MAP, type MapObstacle, type StadiumMap } from '../td/MapCatalog';
-import { mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
+import { buildLaneRibbon, mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
 import { LANE_RIDE_HEIGHT, MapTerrain } from '../td/MapTerrain';
 import { buildMapGround, buildMapObstacle, disposeScenery } from './MapScenery';
 import { StadiumBackdrop } from './StadiumBackdrop';
@@ -108,24 +108,11 @@ export class StadiumArena {
 
   private buildTrackPath(): void {
     this.routes.forEach((points, routeIndex) => {
-      // Constant-width ribbon with shared normals at joins; all routes use
+      // Swept ribbon with tapered inner corners; all routes use
       // exactly the same sampled points as movement and placement collision.
       for (const edge of [true,false]) {
         const halfWidth=this.map.laneWidth/2+(edge?0.22:0);
-        const positions:number[]=[], indices:number[]=[];
-        points.forEach((point,index)=>{
-          const before=points[Math.max(0,index-1)], after=points[Math.min(points.length-1,index+1)];
-          const direction=new THREE.Vector3().subVectors(after,before).normalize();
-          const normal=new THREE.Vector3(-direction.z,0,direction.x).multiplyScalar(halfWidth);
-          const y=point.y-LANE_RIDE_HEIGHT+(edge?0.12:0.14);
-          positions.push(point.x+normal.x,y,point.z+normal.z,point.x-normal.x,y,point.z-normal.z);
-          if(index<points.length-1) {
-            const v=index*2; indices.push(v,v+1,v+2,v+1,v+3,v+2);
-          }
-        });
-        const geometry=new THREE.BufferGeometry();
-        geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-        geometry.setIndex(indices);geometry.computeVertexNormals();
+        const geometry=buildLaneRibbon(points,halfWidth,edge?0.12:0.14);
         const track=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({color:edge?this.map.palette.edge:this.map.palette.path,side:THREE.DoubleSide}));
         track.receiveShadow=true;track.name=`route-${routeIndex}-${edge?'edge':'lane'}`;
         this.gameplayGroup.add(track);

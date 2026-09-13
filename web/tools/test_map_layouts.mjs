@@ -10,7 +10,7 @@ const result = await build({
   },
   bundle: true, write: false, format: 'esm', platform: 'node',
 });
-const { STADIUM_MAPS, sampleMapRoutes, mapBuildBlock, segmentDistance, touchesPolygon, MapTerrain, LANE_RIDE_HEIGHT } =
+const { STADIUM_MAPS, sampleMapRoutes, buildLaneRibbon, mapBuildBlock, segmentDistance, touchesPolygon, MapTerrain, LANE_RIDE_HEIGHT } =
   await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`);
 
 const signatures = new Set();
@@ -19,6 +19,18 @@ for (const map of STADIUM_MAPS) {
   const terrain = new MapTerrain(map, routes);
   signatures.add(JSON.stringify(map.routes));
   for (const [index, route] of routes.entries()) {
+    // A tight inside corner must not reverse triangle winding and overlap itself.
+    for (const halfWidth of [map.laneWidth/2, map.laneWidth/2+0.22]) {
+      const ribbon = buildLaneRibbon(route, halfWidth, 0.14);
+      const positions = ribbon.getAttribute('position'), indices = ribbon.getIndex();
+      for (let i=0; i<indices.count; i+=3) {
+        const [a,b,c] = [indices.getX(i),indices.getX(i+1),indices.getX(i+2)];
+        const signedArea = (positions.getX(b)-positions.getX(a))*(positions.getZ(c)-positions.getZ(a))
+          - (positions.getZ(b)-positions.getZ(a))*(positions.getX(c)-positions.getX(a));
+        assert.ok(signedArea > 1e-6, `${map.id}: folded lane triangle on route ${index}, triangle ${i/3}`);
+      }
+      ribbon.dispose();
+    }
     const first = map.routes[index][0], last = map.routes[index].at(-1);
     assert.ok(Math.hypot(route[0].x-first[0], route[0].z-first[1]) < 0.001);
     assert.ok(Math.hypot(route.at(-1).x-last[0], route.at(-1).z-last[1]) < 0.001);
