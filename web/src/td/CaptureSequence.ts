@@ -25,6 +25,8 @@ import { LANE_RIDE_HEIGHT } from './MapTerrain';
 
 export type BallType = 'poke' | 'great' | 'ultra';
 export const BALL_PRICES: Record<BallType, number> = { poke: 35, great: 85, ultra: 170 };
+/** Picker order, which is also the 1–2–3 hotkey order. */
+export const BALL_ORDER: readonly BallType[] = ['poke', 'great', 'ultra'];
 export type CapturePhase = 'aim' | 'throw' | 'absorb' | 'drop' | 'wobble' | 'verdict';
 
 export interface CaptureStage {

@@ -213,13 +213,6 @@
 }
 
 
-.ball-choice.selected {
-  border-color: #fff6b2;
-  background: linear-gradient(180deg, #ffea67, var(--broadcast-gold) 44%, #ce7610);
-  color: var(--broadcast-ink);
-  box-shadow: 0 0 0 2px #70410a, 0 0 10px rgba(245, 201, 40, .55);
-}
-
 /* Rental-board roster */
 #card-deck {
   width: 196px;
@@ -597,7 +590,7 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .5);
 }
 
-/* Capture balls: select and restock */
+/* Capture kit: catchable tray, ball stock and restock */
 #capture-kit {
   bottom: 96px;
   border-radius: 13px;

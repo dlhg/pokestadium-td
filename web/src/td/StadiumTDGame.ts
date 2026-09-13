@@ -13,7 +13,7 @@ import { ParticleSystem } from '../engine/ParticleSystem';
 import { Input } from '../engine/Input';
 import { StadiumArena, type BuildBlockReason } from '../stadium/StadiumArena';
 import { StadiumAnnouncer } from '../stadium/Announcer';
-import { StadiumUI, type PlacementStatus, type SignatureSlot } from './StadiumUI';
+import { StadiumUI, type CatchSlot, type PlacementStatus, type SignatureSlot } from './StadiumUI';
 import {
   Tower,
   TARGET_PRIORITIES,
@@ -33,7 +33,7 @@ import { MOVES } from '../stadium/MoveDatabase';
 import { TYPE_COLORS } from '../stadium/TypeMatrix';
 import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
-import { BALL_PRICES, BallType, CaptureSequence } from './CaptureSequence';
+import { BALL_ORDER, BALL_PRICES, BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
@@ -125,7 +125,8 @@ export class StadiumTDGame {
   private placementPreview: THREE.Group = new THREE.Group();
   private placementPreviewTemplateId: string | null = null;
   private placementStatus: PlacementStatus | null = null;
-  private selectedBall: BallType | null = null;
+  /** The catchable creep whose ball picker is open, if any. */
+  private catchTarget: Creep | null = null;
   private captureHint: string | null = null;
   private captureHintTimer = 0;
   private timedCaptureHint: string | null = null;
@@ -203,7 +204,7 @@ export class StadiumTDGame {
     this.ui.onQuitToMenu = () => {
       const report = this.finishMatch();
       this.clearSelection();
-      this.selectedBall = null;
+      this.catchTarget = null;
       this.captureHint = null;
       this.pauseMenuOpen = false;
       this.isPaused = true;
@@ -235,16 +236,13 @@ export class StadiumTDGame {
         this.selectedTower = null;
       }
       this.selectedMember = member;
+      this.catchTarget = null;
       this.placementPreviewTemplateId = null;
       this.placementPreview.visible = false;
       this.audio.playSelect();
     };
-    this.ui.onSelectBall = (ball) => {
-      this.clearSelection();
-      this.selectedBall = ball;
-      this.captureHint = ball ? `CAPTURE MODE · CLICK A GOLD CATCH! RING · ESC TO CANCEL` : null;
-      this.audio.playSelect();
-    };
+    this.ui.onOpenCatch = (creep) => this.openCatch(creep);
+    this.ui.onThrowBall = (creep, ball) => this.tryCapture(creep, ball);
     this.ui.onBuyBall = (ball) => {
       if (this.waveManager.inWave || this.money < BALL_PRICES[ball]) return;
       this.money -= BALL_PRICES[ball];
@@ -336,7 +334,7 @@ export class StadiumTDGame {
     this.lives = 6;
     // A brand-new trainer gets extra balls to build a team with.
     this.balls = { poke: this.store.data.matchesPlayed === 0 ? 5 : 3, great: 0, ultra: 0 };
-    this.selectedBall = null;
+    this.catchTarget = null;
     this.captureHint = null;
     this.abortCapture();
     this.abortEvolution();
@@ -394,24 +392,35 @@ export class StadiumTDGame {
   }
 
   public handleInput(input: Input): void {
-    // Hotkeys: C cycles the camera, 1–9 call signature moves in bar order.
+    // Hotkeys: C cycles the camera, Q cycles catchable Pokémon, and 1–9 call
+    // signature moves in bar order — or pick a ball while a catch is open.
     if (input.isKeyJustPressed('KeyC')) {
       const modes: CameraMode[] = ['tactical', 'stadium', 'action'];
       this.camera.setMode(modes[(modes.indexOf(this.camera.mode) + 1) % modes.length]);
     }
-    this.signatureSlots().slice(0, 9).forEach((slot, i) => {
-      if (input.isKeyJustPressed(`Digit${i + 1}`)) this.requestSignature(slot.tower, slot.def.id);
-    });
+    if (input.isKeyJustPressed('KeyQ')) {
+      const catchable = this.catchableCreeps();
+      if (catchable.length) this.openCatch(catchable[(catchable.indexOf(this.catchTarget!) + 1) % catchable.length]);
+    }
+    if (this.catchTarget) {
+      BALL_ORDER.forEach((ball, i) => {
+        if (input.isKeyJustPressed(`Digit${i + 1}`)) this.tryCapture(this.catchTarget, ball);
+      });
+    } else {
+      this.signatureSlots().slice(0, 9).forEach((slot, i) => {
+        if (input.isKeyJustPressed(`Digit${i + 1}`)) this.requestSignature(slot.tower, slot.def.id);
+      });
+    }
     if (input.isKeyJustPressed('Space') && !this.pauseMenuOpen) this.isPaused = !this.isPaused;
     if (input.isKeyJustPressed('Escape')) {
       if (this.pauseMenuOpen) {
         this.ui.onResumeGame();
         return;
       }
-      const dismissedSelection = Boolean(this.selectedMember || this.selectedTower || this.selectedBall || this.aiming);
+      const dismissedSelection = Boolean(this.selectedMember || this.selectedTower || this.catchTarget || this.aiming);
       this.aiming = null;
       this.clearSelection();
-      this.selectedBall = null;
+      this.catchTarget = null;
       this.captureHint = null;
       if (!dismissedSelection) {
         this.pauseMenuOpen = true;
@@ -423,7 +432,7 @@ export class StadiumTDGame {
     if (input.rightClicked) {
       this.aiming = null;
       this.clearSelection();
-      this.selectedBall = null;
+      this.catchTarget = null;
       this.captureHint = null;
     }
 
@@ -436,8 +445,9 @@ export class StadiumTDGame {
     }
     this.aimPreview.visible = false;
 
-    if (this.selectedBall) {
-      if (input.clicked && !input.clickedOnUI) this.tryCapture(this.pickCreep(input, ground));
+    // An open ball picker closes on any click out on the pitch.
+    if (this.catchTarget) {
+      if (input.clicked && !input.clickedOnUI) this.catchTarget = null;
       return;
     }
 
@@ -471,19 +481,6 @@ export class StadiumTDGame {
     this.selectedMember = null;
     this.placementStatus = null;
     this.placementPreview.visible = false;
-  }
-
-  private pickCreep(input: Input, ground: THREE.Vector3 | null): Creep | null {
-    const hit = input.raycast(this.camera.camera, this.creeps.map(creep => creep.group));
-    for (const intersection of hit) {
-      for (let node: THREE.Object3D | null = intersection.object; node; node = node.parent) {
-        const creep = this.creeps.find(candidate => candidate.group === node);
-        if (creep) return creep;
-      }
-    }
-    if (!ground) return null;
-    const nearby = this.creeps.filter(c => c.alive && !c.captureLocked && c.position.distanceToSquared(ground) <= 5.1);
-    return nearby.sort((a, b) => a.position.distanceToSquared(ground) - b.position.distanceToSquared(ground))[0] ?? null;
   }
 
   /**
@@ -580,25 +577,42 @@ export class StadiumTDGame {
     this.renderer.floodlightDim = 0;
   }
 
-  /** Public so the headless shot harness can stage a capture set piece. */
-  public tryCapture(target: Creep | null): void {
-    const ball = this.selectedBall;
-    // A fainted Pokemon remains in the scene for its defeat animation, but it
-    // is no longer a legal capture target and must not consume a ball.
-    if (!ball || !target || !target.alive || target.captureLocked) return;
-    if (target.hpFraction > 0.35) {
-      this.captureHint = `WEAKEN ${target.name.toUpperCase()} UNTIL ITS HP BAR SAYS CATCH!`;
-      return;
+  /** Weakened, free Pokémon a ball can be thrown at, nearest the exit first. */
+  private catchableCreeps(): Creep[] {
+    return this.creeps.filter(creep => creep.catchable).sort((a, b) => b.pathProgress - a.pathProgress);
+  }
+
+  /** Opens the ball picker on a catchable Pokémon, or closes it when it is already open there. */
+  private openCatch(creep: Creep | null): void {
+    if (this.capture || this.evolution || this.summon) return;
+    const next = creep?.catchable && creep !== this.catchTarget ? creep : null;
+    if (next) {
+      this.aiming = null;
+      this.clearSelection();
     }
-    if (this.balls[ball] <= 0) return;
-    this.balls[ball]--;
+    this.catchTarget = next;
+    this.audio.playSelect();
+  }
+
+  /** Odds a ball would catch this Pokémon right now, before the release meter. */
+  private captureChance(target: Creep, ball: BallType): number {
     const ballBonus: Record<BallType, number> = { poke: 0, great: 0.20, ultra: 0.42 };
     const held = target.movementStatus?.effect;
     const statusBonus = held === 'stun' || held === 'sleep' || held === 'freeze' ? 0.22 : target.status !== 'none' ? 0.12 : 0;
     const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
     // Trainer's luck: every miss since the last catch sweetens the next throw.
     const luck = this.store.captureLuckBonus;
-    const chance = THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty + luck, 0.08, 0.95);
+    return THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty + luck, 0.08, 0.95);
+  }
+
+  /** Public so the headless shot harness can stage a capture set piece. */
+  public tryCapture(target: Creep | null, ball: BallType): void {
+    // A fainted Pokemon remains in the scene for its defeat animation, but it
+    // is no longer a legal capture target and must not consume a ball.
+    if (!target?.catchable || this.balls[ball] <= 0) return;
+    if (this.capture || this.evolution || this.summon) return;
+    this.balls[ball]--;
+    const chance = this.captureChance(target, ball);
     const ballsLeft = this.balls.poke + this.balls.great + this.balls.ultra;
     const guaranteed = this.devAlwaysCatch || this.store.shouldGuaranteeCatch(ballsLeft, target.threat);
     target.beginCapture();
@@ -611,7 +625,7 @@ export class StadiumTDGame {
     }, guaranteed);
     this.renderer.scene.add(sequence.group);
     this.capture = { sequence, target, ball };
-    this.selectedBall = null;
+    this.catchTarget = null;
     // The cinematic overlay carries the read-out from here; the corner hint returns with the verdict.
     this.captureHint = null;
   }
@@ -888,7 +902,8 @@ export class StadiumTDGame {
         this.summon.sequence.skip();
       }
     } else if (this.capture) {
-      if (this.capture.sequence.awaitingRelease && (input.clicked || input.isKeyJustPressed('Space'))) {
+      // A UI click is the one that picked the ball; it must not also release the meter.
+      if (this.capture.sequence.awaitingRelease && ((input.clicked && !input.clickedOnUI) || input.isKeyJustPressed('Space'))) {
         this.capture.sequence.release();
       }
     } else if (!this.evolution) {
@@ -1078,7 +1093,8 @@ export class StadiumTDGame {
         money: this.money,
         lives: this.lives,
         balls: this.balls,
-        selectedBall: this.selectedBall,
+        catchables: this.catchSlots(),
+        catchTarget: this.catchTarget,
         captureHint: this.captureHint,
         captureCinema: this.capture?.sequence.hud ?? null,
         evolutionCinema: this.evolution?.sequence.hud ?? null,
@@ -1100,6 +1116,19 @@ export class StadiumTDGame {
         signatures: this.signatureSlots(),
       }
     );
+  }
+
+  /** Screen anchors and live odds for every catchable Pokémon. */
+  private catchSlots(): CatchSlot[] {
+    if (this.catchTarget && !this.catchTarget.catchable) this.catchTarget = null;
+    return this.catchableCreeps().map(creep => {
+      const anchor = creep.group.position.clone();
+      anchor.y += creep.hudAnchorHeight;
+      const { x, y, visible } = this.renderer.toScreenXY(anchor, this.camera.camera);
+      const odds = {} as Record<BallType, number>;
+      BALL_ORDER.forEach(ball => { odds[ball] = this.captureChance(creep, ball); });
+      return { creep, x, y, onScreen: visible, odds };
+    });
   }
 
   private updateTimedCaptureHint(realDt: number): void {
@@ -1131,7 +1160,7 @@ export class StadiumTDGame {
     if (targeting === 'point' || targeting === 'line') {
       const same = this.aiming?.tower === tower && this.aiming.signatureId === signatureId;
       this.clearSelection();
-      this.selectedBall = null;
+      this.catchTarget = null;
       this.aiming = same ? null : { tower, signatureId };
       this.captureHint = same ? null : `${def.name.toUpperCase()} · CLICK ${targeting === 'point' ? 'A SPOT' : 'A DIRECTION'} · ESC TO CANCEL`;
       this.audio.playSelect();
