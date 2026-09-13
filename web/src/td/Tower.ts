@@ -12,7 +12,7 @@
 
 import * as THREE from 'three';
 import { AnimatedPokemon, disposePokemonModel, PokemonModelFactory } from '../stadium/PokemonModels';
-import { MoveDefinition } from '../stadium/MoveDatabase';
+import { isGroundOnly, MoveDefinition } from '../stadium/MoveDatabase';
 import { Creep } from './Creep';
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
 import { PathTier, SpeciesDef } from './progression/Species';
@@ -73,6 +73,14 @@ export class Tower {
   public pp: Record<string, number> = {};
   /** A temporary attack-rate surge from a signature (Growth, Agility). */
   private surge = { bonus: 0, timer: 0 };
+  /** Rate bonus built up by a spin-up attack, lost while idle. */
+  private spin = 0;
+  /** Seconds the tower sits out after a self-sacrificing signature. */
+  private disabledTimer = 0;
+  /** Set each frame when a spotter's aura or a reveal lets this tower aim at Phantoms. */
+  public revealed = false;
+  /** A Poké Ball entrance is still resolving; the model stays hidden and cannot attack. */
+  public deploymentLocked = false;
   /** The evolution stage the on-screen model was built for. */
   private renderedStage: number;
   public modifiers: TowerModifiers;
@@ -201,6 +209,9 @@ export class Tower {
   public syncProgress(deferModelSwap = false): boolean {
     this.modifiers = towerModifiers(statsOf(this.pokemon), this.pokemon.level);
     if (this.pokemon.stage === this.renderedStage) return false;
+    // Some forms fight differently (Magikarp → Gyarados).
+    this.attack = this.buildAttack();
+    this.updateRangeRing();
     if (!deferModelSwap) this.completeEvolutionSwap();
     return true;
   }
@@ -228,7 +239,8 @@ export class Tower {
       .map((path, i) => ({ path, bought: this.tiers[i], i }))
       .filter(entry => entry.bought > 0)
       .sort((a, b) => a.bought - b.bought || b.i - a.i);
-    return buildAttackProfile(this.species.basicAttack, order.map(entry =>
+    const basic = this.species.formAttacks?.[this.pokemon.stage] ?? this.species.basicAttack;
+    return buildAttackProfile(basic, order.map(entry =>
       entry.path.tiers.slice(0, entry.bought).flatMap(t => t.effects)));
   }
 
@@ -285,10 +297,21 @@ export class Tower {
     return true;
   }
 
-  /** Psychic and Ghost towers can aim at Phantoms; everyone else can't. */
+  /** Psychic and Ghost towers can aim at Phantoms, as can anything a path or a spotter lets see them. */
   public get seesPhantoms(): boolean {
+    if (this.revealed || this.attack.seePhantoms) return true;
     const form = formOf(this.pokemon);
     return [form.type, form.secondaryType].some(type => type === 'Psychic' || type === 'Ghost');
+  }
+
+  /** Takes the tower out of the fight for a while (Self-Destruct). */
+  public disable(seconds: number): void {
+    this.disabledTimer = Math.max(this.disabledTimer, seconds);
+    this.cooldown = 0;
+  }
+
+  public get disabled(): boolean {
+    return this.disabledTimer > 0;
   }
 
   /** A move's range against one creep, stretched when the tower stands above it. */
@@ -326,10 +349,16 @@ export class Tower {
         this.animPokemon = loaded;
         this.group.add(this.animPokemon.mesh);
       }
-      this.animPokemon.mesh.visible = true;
+      this.animPokemon.mesh.visible = !this.deploymentLocked;
     }).catch(() => {
-      if (generation === this.modelLoadGeneration) this.animPokemon.mesh.visible = true;
+      if (generation === this.modelLoadGeneration) this.animPokemon.mesh.visible = !this.deploymentLocked;
     });
+  }
+
+  /** Holds a freshly placed Pokémon inside its ball until the summon reveal. */
+  public setDeploymentLocked(locked: boolean): void {
+    this.deploymentLocked = locked;
+    this.animPokemon.mesh.visible = !locked;
   }
 
   public setSelected(selected: boolean): void {
@@ -380,7 +409,7 @@ export class Tower {
   ): void {
     // A zero delta means the simulation is paused. In particular, a freshly
     // deployed tower has a ready cooldown and must not fire during that frame.
-    if (dt <= 0) return;
+    if (dt <= 0 || this.deploymentLocked) return;
 
     const time = performance.now() * 0.001;
 
@@ -397,24 +426,38 @@ export class Tower {
       if (this.surge.timer <= 0) this.surge.bonus = 0;
     }
 
+    if (this.disabledTimer > 0) {
+      this.disabledTimer -= dt;
+      this.animPokemon.update(time, dt, 'idle');
+      return;
+    }
+
     const attack = this.attack;
     const move = attack.move;
-    const target = this.findTarget(creeps, move);
+    const targets = rankTargets(this, creeps, move, attack.multishot);
+    const target = targets[0] ?? null;
     if (this.cooldown > 0) {
       this.cooldown -= dt;
       // Becoming ready with nobody in range is an idle state, not a bank of
       // missed attacks to unleash when the next creep enters range.
       if (!target && this.cooldown < 0) this.cooldown = 0;
     }
+    if (attack.spinUp && !target) {
+      // An idle spin-up tower winds down over about two seconds.
+      this.spin = Math.max(0, this.spin - attack.spinUp.max * dt * 0.5);
+    }
 
     if (target && this.cooldown <= 0) {
+      const rate = move.attackSpeed * attack.rate * (1 + this.rateBuff + this.surge.bonus + this.spin) * this.modifiers.rate;
       // Add the interval to the overdue deadline so a slow frame does not
       // permanently lower the attack rate by discarding overshoot.
-      this.cooldown += 1.0 / (move.attackSpeed * attack.rate * (1 + this.rateBuff + this.surge.bonus) * this.modifiers.rate);
+      this.cooldown += 1.0 / rate;
       this.isAttackingAnim = true;
       this.attackAnimTimer = 0.35;
       this.animPokemon.playMove?.(move.name);
-      onFire(this, target, attack, this.rollShot(target));
+      const shot = this.rollShot(target, creeps);
+      for (const aimed of targets) onFire(this, aimed, attack, shot);
+      if (attack.spinUp) this.spin = Math.min(attack.spinUp.max, this.spin + attack.spinUp.perShot);
     }
 
     this.currentTarget = target;
@@ -431,11 +474,16 @@ export class Tower {
     this.animPokemon.update(time, dt, state);
   }
 
-  /** Rage, crits and hazard timing for the attack about to fire at `target`. */
-  private rollShot(target: Creep): ShotInfo {
-    const { rage, crit, hazard } = this.attack;
+  /** Rage, crits, crowd and level power, and hazard timing for the attack about to fire. */
+  private rollShot(target: Creep, creeps: Creep[]): ShotInfo {
+    const { rage, crit, hazard, crowdPower, levelPower } = this.attack;
     this.attackCount++;
-    let damageMultiplier = 1;
+    let damageMultiplier = 1 + levelPower * this.pokemon.level;
+    if (crowdPower) {
+      const crowd = creeps.filter(creep => creep.alive
+        && Math.hypot(creep.position.x - this.position.x, creep.position.z - this.position.z) <= this.getMaxRange()).length;
+      damageMultiplier *= 1 + Math.min(crowdPower.max, crowdPower.perCreep * crowd);
+    }
     if (rage) {
       this.rageStacks = target === this.rageTarget ? Math.min(rage.maxStacks, this.rageStacks + 1) : 0;
       this.rageTarget = target;
@@ -451,43 +499,41 @@ export class Tower {
   }
 
   private findTarget(creeps: Creep[], move: MoveDefinition): Creep | null {
-    let bestCreep: Creep | null = null;
-    let bestMetric = -Infinity;
-    // Fields and auras don't aim, so a Phantom can set them off; a field
-    // passes under Airborne creeps, so they alone never trigger one.
-    const untargeted = move.delivery === 'field' || move.delivery === 'aura';
-    const canTargetPhantoms = untargeted || this.seesPhantoms;
-
-    for (const creep of creeps) {
-      if (!creep.alive || creep.captureLocked) continue;
-      if (!canTargetPhantoms && creep.hasTrait('phantom')) continue;
-      if (move.delivery === 'field' && creep.hasTrait('airborne')) continue;
-      // Reach is measured across the ground; standing above the lane extends it.
-      const dist = Math.hypot(this.position.x - creep.position.x, this.position.z - creep.position.z);
-      if (dist > this.reachAgainst(move.range, creep)) continue;
-
-      let metric = 0;
-      switch (this.targetPriority) {
-        case 'first':
-          metric = creep.pathProgress; // Further along the track
-          break;
-        case 'last':
-          metric = -creep.pathProgress;
-          break;
-        case 'strongest':
-          metric = creep.hp;
-          break;
-        case 'weakest':
-          metric = -creep.hp;
-          break;
-      }
-
-      if (metric > bestMetric) {
-        bestMetric = metric;
-        bestCreep = creep;
-      }
-    }
-
-    return bestCreep;
+    return rankTargets(this, creeps, move, 1)[0] ?? null;
   }
+}
+
+/**
+ * The best `count` creeps this tower may aim `move` at, by its target
+ * priority. Fields and auras don't aim, so a Phantom can set them off;
+ * ground-only moves pass under Airborne creeps, so they never trigger one.
+ */
+function rankTargets(
+  tower: Pick<Tower, 'position' | 'targetPriority' | 'seesPhantoms' | 'reachAgainst'>,
+  creeps: Creep[],
+  move: MoveDefinition,
+  count: number,
+): Creep[] {
+  const untargeted = move.delivery === 'field' || move.delivery === 'aura';
+  const canTargetPhantoms = untargeted || tower.seesPhantoms;
+  const groundOnly = isGroundOnly(move);
+  const ranked: { creep: Creep; metric: number }[] = [];
+
+  for (const creep of creeps) {
+    if (!creep.alive || creep.captureLocked) continue;
+    if (!canTargetPhantoms && creep.hasTrait('phantom')) continue;
+    if (groundOnly && creep.hasTrait('airborne')) continue;
+    // Reach is measured across the ground; standing above the lane extends it.
+    const dist = Math.hypot(tower.position.x - creep.position.x, tower.position.z - creep.position.z);
+    if (dist > tower.reachAgainst(move.range, creep)) continue;
+
+    const metric = tower.targetPriority === 'first' ? creep.pathProgress
+      : tower.targetPriority === 'last' ? -creep.pathProgress
+      : tower.targetPriority === 'strongest' ? creep.hp
+      : -creep.hp;
+    ranked.push({ creep, metric });
+  }
+
+  ranked.sort((a, b) => b.metric - a.metric);
+  return ranked.slice(0, Math.max(1, count)).map(entry => entry.creep);
 }

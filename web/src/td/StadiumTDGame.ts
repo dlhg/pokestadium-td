@@ -25,7 +25,9 @@ import { LANE_RIDE_HEIGHT } from './MapTerrain';
 import { Creep, type CreepTrait } from './Creep';
 import { Projectile } from './Projectile';
 import { Hazard } from './Hazard';
-import { castSignature, SIGNATURES, type SignatureContext } from './Signatures';
+import {
+  castSignature, SIGNATURES, signatureLineReach, signatureRadius, signatureTargeting, type SignatureContext,
+} from './Signatures';
 import { WaveManager, getMilestone } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
 import { TYPE_COLORS } from '../stadium/TypeMatrix';
@@ -33,6 +35,7 @@ import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMov
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 import { BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
+import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
 import { speciesForCreepName } from './progression/Species';
 import { createPokemon, displayName, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
@@ -85,6 +88,8 @@ export class StadiumTDGame {
   public creeps: Creep[] = [];
   public projectiles: Projectile[] = [];
   public hazards: Hazard[] = [];
+  /** Seconds left on a signature that lets every tower aim at Phantoms. */
+  private phantomRevealTimer = 0;
   /** Signatures that keep firing for a while after the button press (Hydro Pump). */
   private channels: { remaining: number; interval: number; timer: number; tick: () => void }[] = [];
   /** A `point` or `line` signature waiting for the player to click where it goes. */
@@ -93,6 +98,8 @@ export class StadiumTDGame {
   private aimPreviewKind: string | null = null;
   /** Signatures may cut to the action cam unless the player turned it off. */
   private signatureCuts = true;
+  /** Poké Ball deployment entrances are on unless the player opts out. */
+  private summonCinematics = true;
 
   /** The team this match was started with, plus anything caught during it. */
   public roster: OwnedPokemon[] = [];
@@ -113,6 +120,7 @@ export class StadiumTDGame {
   private captureHint: string | null = null;
   private capture: { sequence: CaptureSequence; target: Creep; ball: BallType } | null = null;
   private evolution: { sequence: EvolutionSequence } | null = null;
+  private summon: { sequence: SummonSequence; tower: Tower } | null = null;
   /** Queued so simultaneous evolutions (a multi-way knockout) play one at a time. */
   private evolutionQueue: { tower: Tower; fromName: string; toName: string }[] = [];
   private traitsIntroduced = new Set<CreepTrait>();
@@ -145,6 +153,9 @@ export class StadiumTDGame {
     this.bindUIEvents();
     this.signatureCuts = readSignatureCutsSetting();
     this.ui.setSignatureCuts(this.signatureCuts);
+    this.summonCinematics = readSummonCinematicsSetting();
+    this.ui.setSummonCinematics(this.summonCinematics);
+    this.ui.setAudioVolumes(this.audio.getMusicVolume(), this.audio.getSfxVolume());
 
   }
 
@@ -182,6 +193,14 @@ export class StadiumTDGame {
       this.ui.setSignatureCuts(this.signatureCuts);
       this.audio.playSelect();
     };
+    this.ui.onToggleSummonCinematics = () => {
+      this.summonCinematics = !this.summonCinematics;
+      writeSummonCinematicsSetting(this.summonCinematics);
+      this.ui.setSummonCinematics(this.summonCinematics);
+      this.audio.playSelect();
+    };
+    this.ui.onMusicVolumeChange = value => this.audio.setMusicVolume(value);
+    this.ui.onSfxVolumeChange = value => this.audio.setSfxVolume(value);
     this.ui.onCastSignature = (tower, signatureId) => this.requestSignature(tower, signatureId);
     this.ui.onSelectMember = (member) => {
       if (this.selectedTower) {
@@ -269,12 +288,14 @@ export class StadiumTDGame {
     this.finishMatch();
     this.map = map;
     this.clearSelection();
+    this.abortSummon();
     this.towers.forEach(tower => tower.destroy(this.renderer.scene));
     this.creeps.forEach(creep => creep.destroy(this.renderer.scene));
     this.projectiles.forEach(projectile => projectile.destroy(this.renderer.scene));
     this.hazards.forEach(hazard => hazard.destroy(this.renderer.scene));
     this.channels = [];
     this.aiming = null;
+    this.phantomRevealTimer = 0;
     this.towers = [];
     this.creeps = [];
     this.projectiles = [];
@@ -484,6 +505,26 @@ export class StadiumTDGame {
     return this.capture?.sequence ?? null;
   }
 
+  /** The Poké Ball entrance currently playing, if any. */
+  public get activeSummon(): SummonSequence | null {
+    return this.summon?.sequence ?? null;
+  }
+
+  private finishSummon(): void {
+    if (!this.summon) return;
+    const { sequence, tower } = this.summon;
+    this.summon = null;
+    sequence.dispose(this.renderer.scene);
+    if (this.towers.includes(tower)) this.selectPlacedTower(tower);
+  }
+
+  /** Tears down a deployment entrance without selecting its soon-to-be-removed tower. */
+  private abortSummon(): void {
+    if (!this.summon) return;
+    this.summon.sequence.dispose(this.renderer.scene);
+    this.summon = null;
+  }
+
   /** Public so the headless shot harness can stage an evolution set piece. */
   public forceEvolution(tower: Tower, fromName: string, toName: string): void {
     this.evolutionQueue.push({ tower, fromName, toName });
@@ -673,17 +714,42 @@ export class StadiumTDGame {
     this.renderer.scene.add(tower.group);
     this.towers.push(tower);
 
-    this.audio.playDeploy();
-    this.particles.emitImpact(position, 0x00f0ff, 25, 5);
-
-    // Select the freshly placed tower so its move shop opens immediately.
-    if (this.selectedTower) this.selectedTower.setSelected(false);
-    this.selectedTower = tower;
-    tower.setSelected(true);
-
     this.selectedMember = null;
     this.placementStatus = null;
     this.placementPreview.visible = false;
+
+    if (this.summonCinematics) {
+      this.startSummon(tower);
+    } else {
+      this.audio.playDeploy();
+      this.particles.emitImpact(position, 0x00f0ff, 25, 5);
+      this.selectPlacedTower(tower);
+    }
+  }
+
+  /** Selects a deployment only after its entrance hands control back. */
+  private selectPlacedTower(tower: Tower): void {
+    if (this.selectedTower) this.selectedTower.setSelected(false);
+    this.selectedTower = tower;
+    tower.setSelected(true);
+  }
+
+  private startSummon(tower: Tower): void {
+    const sequence = new SummonSequence(tower, {
+      particles: this.particles,
+      camera: this.camera,
+      audio: this.audio,
+      announcer: this.announcer,
+      arena: this.arena,
+    });
+    this.renderer.scene.add(sequence.group);
+    this.summon = { sequence, tower };
+  }
+
+  /** Public so the headless shot harness can stage the deployment set piece. */
+  public forceSummon(tower: Tower): void {
+    this.abortSummon();
+    this.startSummon(tower);
   }
 
   /** A pad rests on the highest ground under its footprint; its footing fills the rest. */
@@ -782,9 +848,13 @@ export class StadiumTDGame {
     }
 
     this.camera.handleInput(input, realDt);
-    // A capture set piece owns the screen: no placing, selling, or selecting
-    // mid-throw. The one input it does take is the throw itself.
-    if (this.capture) {
+    // Cinematics own the screen. A deployment takes any deliberate click,
+    // Space, or Escape as a skip; capture keeps its timing-check input.
+    if (this.summon) {
+      if (input.clicked || input.isKeyJustPressed('Space') || input.isKeyJustPressed('Escape')) {
+        this.summon.sequence.skip();
+      }
+    } else if (this.capture) {
       if (this.capture.sequence.awaitingRelease && (input.clicked || input.isKeyJustPressed('Space'))) {
         this.capture.sequence.release();
       }
@@ -797,7 +867,8 @@ export class StadiumTDGame {
     // active, but multiplying both scales is harmless if that ever changes.
     const captureScale = this.capture ? this.capture.sequence.worldTimeScale : 1;
     const evolutionScale = this.evolution ? this.evolution.sequence.worldTimeScale : 1;
-    const dt = this.isPaused ? 0 : realDt * this.gameSpeed * captureScale * evolutionScale;
+    const summonScale = this.summon ? this.summon.sequence.worldTimeScale : 1;
+    const dt = this.isPaused ? 0 : realDt * this.gameSpeed * captureScale * evolutionScale * summonScale;
 
     // Update Wave Manager
     if (dt > 0) this.waveManager.update(
@@ -838,6 +909,8 @@ export class StadiumTDGame {
         resolveMoveHit(move, target, this.hitContext(), t, geometry, extras);
       });
     });
+
+    if (this.phantomRevealTimer > 0) this.phantomRevealTimer = Math.max(0, this.phantomRevealTimer - dt);
 
     // Update channelled signatures
     for (let i = this.channels.length - 1; i >= 0; i--) {
@@ -889,6 +962,7 @@ export class StadiumTDGame {
           this.lives = 0;
           this.gameOver = true;
           this.announcer.trigger('game_over');
+          this.abortSummon();
           this.abortCapture();
           this.abortEvolution();
           this.clearSelection();
@@ -904,7 +978,9 @@ export class StadiumTDGame {
       }
     }
 
-    this.renderer.floodlightDim = this.capture
+    this.renderer.floodlightDim = this.summon
+      ? this.summon.sequence.floodlightDim
+      : this.capture
       ? this.capture.sequence.floodlightDim
       : this.evolution
       ? this.evolution.sequence.floodlightDim
@@ -919,6 +995,11 @@ export class StadiumTDGame {
         activeCapture.sequence.dispose(this.renderer.scene);
         this.finishCapture(result, activeCapture.target, activeCapture.ball);
       }
+    }
+
+    if (this.summon) {
+      const done = this.summon.sequence.update(realDt);
+      if (done) this.finishSummon();
     }
 
     if (this.evolution) {
@@ -939,7 +1020,9 @@ export class StadiumTDGame {
 
     // Update Jumbotron display with current wave
     const currentWave = this.waveManager.getCurrentWave();
-    if (this.capture) {
+    if (this.summon) {
+      this.arena.updateJumbotron(this.summon.sequence.hud.pokemonName, 'I CHOOSE YOU!', currentWave.round);
+    } else if (this.capture) {
       const hud = this.capture.sequence.hud;
       this.arena.updateJumbotron(hud.targetName, 'CAPTURE ATTEMPT', hud.wobbles);
     } else if (this.evolution) {
@@ -962,6 +1045,7 @@ export class StadiumTDGame {
         captureHint: this.captureHint,
         captureCinema: this.capture?.sequence.hud ?? null,
         evolutionCinema: this.evolution?.sequence.hud ?? null,
+        summonCinema: this.summon?.sequence.hud ?? null,
         cupName: currentWave.cupName,
         round: currentWave.round,
         winRound: this.waveManager.winRound,
@@ -993,15 +1077,16 @@ export class StadiumTDGame {
 
   /** A button or hotkey press: instant signatures fire now, aimed ones wait for a click. */
   private requestSignature(tower: Tower, signatureId: string): void {
-    if (this.gameOver || this.capture || this.evolution || this.isPaused) return;
+    if (this.gameOver || this.capture || this.evolution || this.summon || this.isPaused) return;
     if ((tower.pp[signatureId] ?? 0) <= 0 || !this.towers.includes(tower)) return;
     const def = SIGNATURES[signatureId];
-    if (def.targeting === 'point' || def.targeting === 'line') {
+    const targeting = signatureTargeting(def);
+    if (targeting === 'point' || targeting === 'line') {
       const same = this.aiming?.tower === tower && this.aiming.signatureId === signatureId;
       this.clearSelection();
       this.selectedBall = null;
       this.aiming = same ? null : { tower, signatureId };
-      this.captureHint = same ? null : `${def.name.toUpperCase()} · CLICK ${def.targeting === 'point' ? 'A SPOT' : 'A DIRECTION'} · ESC TO CANCEL`;
+      this.captureHint = same ? null : `${def.name.toUpperCase()} · CLICK ${targeting === 'point' ? 'A SPOT' : 'A DIRECTION'} · ESC TO CANCEL`;
       this.audio.playSelect();
       return;
     }
@@ -1037,21 +1122,22 @@ export class StadiumTDGame {
     if (this.aimPreviewKind !== signatureId) {
       this.aimPreview.clear();
       const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
-      const geometry = def.targeting === 'point'
-        ? new THREE.RingGeometry((def.radius ?? 4) - 0.35, def.radius ?? 4, 48).rotateX(-Math.PI / 2)
+      const radius = signatureRadius(def);
+      const geometry = signatureTargeting(def) === 'point'
+        ? new THREE.RingGeometry(radius - 0.35, radius, 48).rotateX(-Math.PI / 2)
         : new THREE.PlaneGeometry(2.8, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.renderOrder = 6;
       this.aimPreview.add(mesh);
       this.aimPreviewKind = signatureId;
     }
-    if (def.targeting === 'point') {
+    if (signatureTargeting(def) === 'point') {
       this.aimPreview.position.set(ground.x, ground.y + 0.4, ground.z);
       this.aimPreview.rotation.set(0, 0, 0);
       this.aimPreview.scale.setScalar(1);
     } else {
       // A strip from the tower toward the cursor, as long as the beam reaches.
-      const length = signatureId === 'solar_beam' ? 80 : tower.getMaxRange() * 1.6;
+      const length = signatureLineReach(def, tower);
       this.aimPreview.position.set(tower.position.x, tower.position.y + 0.4, tower.position.z);
       this.aimPreview.rotation.set(0, Math.atan2(ground.x - tower.position.x, ground.z - tower.position.z), 0);
       this.aimPreview.scale.set(1, 1, length);
@@ -1079,15 +1165,29 @@ export class StadiumTDGame {
         tick();
         this.channels.push({ remaining: duration - interval, interval, timer: interval, tick });
       },
+      addHazard: (hazard, position, tower) => this.hazards.push(new Hazard(hazard, position, tower, this.renderer.scene)),
+      addMoney: (amount) => { this.money += amount; },
+      revealPhantoms: (seconds) => { this.phantomRevealTimer = Math.max(this.phantomRevealTimer, seconds); },
     };
   }
 
   /** Slow auras reach creeps in a tower's range; rate auras reach towers in it. */
   private applyAuras(): void {
     for (const creep of this.creeps) creep.auraSlow = 0;
-    for (const tower of this.towers) tower.rateBuff = 0;
+    for (const tower of this.towers) {
+      tower.rateBuff = 0;
+      tower.revealed = this.phantomRevealTimer > 0;
+    }
     for (const source of this.towers) {
-      const { slowAura, rateAura } = source.attack;
+      if (source.deploymentLocked) continue;
+      const { slowAura, rateAura, revealAura } = source.attack;
+      if (revealAura) {
+        for (const tower of this.towers) {
+          if (Math.hypot(tower.position.x - source.position.x, tower.position.z - source.position.z) <= source.getMaxRange()) {
+            tower.revealed = true;
+          }
+        }
+      }
       if (!slowAura && !rateAura) continue;
       const range = source.getMaxRange();
       if (slowAura) {
@@ -1157,6 +1257,10 @@ export class StadiumTDGame {
 
   private handleCreepDefeat(creep: Creep): void {
     this.money += creep.reward;
+    // Bounty towers are paid for every knockout they helped with.
+    for (const tower of creep.contributors.keys()) {
+      if (tower.attack.bounty && this.towers.includes(tower)) this.money += tower.attack.bounty;
+    }
     this.spreadSeed(creep);
     this.applyXp(this.progress.awardKnockout(creep, this.towers));
     this.particles.emitImpact(creep.position, 0xffd700, 20, 6);
@@ -1211,7 +1315,7 @@ export class StadiumTDGame {
 
   /** Starts the next queued evolution once the pitch is clear for one. */
   private pumpEvolutionQueue(): void {
-    if (this.evolution || this.evolutionQueue.length === 0) return;
+    if (this.evolution || this.summon || this.evolutionQueue.length === 0) return;
     const { tower, fromName, toName } = this.evolutionQueue.shift()!;
     const sequence = new EvolutionSequence(tower, fromName, toName, {
       particles: this.particles,
@@ -1240,6 +1344,7 @@ export class StadiumTDGame {
 }
 
 const SIGNATURE_CUTS_KEY = 'pokestadium.signatureCuts';
+const SUMMON_CINEMATICS_KEY = 'pokestadium.summonCinematics';
 
 function readSignatureCutsSetting(): boolean {
   try {
@@ -1252,6 +1357,22 @@ function readSignatureCutsSetting(): boolean {
 function writeSignatureCutsSetting(enabled: boolean): void {
   try {
     localStorage.setItem(SIGNATURE_CUTS_KEY, enabled ? 'on' : 'off');
+  } catch {
+    // Storage can be unavailable (private windows); the setting just won't stick.
+  }
+}
+
+function readSummonCinematicsSetting(): boolean {
+  try {
+    return localStorage.getItem(SUMMON_CINEMATICS_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function writeSummonCinematicsSetting(enabled: boolean): void {
+  try {
+    localStorage.setItem(SUMMON_CINEMATICS_KEY, enabled ? 'on' : 'off');
   } catch {
     // Storage can be unavailable (private windows); the setting just won't stick.
   }

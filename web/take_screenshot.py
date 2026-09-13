@@ -40,7 +40,7 @@ cmd = [
     "--use-angle=metal",
     "--enable-webgl",
     # Capture shots stage only after the async creep models have loaded.
-    f"--virtual-time-budget={3500 if shot_name.startswith('capture_') else 2500}",
+    f"--virtual-time-budget={3500 if shot_name.startswith(('capture_', 'summon_')) else 2500}",
     f"--user-data-dir={profile_dir}",
     f"--screenshot={output_file}",
     "--window-size=1280,720",

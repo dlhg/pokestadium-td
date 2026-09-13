@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "music": {
+    "title": "1-02. Title.mp3",
+    "pokemon_select": "1-06. Pokémon Select.mp3",
+    "free_battle": "1-33. Free Battle.mp3",
+    "battle_preparation": "2-02. Battle Preparation.mp3",
+    "final_victory_gym_leader_castle": "2-08. Final Victory! (Gym Leader Castle).mp3",
+    "pokemon_present_revealed": "2-31. Pokémon Present Revealed.mp3",
+    "victory_mewtwo": "2-35. Victory! (Mewtwo).mp3",
+    "pikachu_learned_surf": "2-48. Pikachu Learned Surf! (Pocket Monsters Stadium).mp3"
+  }
+}

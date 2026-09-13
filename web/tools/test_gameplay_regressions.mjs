@@ -11,12 +11,14 @@ const result = await build({
       "export { Tower } from './src/td/Tower.ts';",
       "export { Creep } from './src/td/Creep.ts';",
       "export { Projectile } from './src/td/Projectile.ts';",
-      "export { resolveMoveHit, collectVictims, hitDamage } from './src/td/MoveDelivery.ts';",
+      "export { resolveMoveHit, collectVictims, hitDamage, strikeCreeps } from './src/td/MoveDelivery.ts';",
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
       "export { createPokemon, formOf, statsOf, TrainerStore } from './src/td/progression/TrainerStore.ts';",
       "export { xpForLevel } from './src/td/progression/Stats.ts';",
-      "export { getSpecies } from './src/td/progression/Species.ts';",
+      "export { getSpecies, SPECIES } from './src/td/progression/Species.ts';",
+      "export { HAZARDS } from './src/td/Hazard.ts';",
       "export { Hazard } from './src/td/Hazard.ts';",
+      "export { SummonSequence } from './src/td/SummonSequence.ts';",
       "export { castSignature, SIGNATURES } from './src/td/Signatures.ts';",
       "export * as THREE from 'three';",
     ].join('\n'),
@@ -29,8 +31,8 @@ const result = await build({
   loader: { '.css': 'empty' },
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
-const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, MOVES,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, Hazard, castSignature, SIGNATURES, THREE } =
+const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES,
+  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Starting the next match must release a keyboard-only pause, or the wave
@@ -48,41 +50,54 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   assert.equal(game.isPaused, false, 'starting a match releases keyboard pause');
 }
 
+// Poké Ball entrances default on and the pause-menu toggle persists an opt-out.
+{
+  const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const writes = [];
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: {
+    getItem: () => null, setItem: (key, value) => writes.push([key, value]),
+  } });
+  const game = new StadiumTDGame();
+  assert.equal(game.summonCinematics, true, 'summon cinematics default on');
+  game.ui = { setSummonCinematics() {} };
+  game.audio = { playSelect() {} };
+  game.bindUIEvents();
+  game.ui.onToggleSummonCinematics();
+  assert.equal(game.summonCinematics, false, 'summon cinematics can be disabled');
+  assert.deepEqual(writes.pop(), ['pokestadium.summonCinematics', 'off'], 'summon opt-out persists');
+  if (previousStorage === undefined) delete globalThis.localStorage;
+  else Object.defineProperty(globalThis, 'localStorage', previousStorage);
+}
+
 // Cooldown deadlines preserve overshoot, so speed-up and low frame rates do
 // not silently reduce a tower's damage output.
 {
+  const target = { alive: true, captureLocked: false, position: new THREE.Vector3(1, 0, 0), pathProgress: 0, hp: 1,
+    hasTrait: () => false };
+  const testTower = () => ({
+    attack: { move: { range: 10, attackSpeed: 2, name: 'Test', delivery: 'projectile' }, rate: 1, multishot: 1 },
+    cooldown: 0, rateBuff: 0, spin: 0, disabledTimer: 0, surge: { bonus: 0, timer: 0 },
+    modifiers: { rate: 1 }, rollShot: () => ({}), targetPriority: 'first', seesPhantoms: false,
+    reachAgainst: range => range,
+    animPokemon: { mesh: new THREE.Group(), update() {} },
+    position: new THREE.Vector3(), attackAnimTimer: 0, entranceAnimTimer: 0,
+  });
   const countShots = (dt, frames) => {
     let shots = 0;
-    const target = { position: new THREE.Vector3() };
-    const tower = {
-      attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0, surge: { bonus: 0, timer: 0 },
-      modifiers: { rate: 1 }, rollShot: () => ({}),
-      findTarget: () => target,
-      animPokemon: { mesh: new THREE.Group(), update() {} },
-      position: new THREE.Vector3(), attackAnimTimer: 0, entranceAnimTimer: 0,
-    };
+    const tower = testTower();
     for (let frame = 0; frame < frames; frame++) {
-      Tower.prototype.update.call(tower, dt, [], () => shots++);
+      Tower.prototype.update.call(tower, dt, [target], () => shots++);
     }
     return shots;
   };
   assert.equal(countShots(0.05, 600), countShots(0.3, 100),
     'equal simulation time produces equal attacks across frame rates');
 
-  let hasTarget = false;
   let burstShots = 0;
-  const target = { position: new THREE.Vector3() };
-  const idleTower = {
-    attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0, surge: { bonus: 0, timer: 0 },
-    modifiers: { rate: 1 }, rollShot: () => ({}),
-    findTarget: () => hasTarget ? target : null,
-    animPokemon: { mesh: new THREE.Group(), update() {} },
-    position: new THREE.Vector3(), attackAnimTimer: 0, entranceAnimTimer: 0,
-  };
+  const idleTower = testTower();
   for (let frame = 0; frame < 100; frame++) Tower.prototype.update.call(idleTower, 0.1, [], () => burstShots++);
-  hasTarget = true;
-  Tower.prototype.update.call(idleTower, 0.05, [], () => burstShots++);
-  Tower.prototype.update.call(idleTower, 0.05, [], () => burstShots++);
+  Tower.prototype.update.call(idleTower, 0.05, [target], () => burstShots++);
+  Tower.prototype.update.call(idleTower, 0.05, [target], () => burstShots++);
   assert.equal(burstShots, 1, 'an idle tower does not bank attacks without a target');
 }
 
@@ -191,6 +206,39 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   const projectile = { active: true };
   assert.equal(Projectile.prototype.update.call(projectile, 0, {}), true,
     'projectile remains pending while paused');
+
+  Tower.prototype.update.call({ deploymentLocked: true }, 1, [], () => { fired = true; });
+  assert.equal(fired, false, 'a Pokémon cannot attack before its Poké Ball reveal');
+}
+
+// A summon locks its tower immediately and skip always restores a usable,
+// visible Pokémon while releasing the camera and presentation group.
+{
+  const scene = new THREE.Scene();
+  const model = new THREE.Group();
+  const tower = {
+    name: 'Pikachu', position: new THREE.Vector3(), animPokemon: { mesh: model, height: 2.2 },
+    deploymentLocked: false, setDeploymentLocked: Tower.prototype.setDeploymentLocked,
+  };
+  let released = 0;
+  const noop = () => {};
+  const sequence = new SummonSequence(tower, {
+    particles: { emitTrail: noop, emitImpact: noop, emitRing: noop, emitAura: noop, emitGroundBurst: noop },
+    camera: { camera: { position: new THREE.Vector3(0, 10, 10) }, beginCinematic: noop,
+      setCinematicFraming: noop, punchZoom: noop, shake: noop, releaseCinematic: () => released++ },
+    audio: { duckCrowd: noop, playSummonThrow: noop, playSummonRelease: noop, playDeploy: noop },
+    announcer: { trigger: noop }, arena: { setCrowdMood: noop },
+  });
+  scene.add(sequence.group);
+  assert.equal(tower.deploymentLocked, true, 'summon locks the tower while the ball is in flight');
+  assert.equal(model.visible, false, 'summon begins with the Pokémon inside its ball');
+  sequence.skip();
+  assert.equal(sequence.update(0), true, 'skip completes on the current frame');
+  assert.equal(tower.deploymentLocked, false, 'skip unlocks the tower');
+  assert.equal(model.visible, true, 'skip leaves the Pokémon visible');
+  sequence.dispose(scene);
+  assert.equal(released, 1, 'summon returns camera control');
+  assert.equal(sequence.group.parent, null, 'summon presentation is removed');
 }
 
 // Hit shapes decide who a move catches: a beam pierces its line, a cone its
@@ -236,7 +284,7 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   const find = (t, move, creeps) => Tower.prototype.findTarget.call(t, creeps, move);
   assert.equal(find(tower(false), MOVES.ember, [ghost]), null, 'phantom is untargetable');
   assert.equal(find(tower(true), MOVES.ember, [ghost]), ghost, 'psychic and ghost towers see phantoms');
-  assert.equal(find(tower(false), MOVES.toxic, [ghost]), ghost, 'auras reach phantoms');
+  assert.equal(find(tower(false), { ...MOVES.ember, delivery: 'aura' }, [ghost]), ghost, 'auras reach phantoms');
   assert.equal(find(tower(false), MOVES.earthquake, [bird]), null, 'fields ignore airborne');
 }
 
@@ -384,4 +432,74 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   assert.equal(castSignature(SIGNATURES.fire_blast, tower, null, context([])), false, 'aimed signatures need a spot');
 }
 
-console.log('PASS: gameplay timing, capture, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, and signature regressions.');
+// Every species is fully designed: three paths of three tiers, every move,
+// hazard and signature it names exists, each path's tier 3 unlocks exactly one
+// signature, and every legal build folds into an attack.
+{
+  const used = new Set();
+  for (const species of Object.values(SPECIES)) {
+    assert.ok(MOVES[species.basicAttack], `${species.id} basic attack exists`);
+    (species.formAttacks ?? []).forEach(id => assert.ok(MOVES[id], `${species.id} form attack ${id} exists`));
+    assert.equal(species.paths.length, 3, `${species.id} has three paths`);
+    for (const path of species.paths) {
+      assert.equal(path.tiers.length, 3, `${species.id} ${path.id} has three tiers`);
+      path.tiers.forEach((tier, i) => {
+        const signatures = tier.effects.filter(effect => effect.kind === 'signature');
+        assert.equal(signatures.length, i === 2 ? 1 : 0, `${species.id} ${path.id} tier ${i + 1} signature count`);
+        for (const effect of tier.effects) {
+          if (effect.kind === 'replaceAttack') assert.ok(MOVES[effect.moveId], `${effect.moveId} exists`);
+          if (effect.kind === 'hazard') assert.ok(HAZARDS[effect.hazard], `${effect.hazard} exists`);
+          if (effect.kind === 'signature') {
+            assert.ok(SIGNATURES[effect.signatureId], `${effect.signatureId} exists`);
+            assert.ok(!used.has(effect.signatureId), `${effect.signatureId} is used once`);
+            used.add(effect.signatureId);
+          }
+        }
+      });
+    }
+    for (let main = 0; main < 3; main++) {
+      for (let side = 0; side < 3; side++) {
+        if (side === main) continue;
+        const tower = Object.create(Tower.prototype);
+        Object.assign(tower, { species, pokemon: { level: 50, stage: species.forms.length - 1 }, totalInvested: 0, pp: {}, updateRangeRing() {} });
+        tower.tiers = [0, 0, 0];
+        tower.attack = tower.buildAttack();
+        for (let i = 0; i < 3; i++) assert.ok(tower.buyUpgrade(main), `${species.id} main path ${main}`);
+        for (let i = 0; i < 2; i++) assert.ok(tower.buyUpgrade(side), `${species.id} side path ${side}`);
+        assert.equal(tower.attack.signatures.length, 1, `${species.id} ${main}-${side} has one signature`);
+      }
+    }
+  }
+  assert.deepEqual([...Object.keys(SIGNATURES)].filter(id => !used.has(id)), [], 'every signature belongs to a path');
+}
+
+// Confusion walks a creep back up the lane; Titans are only slowed by it.
+{
+  const creep = {
+    alive: true, captureLocked: false, isBoss: false, maxHp: 100, hp: 100,
+    damageStatus: null, movementStatus: null, auraSlow: 0, baseSpeed: 4, speed: 4,
+    pushed: 0, pushBack(distance) { this.pushed += distance; }, credit() {},
+  };
+  Creep.prototype.applyStatus.call(creep, 'confuse', 2);
+  assert.equal(creep.movementStatus.effect, 'confuse', 'confusion takes hold');
+  const titan = { ...creep, isBoss: true, movementStatus: null };
+  Creep.prototype.applyStatus.call(titan, 'confuse', 2);
+  assert.equal(titan.movementStatus.effect, 'freeze', 'titans are slowed instead of confused');
+}
+
+// Bonus damage and percent damage land on the right victims.
+{
+  const hits = [];
+  const victim = (name, extra) => ({
+    name, alive: true, captureLocked: false, isBoss: false, threat: 'normal', hp: 200, types: ['Normal'],
+    position: new THREE.Vector3(), movementStatus: null, hasTrait: () => false, applyStatus: () => false,
+    takeDamage(amount) { hits.push([name, amount]); return false; }, ...extra,
+  });
+  const context = { creeps: [], particles: { emitAura() {} }, audio: { playHit() {} }, announcer: { trigger() {} }, onFaint() {} };
+  const move = { ...MOVES.quick_attack, basePower: 10 };
+  const extras = { bonusVs: [{ target: 'boss', multiplier: 2 }], percentDamage: { share: 0.1, bossShare: 0.01 } };
+  strikeCreeps(move, [victim('grunt'), victim('titan', { isBoss: true, threat: 'titan' })], context, null, extras);
+  assert.deepEqual(hits, [['grunt', 30], ['titan', 22]], 'boss bonus and percent shares apply by threat');
+}
+
+console.log('PASS: gameplay timing, capture, summon, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, and bonus damage regressions.');

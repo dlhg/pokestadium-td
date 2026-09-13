@@ -20,6 +20,7 @@ import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
 import { mapPreview } from './MapPreview';
 import { BallType, CaptureHud } from './CaptureSequence';
 import { EvolutionHud } from './EvolutionSequence';
+import { SummonHud } from './SummonSequence';
 import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
@@ -46,6 +47,8 @@ export interface UIState {
   captureCinema: CaptureHud | null;
   /** Live evolution set piece, or null when no tower is evolving. */
   evolutionCinema: EvolutionHud | null;
+  /** Live Poké Ball deployment entrance, or null during ordinary play. */
+  summonCinema: SummonHud | null;
   cupName: string;
   round: number;
   /** The round whose clear wins the course; play continues past it. */
@@ -125,6 +128,7 @@ export class StadiumUI {
   // Callbacks
   private cinemaEl!: HTMLElement;
   private evoCinemaEl!: HTMLElement;
+  private summonCinemaEl!: HTMLElement;
   private cinemaVerdict: string = '';
   private trophyTimer: number = 0;
   private trophyView = new TrophyModelView();
@@ -142,6 +146,9 @@ export class StadiumUI {
   public onResumeGame: () => void = () => {};
   public onCastSignature: (tower: Tower, signatureId: string) => void = () => {};
   public onToggleSignatureCuts: () => void = () => {};
+  public onToggleSummonCinematics: () => void = () => {};
+  public onMusicVolumeChange: (value: number) => void = () => {};
+  public onSfxVolumeChange: (value: number) => void = () => {};
   public onQuitToMenu: () => void = () => {};
   public onRetryMap: () => void = () => {};
   public onSelectBall: (ball: BallType | null) => void = () => {};
@@ -247,6 +254,32 @@ export class StadiumUI {
           position:absolute; left:50%; bottom:calc(6.5vh - 26px); transform:translateX(-50%) skew(-7deg);
           font-family:'Teko','Impact',sans-serif; font-size:38px; letter-spacing:1.6px; color:#fff;
           text-shadow:0 0 18px rgba(0,0,0,.9), 3px 4px #0a1428; white-space:nowrap; max-width:90vw; overflow:hidden; text-overflow:ellipsis;
+        }
+
+        /* ---- Poké Ball deployment cinematic ---- */
+        .summon-live #top-bar, .summon-live #controls-bar, .summon-live #card-deck,
+        .summon-live #tower-panel, .summon-live #poke-mart, .summon-live #signature-bar,
+        .summon-live #capture-hint { opacity:.08; filter:blur(2px) saturate(.3); pointer-events:none; }
+        .summon-live #announcer-banner { display:none !important; }
+        #summon-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .16s ease; }
+        #summon-cinema.live { opacity:1; }
+        #summon-vignette { position:absolute; inset:0; background:radial-gradient(ellipse 56% 50% at 50% 53%, transparent 28%, rgba(5,24,40,.48) 72%, rgba(2,8,18,.88) 100%); }
+        #summon-flash { position:absolute; inset:0; background:#eaffff; opacity:0; mix-blend-mode:screen; }
+        #summon-kicker {
+          position:absolute; left:50%; top:calc(13vh + 27px); transform:translateX(-50%) skew(-7deg);
+          padding:5px 18px; font-size:12px; font-weight:900; letter-spacing:4px; color:#071326;
+          background:linear-gradient(180deg,#fff3a8,#f6c437); border:2px solid #fff8d5;
+          box-shadow:0 5px 0 rgba(3,7,16,.75),0 0 24px rgba(246,196,55,.42);
+        }
+        #summon-caption {
+          position:absolute; left:50%; bottom:calc(6.5vh - 27px); transform:translateX(-50%) skew(-7deg);
+          max-width:92vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+          font-family:'Teko','Impact',sans-serif; font-size:44px; letter-spacing:2px; color:#fff;
+          text-shadow:0 0 18px #00d9ff,3px 4px #071326;
+        }
+        #summon-skip {
+          position:absolute; right:22px; bottom:calc(13vh + 18px); font-size:10px; font-weight:800;
+          letter-spacing:1.6px; color:#b9d6e8; text-shadow:0 2px 3px #000;
         }
         .cine-bar { position:absolute; left:0; right:0; height:13vh; background:#04070d; box-shadow:0 0 40px rgba(0,0,0,.9); transform:translateY(0); }
         .cine-bar.top { top:0; }
@@ -382,6 +415,9 @@ export class StadiumUI {
         .sig-pp i.on { background:#f6c437; }
         .sig-key { position:absolute; top:-8px; right:-6px; min-width:16px; padding:1px 3px; background:#f6c437; color:#07162f; font-size:13px; line-height:1; text-align:center; border:1px solid #07162f; }
         .pause-setting { margin-top:10px; font-size:12px; }
+        .pause-audio { display:grid; grid-template-columns:64px 1fr 34px; align-items:center; gap:8px; margin-top:10px; font-size:11px; letter-spacing:1px; color:#bcd7ec; }
+        .pause-audio input { width:100%; accent-color:#f6c437; }
+        .pause-audio output { color:#f6c437; text-align:right; }
         #poke-mart { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:flex; gap:7px; align-items:center; }
         #poke-mart strong { color:#f6c437; font-family:'Impact',sans-serif; letter-spacing:1px; }
         .mart-item { font-size:11px; padding:4px 7px; }
@@ -1205,6 +1241,9 @@ export class StadiumUI {
             <button class="stadium-btn" id="btn-pause-quit">QUIT TO COURSE SELECT</button>
           </div>
           <button class="stadium-btn pause-setting" id="btn-signature-cuts">SIGNATURE CAMERA CUTS: ON</button>
+          <button class="stadium-btn pause-setting" id="btn-summon-cinematics">POKÉ BALL ENTRANCES: ON</button>
+          <div class="pause-audio"><label for="pause-music-volume">MUSIC</label><input id="pause-music-volume" type="range" min="0" max="100" value="100"><output id="pause-music-volume-value">100%</output></div>
+          <div class="pause-audio"><label for="pause-sfx-volume">SFX</label><input id="pause-sfx-volume" type="range" min="0" max="100" value="100"><output id="pause-sfx-volume-value">100%</output></div>
         </section>
       </div>
 
@@ -1225,6 +1264,17 @@ export class StadiumUI {
         <div id="cine-verdict"></div>
       </div>
       <div id="capture-trophy"></div>
+
+      <!-- Poké Ball Deployment Cinematic -->
+      <div id="summon-cinema">
+        <div id="summon-vignette"></div>
+        <div class="cine-bar top"></div>
+        <div class="cine-bar bottom"></div>
+        <div id="summon-flash"></div>
+        <div id="summon-kicker">TRAINER CALL</div>
+        <div id="summon-caption">I CHOOSE YOU!</div>
+        <div id="summon-skip">CLICK · SPACE · ESC TO SKIP</div>
+      </div>
 
       <!-- Evolution Cinematic -->
       <div id="evo-cinema">
@@ -1258,6 +1308,7 @@ export class StadiumUI {
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
     this.cinemaEl = document.getElementById('capture-cinema')!;
     this.evoCinemaEl = document.getElementById('evo-cinema')!;
+    this.summonCinemaEl = document.getElementById('summon-cinema')!;
 
     this.bindEvents();
     this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => button.addEventListener('click', () => this.onBuyBall(button.dataset.buyBall as BallType)));
@@ -1375,6 +1426,18 @@ export class StadiumUI {
     document.getElementById('btn-pause-resume')!.addEventListener('click', () => this.onResumeGame());
     document.getElementById('btn-pause-quit')!.addEventListener('click', () => this.onQuitToMenu());
     document.getElementById('btn-signature-cuts')!.addEventListener('click', () => this.onToggleSignatureCuts());
+    document.getElementById('btn-summon-cinematics')!.addEventListener('click', () => this.onToggleSummonCinematics());
+    const bindVolume = (id: string, outputId: string, callback: (value: number) => void) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      const output = document.getElementById(outputId)!;
+      input.addEventListener('input', () => {
+        const value = Number(input.value) / 100;
+        output.textContent = `${input.value}%`;
+        callback(value);
+      });
+    };
+    bindVolume('pause-music-volume', 'pause-music-volume-value', value => this.onMusicVolumeChange(value));
+    bindVolume('pause-sfx-volume', 'pause-sfx-volume-value', value => this.onSfxVolumeChange(value));
     this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(button=>{
       button.addEventListener('click',()=>{
         const filter=button.dataset.difficulty;
@@ -1848,9 +1911,41 @@ export class StadiumUI {
     document.getElementById('btn-signature-cuts')!.textContent = `SIGNATURE CAMERA CUTS: ${enabled ? 'ON' : 'OFF'}`;
   }
 
+  public setSummonCinematics(enabled: boolean): void {
+    document.getElementById('btn-summon-cinematics')!.textContent = `POKÉ BALL ENTRANCES: ${enabled ? 'ON' : 'OFF'}`;
+  }
+
+  public setAudioVolumes(music: number, sfx: number): void {
+    for (const [id, outputId, value] of [
+      ['pause-music-volume', 'pause-music-volume-value', music],
+      ['pause-sfx-volume', 'pause-sfx-volume-value', sfx],
+    ] as [string, string, number][]) {
+      const input = document.getElementById(id) as HTMLInputElement | null;
+      const output = document.getElementById(outputId);
+      if (input) input.value = String(Math.round(Math.max(0, Math.min(1, value)) * 100));
+      if (output && input) output.textContent = `${input.value}%`;
+    }
+  }
+
+  private renderSummonCinema(cinema: SummonHud | null): void {
+    if (!cinema) {
+      this.summonCinemaEl.classList.remove('live');
+      this.container.classList.remove('summon-live');
+      return;
+    }
+    this.summonCinemaEl.classList.add('live');
+    this.container.classList.add('summon-live');
+    const bars = this.summonCinemaEl.querySelectorAll<HTMLElement>('.cine-bar');
+    bars[0].style.transform = `translateY(${(cinema.letterbox - 1) * 100}%)`;
+    bars[1].style.transform = `translateY(${(1 - cinema.letterbox) * 100}%)`;
+    this.summonCinemaEl.querySelector<HTMLElement>('#summon-flash')!.style.opacity = `${cinema.flash}`;
+    this.summonCinemaEl.querySelector<HTMLElement>('#summon-caption')!.innerText = cinema.caption;
+    this.summonCinemaEl.querySelector<HTMLElement>('#summon-skip')!.innerText = cinema.prompt;
+  }
+
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
-    this.renderSignatureBar(state.signatures, !!state.captureCinema || !!state.evolutionCinema);
+    this.renderSignatureBar(state.signatures, !!state.captureCinema || !!state.evolutionCinema || !!state.summonCinema);
     [1,2,3].forEach(speed => document.getElementById(`btn-speed-${speed}`)!.classList.toggle('active',state.gameSpeed===speed));
     ['tactical','stadium','action'].forEach(mode => document.getElementById(`btn-cam-${mode}`)!.classList.toggle('active',state.cameraMode===mode));
 
@@ -1885,6 +1980,7 @@ export class StadiumUI {
     });
     this.renderCaptureCinema(state.captureCinema);
     this.renderEvolutionCinema(state.evolutionCinema);
+    this.renderSummonCinema(state.summonCinema);
     const captureHint = document.getElementById('capture-hint')!;
     captureHint.innerText = state.captureHint || '';
     const mart = document.getElementById('poke-mart')!;

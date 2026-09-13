@@ -13,7 +13,11 @@ import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../stadium/T
 import { ARMOR_LIGHT_MULTIPLIER, Creep } from './Creep';
 import type { Tower } from './Tower';
 
-export type HazardId = 'stun_spore' | 'sleep_powder' | 'ember_patch' | 'fire_spin_patch';
+export type HazardId =
+  | 'stun_spore' | 'sleep_powder' | 'ember_patch' | 'fire_spin_patch'
+  | 'spore_trap' | 'spore_trap_big' | 'spore_cloud'
+  | 'rock_tomb' | 'stone_wall' | 'rock_wall'
+  | 'poison_powder' | 'toxic_powder' | 'toxic_cloud';
 
 export interface HazardSpec {
   name: string;
@@ -34,6 +38,27 @@ export const HAZARDS: Record<HazardId, HazardSpec> = {
     status: { effect: 'burn', duration: 2.5 } },
   fire_spin_patch: { name: 'Fire Spin', type: 'Fire', radius: 2.6, duration: 3.5, damagePerSecond: 14,
     status: { effect: 'stun', duration: 0.7 } },
+  // Paras: few traps, but they linger long enough to catch several waves of runners.
+  spore_trap: { name: 'Spore Trap', type: 'Grass', radius: 2.2, duration: 12, damagePerSecond: 0,
+    status: { effect: 'sleep', duration: 2.5 } },
+  spore_trap_big: { name: 'Spore Trap', type: 'Grass', radius: 3.0, duration: 16, damagePerSecond: 0,
+    status: { effect: 'sleep', duration: 3.2 } },
+  spore_cloud: { name: 'Spore', type: 'Grass', radius: 5, duration: 8, damagePerSecond: 0,
+    status: { effect: 'sleep', duration: 3.5 } },
+  // Onix: stone that holds the lane shut while it stands.
+  rock_tomb: { name: 'Rock Tomb', type: 'Rock', radius: 2.0, duration: 3, damagePerSecond: 4,
+    status: { effect: 'stun', duration: 1.1 } },
+  stone_wall: { name: 'Stone Wall', type: 'Rock', radius: 2.6, duration: 4.5, damagePerSecond: 6,
+    status: { effect: 'stun', duration: 1.1 } },
+  rock_wall: { name: 'Rock Wall', type: 'Rock', radius: 3.5, duration: 6, damagePerSecond: 10,
+    status: { effect: 'stun', duration: 1.1 } },
+  // Oddish: poison that stacks onto everything else holding the lane.
+  poison_powder: { name: 'Poison Powder', type: 'Poison', radius: 2.4, duration: 4, damagePerSecond: 6,
+    status: { effect: 'poison', duration: 5 } },
+  toxic_powder: { name: 'Toxic Powder', type: 'Poison', radius: 2.8, duration: 5, damagePerSecond: 12,
+    status: { effect: 'poison', duration: 8 } },
+  toxic_cloud: { name: 'Toxic Cloud', type: 'Poison', radius: 5, duration: 8, damagePerSecond: 20,
+    status: { effect: 'poison', duration: 10 } },
 };
 
 /** How often a creep standing in a hazard has its status reapplied. */

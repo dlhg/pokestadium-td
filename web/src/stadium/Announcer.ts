@@ -27,6 +27,7 @@ export class StadiumAnnouncer {
     trait_airborne: { cooldown: 0, chance: 1 }, trait_phantom: { cooldown: 0, chance: 1 },
     trait_armored: { cooldown: 0, chance: 1 },
     signature: { cooldown: 0, chance: 1 },
+    pokemon_deploy: { cooldown: 0, chance: 1 },
     capture_success: { cooldown: 0, chance: 1 }, capture_failed: { cooldown: 0, chance: 1 },
   };
   private static readonly originalVoiceClips: Partial<Record<string, number[]>> = {
@@ -128,6 +129,11 @@ export class StadiumAnnouncer {
         ];
       case 'signature':
         return [{ text: detail || 'A SIGNATURE MOVE!', intensity: 'epic' }];
+      case 'pokemon_deploy':
+        return [
+          { text: `${(detail || 'POKÉMON').toUpperCase()}, I CHOOSE YOU!`, intensity: 'epic' },
+          { text: `${(detail || 'POKÉMON').toUpperCase()} TAKES THE FIELD!`, intensity: 'epic' },
+        ];
       case 'trait_airborne':
         return [{ text: "FLYERS INCOMING! GROUND ATTACKS WON'T TOUCH THEM!", intensity: 'high' }];
       case 'trait_phantom':
