@@ -31,6 +31,21 @@ export const TOWER_FOOTPRINT_RADIUS = 1.6;
 /** Height of the deploy pad a tower stands on, and so the tower's ground Y. */
 export const TOWER_BASE_HEIGHT = 0.3;
 
+/** Shared field-stone albedo: every tower uses one GPU texture. */
+let deployPadStone: THREE.Texture | undefined;
+function getDeployPadStone(): THREE.Texture | undefined {
+  // Gameplay tests run this module in Node, where image-backed textures do not
+  // exist. The tinted material remains a representative fallback there.
+  if (typeof document === 'undefined') return undefined;
+  if (!deployPadStone) {
+    deployPadStone = new THREE.TextureLoader().load('/textures/league-granite.png');
+    deployPadStone.colorSpace = THREE.SRGBColorSpace;
+    deployPadStone.minFilter = THREE.LinearMipmapLinearFilter;
+    deployPadStone.magFilter = THREE.NearestFilter;
+  }
+  return deployPadStone;
+}
+
 /** Range gained per unit a tower stands above its target, up to a summit-sized drop. */
 export const HIGH_GROUND_RANGE_PER_UNIT = 0.04;
 const HIGH_GROUND_MAX_DROP = 9;
@@ -147,11 +162,13 @@ export class Tower {
     this.loadAuthenticModel();
   }
 
-  /** Metallic deploy pad, sized to the footprint the placement rules enforce. */
+  /** League field plinth, sized to the footprint the placement rules enforce. */
   private createBasePad(): THREE.Group {
     const pad = new THREE.Group();
     pad.position.y = -TOWER_BASE_HEIGHT / 2;
 
+    // Keep the structural edge simple and chunky, like a low-poly piece of
+    // arena kit. The separate top prevents the stone albedo stretching down it.
     const disc = new THREE.Mesh(
       new THREE.CylinderGeometry(
         TOWER_FOOTPRINT_RADIUS * 0.88,
@@ -159,7 +176,7 @@ export class Tower {
         TOWER_BASE_HEIGHT,
         20
       ),
-      new THREE.MeshStandardMaterial({ color: 0x1d2d44, metalness: 0.7, roughness: 0.35 })
+      new THREE.MeshStandardMaterial({ color: 0x52616b, metalness: 0.12, roughness: 0.82, flatShading: true })
     );
     disc.receiveShadow = true;
     disc.castShadow = true;
@@ -168,15 +185,59 @@ export class Tower {
     // A stone footing sinks into the ground so a pad on a slope never floats.
     const footing = new THREE.Mesh(
       new THREE.CylinderGeometry(TOWER_FOOTPRINT_RADIUS, TOWER_FOOTPRINT_RADIUS * 1.08, 1.6, 20),
-      new THREE.MeshLambertMaterial({ color: 0x8a8272, flatShading: true })
+      new THREE.MeshLambertMaterial({ color: 0x766f62, flatShading: true })
     );
     footing.position.y = -TOWER_BASE_HEIGHT / 2 - 0.8;
     footing.receiveShadow = true;
     pad.add(footing);
 
+    const top = new THREE.Mesh(
+      new THREE.CircleGeometry(TOWER_FOOTPRINT_RADIUS * 0.875, 20),
+      new THREE.MeshStandardMaterial({
+        map: getDeployPadStone(),
+        color: 0xd8e0e2,
+        metalness: 0.04,
+        roughness: 0.92,
+      })
+    );
+    top.rotation.x = -Math.PI / 2;
+    top.position.y = TOWER_BASE_HEIGHT / 2 + 0.004;
+    top.receiveShadow = true;
+    pad.add(top);
+
+    // A recessed Poké Ball seal makes the plinth clearly player-authored while
+    // leaving most of the natural stone visible around the Pokémon's feet.
+    const sealRadius = TOWER_FOOTPRINT_RADIUS * 0.56;
+    const sealY = TOWER_BASE_HEIGHT / 2 + 0.012;
+    const red = new THREE.MeshBasicMaterial({ color: 0xb93a3f });
+    const cream = new THREE.MeshBasicMaterial({ color: 0xe8dfc4 });
+    const charcoal = new THREE.MeshBasicMaterial({ color: 0x27323a });
+    for (const [material, start] of [[red, 0], [cream, Math.PI]] as const) {
+      const half = new THREE.Mesh(new THREE.CircleGeometry(sealRadius, 16, start, Math.PI), material);
+      half.rotation.x = -Math.PI / 2;
+      half.position.y = sealY;
+      pad.add(half);
+    }
+    const band = new THREE.Mesh(new THREE.BoxGeometry(sealRadius * 2, 0.025, 0.13), charcoal);
+    band.position.y = sealY + 0.006;
+    pad.add(band);
+    const button = new THREE.Mesh(
+      new THREE.CylinderGeometry(sealRadius * 0.22, sealRadius * 0.22, 0.032, 12),
+      cream
+    );
+    button.position.y = sealY + 0.012;
+    pad.add(button);
+    const buttonRing = new THREE.Mesh(
+      new THREE.TorusGeometry(sealRadius * 0.22, 0.045, 6, 16),
+      charcoal
+    );
+    buttonRing.rotation.x = Math.PI / 2;
+    buttonRing.position.y = sealY + 0.03;
+    pad.add(buttonRing);
+
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(TOWER_FOOTPRINT_RADIUS * 0.9, 0.07, 8, 24),
-      new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+      new THREE.MeshStandardMaterial({ color: 0xd4ad4f, metalness: 0.42, roughness: 0.38 })
     );
     rim.rotation.x = Math.PI / 2;
     rim.position.y = TOWER_BASE_HEIGHT / 2;
