@@ -245,7 +245,6 @@ export const STADIUM_MAPS: StadiumMap[] = [
     decor:[
       { kind:'cave', x:-30.5, z:18, angle:0.82 },
       { kind:'cave', x:30.5, z:18, angle:-0.82 },
-      { kind:'arch', x:0, z:-30.5, angle:0, span:7.2, text:'MT. SILVER' },
       { kind:'torch', x:15.6, z:5 }, { kind:'torch', x:-15.6, z:5 },
       { kind:'torch', x:-13.8, z:-8.5 }, { kind:'torch', x:13.8, z:-10.7 },
       { kind:'torch', x:-13.2, z:-18.5 }, { kind:'torch', x:13.2, z:-18.5 },

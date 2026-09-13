@@ -66,12 +66,17 @@ window.addEventListener('DOMContentLoaded', () => {
     uiContainer.classList.add('shot-mode');
   }
   // map_<id> is the tactical course view; map3d_<id> frames the same course from the stands.
-  const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}` || shot === `map3d_${map.id}` || shot === `battle_${map.id}`);
+  const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}` || shot === `map3d_${map.id}` || shot === `battle_${map.id}` || shot === `exit_${map.id}`);
   if (courseShot) {
     game.loadMap(courseShot);
     game.announcer.update(60);
     game.isPaused = true;
     if (!shot!.startsWith('map_')) game.camera.setMode('stadium');
+    if (shot!.startsWith('exit_')) {
+      // Close framing keeps summit signage visible below the HUD.
+      const route = game.arena.waypoints;
+      game.camera.beginCinematic(route[route.length-1].clone().add(new THREE.Vector3(0,1,0)), 16, 10, 0);
+    }
     if (shot!.startsWith('battle_')) {
       // Defenders on each tier and climbers spread along the route, stairs included.
       const terrain = game.arena.terrain;
