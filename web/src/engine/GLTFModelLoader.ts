@@ -57,6 +57,65 @@ export class GLTFModelLoader {
   }
 
   /**
+   * Stadium's contact moves (Quick Attack, Tackle, Bite...) and many entrances
+   * carry the body across the field to where the opponent stood, often ending
+   * there. A tower never leaves its pad, so squash that ground travel into a
+   * short lunge and walk it home over the clip's last quarter. Hops (vertical
+   * travel) and limb motion are kept, and faints may still topple sideways.
+   */
+  private static tameRootMotion(scene: THREE.Group, animations: THREE.AnimationClip[], entry: ManifestPokemon): void {
+    scene.updateMatrixWorld(true);
+    const bones = new Set<THREE.Object3D>();
+    scene.traverse((node) => {
+      const skinned = node as THREE.SkinnedMesh;
+      if (skinned.isSkinnedMesh) skinned.skeleton.bones.forEach((bone) => bones.add(bone));
+    });
+    // The body root is whichever translated node carries most of the skeleton.
+    const carriesBody = (node: THREE.Object3D) => {
+      let carried = 0;
+      node.traverse((child) => { if (bones.has(child)) carried++; });
+      return carried * 2 >= bones.size;
+    };
+    const bodySize = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
+    const width = Math.max(bodySize.x, bodySize.z, 0.001);
+    const threshold = width * 0.3;
+    const cap = width * 0.25;
+    const faint = new Set(entry.animations
+      .filter((animation) => animation.contexts?.some((context) => context.startsWith('faint')))
+      .map((animation) => animation.index));
+
+    const toWorld = new THREE.Matrix3();
+    const toLocal = new THREE.Matrix3();
+    const offset = new THREE.Vector3();
+    animations.forEach((clip, index) => {
+      if (faint.has(index)) return;
+      for (const track of clip.tracks) {
+        if (!track.name.endsWith('.position') || track.values.length !== track.times.length * 3) continue;
+        const node = scene.getObjectByName(THREE.PropertyBinding.parseTrackName(track.name).nodeName);
+        if (!node?.parent || !carriesBody(node)) continue;
+        toWorld.setFromMatrix4(node.parent.matrixWorld);
+        toLocal.copy(toWorld).invert();
+        const values = track.values;
+        const [x0, y0, z0] = [values[0], values[1], values[2]];
+        const worldOffsets = Array.from(track.times, (_, key) => offset
+          .set(values[key * 3] - x0, values[key * 3 + 1] - y0, values[key * 3 + 2] - z0)
+          .applyMatrix3(toWorld).clone());
+        if (!worldOffsets.some((world) => Math.hypot(world.x, world.z) > threshold)) continue;
+        const duration = track.times[track.times.length - 1] || 1;
+        worldOffsets.forEach((world, key) => {
+          const travel = Math.hypot(world.x, world.z);
+          const homeward = THREE.MathUtils.smoothstep(track.times[key] / duration, 0.75, 1);
+          const kept = travel > 0 ? (cap * Math.tanh(travel / cap) / travel) * (1 - homeward) : 0;
+          offset.set(world.x * kept, world.y, world.z * kept).applyMatrix3(toLocal);
+          values[key * 3] = x0 + offset.x;
+          values[key * 3 + 1] = y0 + offset.y;
+          values[key * 3 + 2] = z0 + offset.z;
+        });
+      }
+    });
+  }
+
+  /**
    * Loads a species at the shared world scale (see PokemonScale), so sizes stay
    * relative to each other. Pass `fitHeight` to stretch it to a fixed height
    * instead, for close-up displays that frame one Pokémon on its own.
@@ -70,7 +129,10 @@ export class GLTFModelLoader {
     try {
       let pending = this.cache.get(url);
       if (!pending) {
-        pending = this.loader.loadAsync(url).then((gltf) => ({ scene: gltf.scene, animations: gltf.animations }));
+        pending = this.loader.loadAsync(url).then((gltf) => {
+          this.tameRootMotion(gltf.scene, gltf.animations, entry);
+          return { scene: gltf.scene, animations: gltf.animations };
+        });
         this.cache.set(url, pending);
       }
       const cached = await pending;
@@ -142,6 +204,14 @@ export class GLTFModelLoader {
       let currentState: PokemonAnimationState = 'idle';
       let currentAction = actions.idle || null;
       let requestedAttack = actions.attack || null;
+      // A second action on a copy of each attack clip, so a swing can cross-fade
+      // into a fresh swing of the same move instead of snapping back to frame 0.
+      const twins = new Map<THREE.AnimationAction, THREE.AnimationAction>();
+      const twinOf = (action: THREE.AnimationAction) => {
+        let twin = twins.get(action);
+        if (!twin) twins.set(action, twin = mixer.clipAction(action.getClip().clone()));
+        return twin;
+      };
       currentAction?.setLoop(THREE.LoopRepeat, Infinity).play();
       const parts: Record<string, THREE.Object3D> = {};
       clonedScene.traverse((node) => { if (node.name) parts[node.name] = node; });
@@ -157,9 +227,16 @@ export class GLTFModelLoader {
         },
         update(_time: number, dt: number, state: PokemonAnimationState) {
           mixer.update(dt);
-          if (state === currentState) return;
+          // A swing already under way plays out; retargeting or a new shot
+          // shouldn't cut it off mid-lunge. Hits, faints and entrances still can.
+          const swinging = currentState === 'attack' && !!currentAction?.isRunning();
+          if (swinging && (state === 'attack' || state === 'idle')) return;
+          // Still firing once the last swing has finished: swing again.
+          const again = state === 'attack' && currentState === 'attack';
+          if (state === currentState && !again) return;
           currentState = state;
-          const next = (state === 'attack' ? requestedAttack : actions[state]) || actions.idle;
+          let next = (state === 'attack' ? requestedAttack : actions[state]) || actions.idle;
+          if (next && next === currentAction && again) next = twinOf(next);
           if (!next || next === currentAction) return;
           currentAction?.fadeOut(0.12);
           next.reset().fadeIn(0.12);
