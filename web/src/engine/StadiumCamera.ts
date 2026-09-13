@@ -199,6 +199,29 @@ export class StadiumCamera {
     this.cinematic.orbitSpeed = orbitSpeed;
   }
 
+  /** Resolves the actual camera position for a cinematic angle, including the bowl clamp. */
+  public cinematicPositionAt(
+    focus: THREE.Vector3,
+    distance: number,
+    height: number,
+    angle: number,
+    result: THREE.Vector3 = new THREE.Vector3(),
+  ): THREE.Vector3 {
+    result.set(
+      focus.x + Math.sin(angle) * distance,
+      focus.y + height,
+      focus.z + Math.cos(angle) * distance,
+    );
+    const reach = Math.hypot(result.x, result.z);
+    if (reach > this.arenaLimit) {
+      const pullIn = this.arenaLimit / reach;
+      result.x *= pullIn;
+      result.z *= pullIn;
+      result.y += height * 0.35;
+    }
+    return result;
+  }
+
   public releaseCinematic(): void {
     if (!this.cinematic) return;
     this.desiredPos.copy(this.cinematic.restore.pos);
@@ -220,20 +243,9 @@ export class StadiumCamera {
     if (this.cinematic) {
       const shot = this.cinematic;
       shot.angle += shot.orbitSpeed * dt;
-      this.desiredPos.set(
-        shot.focus.x + Math.sin(shot.angle) * shot.distance,
-        shot.focus.y + shot.height,
-        shot.focus.z + Math.cos(shot.angle) * shot.distance,
-      );
       // The orbit must stay inside the bowl: a set piece near the rim would
       // otherwise swing the camera into the grandstands and clip through them.
-      const reach = Math.hypot(this.desiredPos.x, this.desiredPos.z);
-      if (reach > this.arenaLimit) {
-        const pullIn = this.arenaLimit / reach;
-        this.desiredPos.x *= pullIn;
-        this.desiredPos.z *= pullIn;
-        this.desiredPos.y += shot.height * 0.35;
-      }
+      this.cinematicPositionAt(shot.focus, shot.distance, shot.height, shot.angle, this.desiredPos);
       this.desiredTarget.copy(shot.focus).add(new THREE.Vector3(0, 0.9, 0));
     }
 

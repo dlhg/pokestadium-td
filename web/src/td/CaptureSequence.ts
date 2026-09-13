@@ -94,6 +94,8 @@ const VERDICT_HOLD_SUCCESS = 1.9;
 const VERDICT_HOLD_FAIL = 1.3;
 const AIM_TIMEOUT = 3.4;
 const BALL_REST_Y = 0.34;
+const CAMERA_ANGLE_SAMPLES = 32;
+const CAMERA_OBSTACLE_MARGIN = 0.45;
 
 export class CaptureSequence {
   public readonly group = new THREE.Group();
@@ -411,7 +413,11 @@ export class CaptureSequence {
     if (!this.firedSettle && p > 0.9) {
       this.firedSettle = true;
       this.stage.audio.playCaptureLand();
-      this.stage.camera.setCinematicFraming(this.target.threat === 'titan' ? 4.0 : 4.6, 1.5);
+      const distance = this.target.threat === 'titan' ? 4.0 : 4.6;
+      // Once the ball lands, stop the orbit on a sightline that does not put
+      // authored scenery or a terrace lip between the camera and the ball.
+      this.stage.camera.setCinematicAngle(this.clearestAngle(distance, 1.5), 0);
+      this.stage.camera.setCinematicFraming(distance, 1.5);
       this.stage.particles.emitGroundBurst(this.restPos, 0xdad3c4, 1.2, 14);
     }
   }
@@ -453,7 +459,10 @@ export class CaptureSequence {
       this.hud.verdict = this.success ? 'caught' : 'broke';
       this.hud.wobbles = this.success ? this.profile.wobbles : this.clicksFired;
       this.stage.camera.punchZoom(this.success ? 12 : 14);
-      this.stage.camera.setCinematicFraming(this.success ? 8.5 : 7, this.success ? 3.6 : 2.6);
+      const distance = this.success ? 8.5 : 7;
+      const height = this.success ? 3.6 : 2.6;
+      this.stage.camera.setCinematicAngle(this.clearestAngle(distance, height), 0);
+      this.stage.camera.setCinematicFraming(distance, height);
       this.stage.camera.shake(this.success ? 0.4 : 0.8);
       this.stage.audio.duckCrowd(this.success ? 1.9 : 1.1, 0.25);
       // The stands erupt on a catch and deflate into a murmur on a break.
@@ -531,8 +540,59 @@ export class CaptureSequence {
    * and looks outward: a capture near the rim would otherwise open the shot
    * inside the grandstand wall behind it.
    */
-  private clearestAngle(): number {
-    return Math.atan2(-this.restPos.x, -this.restPos.z);
+  private clearestAngle(distance: number = 9.5, height: number = 3.2): number {
+    const preferred = Math.atan2(-this.restPos.x, -this.restPos.z);
+    const eye = new THREE.Vector3();
+    let bestAngle = preferred;
+    let bestScore = -Infinity;
+
+    for (let sample = 0; sample < CAMERA_ANGLE_SAMPLES; sample++) {
+      // Search symmetrically away from the pitch-centre side so the familiar
+      // composition wins whenever it is clear.
+      const step = sample === 0 ? 0 : Math.ceil(sample / 2) * (sample % 2 ? 1 : -1);
+      const angle = preferred + step * Math.PI * 2 / CAMERA_ANGLE_SAMPLES;
+      this.stage.camera.cinematicPositionAt(this.restPos, distance, height, angle, eye);
+      const clearance = Math.min(2, this.captureSightlineClearance(eye));
+      const angleCost = Math.abs(step) * Math.PI * 2 / CAMERA_ANGLE_SAMPLES * 0.18;
+      const score = clearance - angleCost;
+      if (score > bestScore) {
+        bestScore = score;
+        bestAngle = angle;
+      }
+    }
+    return bestAngle;
+  }
+
+  /** Minimum clearance beneath the view ray; negative means scenery blocks the ball. */
+  private captureSightlineClearance(eye: THREE.Vector3): number {
+    const subject = this.restPos.clone().add(new THREE.Vector3(0, 0.18, 0));
+    const dx = subject.x - eye.x;
+    const dz = subject.z - eye.z;
+    const lengthSq = dx * dx + dz * dz;
+    let clearance = Infinity;
+
+    for (const obstacle of this.stage.arena.getNoBuildZones()) {
+      const projection = lengthSq > 0
+        ? THREE.MathUtils.clamp(((obstacle.x - eye.x) * dx + (obstacle.z - eye.z) * dz) / lengthSq, 0, 1)
+        : 0;
+      const nearestX = eye.x + dx * projection;
+      const nearestZ = eye.z + dz * projection;
+      clearance = Math.min(
+        clearance,
+        Math.hypot(obstacle.x - nearestX, obstacle.z - nearestZ) - obstacle.radius - CAMERA_OBSTACLE_MARGIN,
+      );
+    }
+
+    // A low hero shot can also disappear into the face of a raised terrace.
+    // Stop before the endpoint: the ball is expected to sit just above its own ground.
+    for (let sample = 1; sample <= 12; sample++) {
+      const t = sample / 15;
+      const x = THREE.MathUtils.lerp(eye.x, subject.x, t);
+      const z = THREE.MathUtils.lerp(eye.z, subject.z, t);
+      const rayY = THREE.MathUtils.lerp(eye.y, subject.y, t);
+      clearance = Math.min(clearance, rayY - this.stage.arena.terrain.heightAt(x, z) - 0.12);
+    }
+    return clearance;
   }
 
   public dispose(scene: THREE.Scene): void {
