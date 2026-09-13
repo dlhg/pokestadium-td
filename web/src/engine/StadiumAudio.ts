@@ -73,10 +73,14 @@ export class StadiumAudio {
     try {
       const manifests: { base: string; manifest: NativeAudioManifest }[] = [];
       for (const base of [StadiumAudio.nativeAudioBase, StadiumAudio.bundledMusicBase]) {
-        const response = await fetch(`${base}manifest.json`);
-        if (!response.ok) continue;
-        const manifest = await response.json() as NativeAudioManifest;
-        if (manifest.version === 1) manifests.push({ base, manifest });
+        try {
+          const response = await fetch(`${base}manifest.json`);
+          if (!response.ok) continue;
+          const manifest = JSON.parse(await response.text()) as NativeAudioManifest;
+          if (manifest.version === 1) manifests.push({ base, manifest });
+        } catch {
+          // Optional manifests may not exist, or a dev server may return its HTML fallback.
+        }
       }
       this.musicIds = manifests.flatMap(({ manifest }) => Object.keys(manifest.music ?? {}));
       this.onMusicCatalogChanged?.();
@@ -86,10 +90,14 @@ export class StadiumAudio {
       ]);
       await Promise.all(entries.map(async ({ base, id, relativeUrl }) => {
         if (relativeUrl.startsWith('/') || relativeUrl.split('/').some(part => part === '.' || part === '..') || !/^[^#[\]?]+\.(wav|ogg|mp3)$/i.test(relativeUrl)) return;
-        const audioResponse = await fetch(`${base}${relativeUrl}`);
-        if (!audioResponse.ok || !this.ctx) return;
-        const buffer = await this.ctx.decodeAudioData(await audioResponse.arrayBuffer());
-        this.nativeBuffers.set(id, buffer);
+        try {
+          const audioResponse = await fetch(`${base}${relativeUrl}`);
+          if (!audioResponse.ok || !this.ctx) return;
+          const buffer = await this.ctx.decodeAudioData(await audioResponse.arrayBuffer());
+          this.nativeBuffers.set(id, buffer);
+        } catch {
+          // One unavailable or malformed optional clip must not suppress the rest.
+        }
       }));
       if (this.requestedMusicId) this.startMusic(this.requestedMusicId);
     } catch {
