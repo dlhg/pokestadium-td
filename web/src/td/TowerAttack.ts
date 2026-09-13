@@ -7,7 +7,8 @@
  * `buildAttackProfile` folds the bought tiers into the attack the tower fires.
  */
 
-import { MOVES, MoveDefinition, StatusEffectType } from '../stadium/MoveDatabase';
+import { isGroundOnly, MOVES, MoveDefinition, StatusEffectType } from '../stadium/MoveDatabase';
+import type { CreepTrait } from './Creep';
 import type { HazardId } from './Hazard';
 
 /** Buying into a second path caps it here; only one path climbs past it. */
@@ -41,8 +42,28 @@ export type TierEffect =
   | { kind: 'slowAura'; slow: number }
   /** Towers in range attack faster. The strongest buff on a tower wins. */
   | { kind: 'rateAura'; bonus: number }
+  /** Extra damage to Titans and elites, a trait, or creeps already held by a status. */
+  | { kind: 'bonusVs'; target: BonusTarget; multiplier: number }
+  /** Each hit also removes a share of the creep's current HP. Bosses lose far less. */
+  | { kind: 'percentDamage'; share: number; bossShare: number }
+  /** Attack rate climbs while the tower keeps firing and drains away while idle. */
+  | { kind: 'spinUp'; perShot: number; max: number }
+  /** Fires at this many different creeps at once. */
+  | { kind: 'multishot'; count: number }
+  /** Hits harder the more creeps are in range. */
+  | { kind: 'crowdPower'; perCreep: number; max: number }
+  /** Hits harder as the Pokémon levels up. */
+  | { kind: 'levelPower'; perLevel: number }
+  /** This tower can aim at Phantoms. */
+  | { kind: 'seePhantoms' }
+  /** Every tower in range can aim at Phantoms. */
+  | { kind: 'revealAura' }
+  /** Prize money paid when a creep this tower hit faints. */
+  | { kind: 'bounty'; money: number }
   /** Unlocks a signature move the player triggers. */
   | { kind: 'signature'; signatureId: string };
+
+export type BonusTarget = CreepTrait | 'boss' | 'held';
 
 export interface AttackProfile {
   move: MoveDefinition;
@@ -57,6 +78,15 @@ export interface AttackProfile {
   knockback: number;
   slowAura: number;
   rateAura: number;
+  bonusVs: { target: BonusTarget; multiplier: number }[];
+  percentDamage: { share: number; bossShare: number } | null;
+  spinUp: { perShot: number; max: number } | null;
+  multishot: number;
+  crowdPower: { perCreep: number; max: number } | null;
+  levelPower: number;
+  seePhantoms: boolean;
+  revealAura: boolean;
+  bounty: number;
   signatures: string[];
 }
 
@@ -89,6 +119,15 @@ export function buildAttackProfile(basicAttack: string, pathsInOrder: TierEffect
     knockback: 0,
     slowAura: 0,
     rateAura: 0,
+    bonusVs: [],
+    percentDamage: null,
+    spinUp: null,
+    multishot: 1,
+    crowdPower: null,
+    levelPower: 0,
+    seePhantoms: false,
+    revealAura: false,
+    bounty: 0,
     signatures: [],
   };
   let damageScale = 1;
@@ -113,6 +152,20 @@ export function buildAttackProfile(basicAttack: string, pathsInOrder: TierEffect
       case 'knockback': profile.knockback = Math.max(profile.knockback, effect.distance); break;
       case 'slowAura': profile.slowAura = Math.max(profile.slowAura, effect.slow); break;
       case 'rateAura': profile.rateAura = Math.max(profile.rateAura, effect.bonus); break;
+      case 'bonusVs': {
+        const existing = profile.bonusVs.find(bonus => bonus.target === effect.target);
+        if (existing) existing.multiplier = Math.max(existing.multiplier, effect.multiplier);
+        else profile.bonusVs.push({ target: effect.target, multiplier: effect.multiplier });
+        break;
+      }
+      case 'percentDamage': profile.percentDamage = { share: effect.share, bossShare: effect.bossShare }; break;
+      case 'spinUp': profile.spinUp = { perShot: effect.perShot, max: effect.max }; break;
+      case 'multishot': profile.multishot = Math.max(profile.multishot, effect.count); break;
+      case 'crowdPower': profile.crowdPower = { perCreep: effect.perCreep, max: effect.max }; break;
+      case 'levelPower': profile.levelPower = Math.max(profile.levelPower, effect.perLevel); break;
+      case 'seePhantoms': profile.seePhantoms = true; break;
+      case 'revealAura': profile.revealAura = true; break;
+      case 'bounty': profile.bounty = Math.max(profile.bounty, effect.money); break;
       case 'signature': profile.signatures.push(effect.signatureId); break;
     }
   }
@@ -127,6 +180,6 @@ export function attackChips(profile: AttackProfile, seesPhantoms: boolean): stri
   const chips: string[] = [];
   if (profile.move.heavy || profile.move.ignoresType) chips.push('HEAVY');
   if (seesPhantoms) chips.push('SEES PHANTOMS');
-  if (profile.move.delivery === 'field') chips.push('GROUND ONLY');
+  if (isGroundOnly(profile.move)) chips.push('GROUND ONLY');
   return chips.slice(0, 3);
 }

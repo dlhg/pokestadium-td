@@ -160,7 +160,29 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  if (shot && shot !== 'map_select' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_')) {
+  // summon_<beat>: a freshly placed Pokémon arriving from its Poké Ball.
+  if (shot?.startsWith('summon_')) {
+    game.loadMap(STADIUM_MAPS[0]);
+    game.isPaused = true;
+    game.camera.setMode('stadium');
+    const tower = new Tower(shotPokemon('pikachu', 18), new THREE.Vector3(0, TOWER_BASE_HEIGHT, 0));
+    game.renderer.scene.add(tower.group);
+    game.towers.push(tower);
+
+    // Let the authentic model settle before freezing a reveal frame; otherwise
+    // its async swap can replace the carefully staged scale after the shot stops.
+    window.setTimeout(() => {
+      game.forceSummon(tower);
+      const step = (frames: number) => { for (let i = 0; i < frames; i++) game.update(1 / 60, input); };
+      if (shot === 'summon_throw') step(28);
+      else if (shot === 'summon_burst') step(48);
+      else if (shot === 'summon_reveal') step(98);
+      else step(126);
+      frozenShot = true;
+    }, 1200);
+  }
+
+  if (shot && shot !== 'map_select' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

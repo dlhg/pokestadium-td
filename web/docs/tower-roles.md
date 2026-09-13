@@ -326,6 +326,13 @@ playtesting can move them.
   `1`–`3` to `C` (cycles tactical → stadium → action).
 - **Aimed signatures** come in two kinds: `point` (click a spot) and `line` (click a
   direction from the tower). Casting is blocked while paused.
+- **Tier level gates** for the rest of the roster: tier 2 at Lv 8, tier 3 at the middle
+  form's level capped at 25 (Lv 20 for single-stage species). Magikarp's paths all wait
+  on Lv 20, when it becomes Gyarados and its attack changes (`formAttacks`).
+- **Roster roles as built** differ slightly from section 8 where a mechanic would have
+  needed new systems: Pidgey is a *Spotter* (reveals Phantoms for nearby towers)
+  instead of a patroller, Onix walls the lane with stone hazards rather than blocking
+  it outright, and Psyduck is a *Mind Blast* that hits harder the more creeps crowd it.
 - **Trait callouts:** shown the first time a trait appears in each match, not once per
   save, so there is no save schema change.
 
@@ -377,6 +384,6 @@ Tick each box as it lands. Each phase ends with `npm run build`,
 
 ### Phase 4 · The rest of the roster
 
-- [ ] Paths for the remaining 19 species from the roles table
-- [ ] Remove the adapter and unused legacy moves
-- [ ] Update `CLAUDE.md` subsystem notes
+- [x] Paths for the remaining 19 species from the roles table
+- [x] Remove the adapter and unused legacy moves
+- [x] Update `CLAUDE.md` subsystem notes

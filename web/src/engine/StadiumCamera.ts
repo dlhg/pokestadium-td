@@ -192,6 +192,13 @@ export class StadiumCamera {
     this.cinematic.height = height;
   }
 
+  /** Turns a live cinematic onto an exact subject angle and optionally holds it there. */
+  public setCinematicAngle(angle: number, orbitSpeed: number = 0): void {
+    if (!this.cinematic) return;
+    this.cinematic.angle = angle;
+    this.cinematic.orbitSpeed = orbitSpeed;
+  }
+
   public releaseCinematic(): void {
     if (!this.cinematic) return;
     this.desiredPos.copy(this.cinematic.restore.pos);

@@ -49,7 +49,9 @@ export const ARMOR_LIGHT_MULTIPLIER = 0.5;
 export const TITAN_CONTROL_DURATION = 0.5;
 
 /** A stronger hold displaces a weaker one; equal holds keep whichever lasts longer. */
-const MOVEMENT_PRIORITY: Record<MovementStatus, number> = { freeze: 1, paralyze: 2, stun: 3, sleep: 3 };
+const MOVEMENT_PRIORITY: Record<MovementStatus, number> = { freeze: 1, paralyze: 2, confuse: 2, stun: 3, sleep: 3 };
+/** A confused creep stumbles back the way it came at this share of its speed. */
+const CONFUSED_BACKSTEP = 0.5;
 
 interface StatusSlot<T> { effect: T; timer: number; source: Tower | null }
 
@@ -480,6 +482,9 @@ export class Creep {
       } else if (hold.effect === 'paralyze') {
         // Intermittent stutter
         this.speed = Math.sin(time * 20) > 0.2 ? 0 : this.baseSpeed * 0.6;
+      } else if (hold.effect === 'confuse') {
+        this.speed = 0;
+        this.pushBack(this.baseSpeed * CONFUSED_BACKSTEP * (1 - this.auraSlow) * dt);
       } else {
         this.speed = 0;
       }

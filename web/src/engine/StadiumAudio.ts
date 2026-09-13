@@ -13,12 +13,27 @@ interface NativeAudioManifest {
   music?: Record<string, string>;
 }
 
+function clampVolume(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
+}
+
+function readAudioVolume(kind: 'music' | 'sfx', fallback: number): number {
+  if (typeof localStorage === 'undefined') return fallback;
+  const value = Number(localStorage.getItem(`pokestadium.${kind}Volume`));
+  return Number.isFinite(value) ? clampVolume(value) : fallback;
+}
+
 export class StadiumAudio {
   private static readonly nativeAudioBase = '/generated/stadium/audio/';
+  private static readonly bundledMusicBase = '/music/';
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
   private crowdNode: AudioBufferSourceNode | null = null;
   private crowdGain: GainNode | null = null;
+  private sfxBus: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private musicVolume = readAudioVolume('music', 1);
+  private sfxVolume = readAudioVolume('sfx', 1);
   private nativeLoadStarted = false;
   private nativeBuffers = new Map<string, AudioBuffer>();
   private musicNode: AudioBufferSourceNode | null = null;
@@ -37,6 +52,12 @@ export class StadiumAudio {
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
+      this.sfxBus = this.ctx.createGain();
+      this.sfxBus.gain.value = this.sfxVolume;
+      this.sfxBus.connect(this.ctx.destination);
+      this.musicBus = this.ctx.createGain();
+      this.musicBus.gain.value = this.musicVolume;
+      this.musicBus.connect(this.ctx.destination);
       this.initCrowdAmbiance();
       void this.loadNativeAudio();
     }
@@ -50,17 +71,22 @@ export class StadiumAudio {
     if (!this.ctx || this.nativeLoadStarted) return;
     this.nativeLoadStarted = true;
     try {
-      const response = await fetch(`${StadiumAudio.nativeAudioBase}manifest.json`);
-      if (!response.ok) return;
-      const manifest = await response.json() as NativeAudioManifest;
-      if (manifest.version !== 1) return;
-      this.musicIds = Object.keys(manifest.music ?? {});
+      const manifests: { base: string; manifest: NativeAudioManifest }[] = [];
+      for (const base of [StadiumAudio.nativeAudioBase, StadiumAudio.bundledMusicBase]) {
+        const response = await fetch(`${base}manifest.json`);
+        if (!response.ok) continue;
+        const manifest = await response.json() as NativeAudioManifest;
+        if (manifest.version === 1) manifests.push({ base, manifest });
+      }
+      this.musicIds = manifests.flatMap(({ manifest }) => Object.keys(manifest.music ?? {}));
       this.onMusicCatalogChanged?.();
-      const entries = [...Object.entries(manifest.sounds ?? {}), ...Object.entries(manifest.music ?? {})];
-      await Promise.all(entries.map(async ([id, relativeUrl]) => {
-        // Keep the manifest local to the generated audio directory.
-        if (relativeUrl.split('/').some(part => part === '.' || part === '..') || !/^[a-zA-Z0-9_./-]+\.(wav|ogg|mp3)$/i.test(relativeUrl)) return;
-        const audioResponse = await fetch(`${StadiumAudio.nativeAudioBase}${relativeUrl}`);
+      const entries = manifests.flatMap(({ base, manifest }) => [
+        ...Object.entries(manifest.sounds ?? {}).map(([id, relativeUrl]) => ({ base, id, relativeUrl })),
+        ...Object.entries(manifest.music ?? {}).map(([id, relativeUrl]) => ({ base, id, relativeUrl })),
+      ]);
+      await Promise.all(entries.map(async ({ base, id, relativeUrl }) => {
+        if (relativeUrl.startsWith('/') || relativeUrl.split('/').some(part => part === '.' || part === '..') || !/^[^#[\]?]+\.(wav|ogg|mp3)$/i.test(relativeUrl)) return;
+        const audioResponse = await fetch(`${base}${relativeUrl}`);
         if (!audioResponse.ok || !this.ctx) return;
         const buffer = await this.ctx.decodeAudioData(await audioResponse.arrayBuffer());
         this.nativeBuffers.set(id, buffer);
@@ -90,7 +116,7 @@ export class StadiumAudio {
     source.buffer = buffer;
     gain.gain.value = 0.8;
     source.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.sfxBus ?? this.ctx.destination);
     source.start();
     return true;
   }
@@ -105,7 +131,7 @@ export class StadiumAudio {
       this.musicNode = null;
       this.musicGain = null;
     }
-    const buffer = this.nativeBuffers.get(id);
+    const buffer = this.nativeBuffers.get(id) ?? (id === 'battle_theme' ? this.nativeBuffers.get('free_battle') : undefined);
     if (!buffer) return;
     const source = this.ctx.createBufferSource();
     const gain = this.ctx.createGain();
@@ -113,7 +139,7 @@ export class StadiumAudio {
     source.loop = true;
     gain.gain.value = 0.45;
     source.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.musicBus ?? this.ctx.destination);
     source.start();
     this.musicNode = source;
     this.musicGain = gain;
@@ -128,10 +154,24 @@ export class StadiumAudio {
   }
 
   public setMusicVolume(value: number): void {
-    if (this.musicGain && this.ctx) {
-      this.musicGain.gain.setTargetAtTime(Math.max(0, Math.min(1, value)), this.ctx.currentTime, 0.01);
+    this.musicVolume = clampVolume(value);
+    localStorage.setItem('pokestadium.musicVolume', String(this.musicVolume));
+    if (this.musicBus && this.ctx) {
+      this.musicBus.gain.setTargetAtTime(this.musicVolume, this.ctx.currentTime, 0.01);
     }
   }
+
+  public getMusicVolume(): number { return this.musicVolume; }
+
+  public setSfxVolume(value: number): void {
+    this.sfxVolume = clampVolume(value);
+    localStorage.setItem('pokestadium.sfxVolume', String(this.sfxVolume));
+    if (this.sfxBus && this.ctx) {
+      this.sfxBus.gain.setTargetAtTime(this.sfxVolume, this.ctx.currentTime, 0.01);
+    }
+  }
+
+  public getSfxVolume(): number { return this.sfxVolume; }
 
   private initCrowdAmbiance(): void {
     if (!this.ctx) return;
@@ -167,7 +207,7 @@ export class StadiumAudio {
 
       noise.connect(filter);
       filter.connect(this.crowdGain);
-      this.crowdGain.connect(this.ctx.destination);
+      this.crowdGain.connect(this.sfxBus ?? this.ctx.destination);
 
       noise.start(0);
       this.crowdNode = noise;
@@ -193,7 +233,7 @@ export class StadiumAudio {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.sfxBus ?? this.ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.1);
@@ -216,10 +256,29 @@ export class StadiumAudio {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.sfxBus ?? this.ctx.destination);
 
     osc.start(now);
     osc.stop(now + 0.2);
+  }
+
+  /** Air-cutting spin as a trainer sends a Poké Ball onto the pitch. */
+  public playSummonThrow(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('summon_throw', 'capture_throw')) return;
+    this.noiseBurst(0.42, 2400, 420, 0.22);
+    this.tone('triangle', 320, 760, 0.36, 0.12);
+  }
+
+  /** Bright release chord when the Poké Ball opens. */
+  public playSummonRelease(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('summon_release', 'capture_break')) return;
+    this.noiseBurst(0.32, 3200, 900, 0.2);
+    this.tone('sine', 520, 1480, 0.4, 0.2);
+    this.tone('triangle', 780, 1960, 0.32, 0.12, 0.04);
   }
 
   public playAttack(type: string): void {
@@ -239,7 +298,7 @@ export class StadiumAudio {
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.sfxBus ?? this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.2);
         break;
@@ -254,7 +313,7 @@ export class StadiumAudio {
         gain.gain.setValueAtTime(0.25, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.sfxBus ?? this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.25);
         break;
@@ -269,7 +328,7 @@ export class StadiumAudio {
         gain.gain.setValueAtTime(0.22, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.sfxBus ?? this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.18);
         break;
@@ -283,7 +342,7 @@ export class StadiumAudio {
         gain.gain.setValueAtTime(0.18, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.sfxBus ?? this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.15);
       }
@@ -307,7 +366,7 @@ export class StadiumAudio {
     gain.gain.exponentialRampToValueAtTime(0.001, now + (isSuperEffective ? 0.25 : 0.15));
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.sfxBus ?? this.ctx.destination);
 
     osc.start(now);
     osc.stop(now + (isSuperEffective ? 0.25 : 0.15));
@@ -348,7 +407,7 @@ export class StadiumAudio {
 
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.sfxBus ?? this.ctx.destination);
     source.start(now);
     source.stop(now + duration);
   }
@@ -365,7 +424,7 @@ export class StadiumAudio {
     gain.gain.setValueAtTime(peak, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.sfxBus ?? this.ctx.destination);
     osc.start(now);
     osc.stop(now + duration);
   }
@@ -477,7 +536,7 @@ export class StadiumAudio {
       gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.25);
 
       osc.connect(gain);
-      gain.connect(this.ctx!.destination);
+      gain.connect(this.sfxBus ?? this.ctx!.destination);
 
       osc.start(noteTime);
       osc.stop(noteTime + 0.25);

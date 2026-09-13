@@ -10,7 +10,7 @@
  */
 
 import * as THREE from 'three';
-import { isDamageStatus, isHeavy, MoveDefinition, StatusEffectType } from '../stadium/MoveDatabase';
+import { isDamageStatus, isGroundOnly, isHeavy, MoveDefinition, StatusEffectType } from '../stadium/MoveDatabase';
 import { TYPE_COLORS, getCombinedEffectiveness } from '../stadium/TypeMatrix';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { StadiumAudio } from '../engine/StadiumAudio';
@@ -18,7 +18,7 @@ import { StadiumCamera } from '../engine/StadiumCamera';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { ARMOR_LIGHT_MULTIPLIER, Creep } from './Creep';
 import type { ShotInfo, Tower } from './Tower';
-import type { AttackProfile } from './TowerAttack';
+import type { AttackProfile, BonusTarget } from './TowerAttack';
 
 /** Half the width of a beam's hit corridor, in arena units. */
 export const BEAM_HALF_WIDTH = 1.4;
@@ -37,6 +37,8 @@ export interface HitExtras {
   chain?: number;
   knockback?: number;
   spreadStatusRadius?: number;
+  bonusVs?: { target: BonusTarget; multiplier: number }[];
+  percentDamage?: { share: number; bossShare: number } | null;
 }
 
 export function hitExtrasFor(attack: AttackProfile, shot: ShotInfo): HitExtras {
@@ -47,6 +49,8 @@ export function hitExtrasFor(attack: AttackProfile, shot: ShotInfo): HitExtras {
     chain: attack.chain,
     knockback: attack.knockback,
     spreadStatusRadius: attack.spreadStatusRadius,
+    bonusVs: attack.bonusVs,
+    percentDamage: attack.percentDamage,
   };
 }
 
@@ -98,7 +102,8 @@ export function collectVictims(
   creeps: Creep[],
   geometry: MoveGeometry | null,
 ): Creep[] {
-  const hittable = (creep: Creep) => creep.alive && !creep.captureLocked;
+  const groundOnly = isGroundOnly(move);
+  const hittable = (creep: Creep) => creep.alive && !creep.captureLocked && !(groundOnly && creep.hasTrait('airborne'));
   const shape = geometry ? move.delivery : 'projectile';
 
   switch (shape) {
@@ -122,7 +127,7 @@ export function collectVictims(
 
     case 'field': {
       const { origin, reach } = geometry!;
-      return creeps.filter(creep => hittable(creep) && !creep.hasTrait('airborne')
+      return creeps.filter(creep => hittable(creep)
         && Math.hypot(creep.position.x - origin.x, creep.position.z - origin.z) <= reach);
     }
 
@@ -238,7 +243,18 @@ export function strikeCreeps(
     const { damage, multiplier } = hitDamage(move, victim);
     if (multiplier >= 2.0) superEffective = true;
 
-    const died = victim.takeDamage(Math.floor(damage * share * mods.damage * (extras.damageMultiplier ?? 1)), source);
+    let bonus = 1;
+    for (const { target, multiplier: extra } of extras.bonusVs ?? []) {
+      const applies = target === 'boss' ? victim.threat !== 'normal'
+        : target === 'held' ? victim.movementStatus !== null
+        : victim.hasTrait(target);
+      if (applies) bonus *= extra;
+    }
+    // A share of what the creep has left, on top of the hit — unless its type is immune.
+    const percent = extras.percentDamage && multiplier > 0
+      ? victim.hp * (victim.isBoss ? extras.percentDamage.bossShare : extras.percentDamage.share) * share
+      : 0;
+    const died = victim.takeDamage(Math.floor(damage * share * mods.damage * (extras.damageMultiplier ?? 1) * bonus + percent), source);
     if (died) {
       ctx.onFaint(victim);
       continue;
