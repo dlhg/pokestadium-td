@@ -59,6 +59,9 @@ const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
   already_deployed: 'ALREADY ON THE FIELD',
 };
 
+/** A successful-capture prompt is informational, not a persistent mode hint. */
+const CAPTURE_DEPLOY_HINT_DURATION = 5;
+
 export class StadiumTDGame {
   public renderer!: StadiumRenderer;
   public camera!: StadiumCamera;
@@ -118,6 +121,8 @@ export class StadiumTDGame {
   private placementStatus: PlacementStatus | null = null;
   private selectedBall: BallType | null = null;
   private captureHint: string | null = null;
+  private captureHintTimer = 0;
+  private timedCaptureHint: string | null = null;
   private capture: { sequence: CaptureSequence; target: Creep; ball: BallType } | null = null;
   private evolution: { sequence: EvolutionSequence } | null = null;
   private summon: { sequence: SummonSequence; tower: Tower } | null = null;
@@ -596,6 +601,8 @@ export class StadiumTDGame {
       this.store.commit();
       this.money += Math.ceil(target.reward * 1.5);
       this.captureHint = `CAUGHT ${target.name.replace(/^Titan /, '').toUpperCase()}! READY TO DEPLOY`;
+      this.timedCaptureHint = this.captureHint;
+      this.captureHintTimer = CAPTURE_DEPLOY_HINT_DURATION;
       this.announcer.trigger('capture_success', target.name);
       this.audio.playFanfare();
       if (caught) this.promptNickname(caught);
@@ -832,6 +839,7 @@ export class StadiumTDGame {
   }
 
   public update(realDt: number, input: Input): void {
+    this.updateTimedCaptureHint(realDt);
     if (this.isChoosingMap) {
       this.camera.update(realDt);
       this.renderer.update(realDt, 0);
@@ -1063,6 +1071,16 @@ export class StadiumTDGame {
         signatures: this.signatureSlots(),
       }
     );
+  }
+
+  private updateTimedCaptureHint(realDt: number): void {
+    if (this.captureHintTimer <= 0) return;
+
+    this.captureHintTimer = Math.max(0, this.captureHintTimer - realDt);
+    if (this.captureHintTimer > 0) return;
+
+    if (this.captureHint === this.timedCaptureHint) this.captureHint = null;
+    this.timedCaptureHint = null;
   }
 
   /** Every signature on the pitch, in placement order — the bar and the 1–9 hotkeys. */
