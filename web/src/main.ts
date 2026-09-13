@@ -134,7 +134,28 @@ window.addEventListener('DOMContentLoaded', () => {
     game.camera.beginCinematic(focus, shot === 'scale_titans' ? 11 : 8, shot === 'scale_titans' ? 8 : 5.5, 0);
   }
 
-  if (shot && shot !== 'map_select' && !courseShot && !shot.startsWith('scale_')) {
+  // evolution_<beat>: a lone Charmander mid-evolution, staged and stepped to
+  // one of the set piece's beats without waiting on real knockout XP.
+  if (shot?.startsWith('evolution_')) {
+    game.loadMap(STADIUM_MAPS[0]);
+    game.isPaused = true;
+    game.camera.setMode('stadium');
+    const tower = new Tower(shotPokemon('charmander', 15), new THREE.Vector3(0, TOWER_BASE_HEIGHT, 0));
+    game.renderer.scene.add(tower.group);
+    game.towers.push(tower);
+
+    window.setTimeout(() => {
+      tower.pokemon.stage = 1; // The level-up that triggers this already landed on the record.
+      game.forceEvolution(tower, 'Charmander', 'Charmeleon');
+      const step = (frames: number) => { for (let i = 0; i < frames; i++) game.update(1 / 60, input); };
+      if (shot === 'evolution_charge') step(35);
+      else if (shot === 'evolution_flash') step(80);
+      else step(150); // evolution_reveal
+      frozenShot = true;
+    }, 1200);
+  }
+
+  if (shot && shot !== 'map_select' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

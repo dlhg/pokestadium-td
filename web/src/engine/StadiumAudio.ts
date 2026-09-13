@@ -409,6 +409,25 @@ export class StadiumAudio {
     this.tone('square', 220, 90, 0.3, 0.16, 0.05);
   }
 
+  /** Rising, shimmering charge as the tower begins to glow. Longer and stranger than a capture windup. */
+  public playEvolutionCharge(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('evolution_charge')) return;
+    this.tone('sine', 220, 880, 1.1, 0.14);
+    this.tone('triangle', 440, 1320, 1.0, 0.1, 0.08);
+    this.noiseBurst(0.9, 200, 4200, 0.06);
+  }
+
+  /** The hard white-out at the moment the old form gives way to the new one. */
+  public playEvolutionFlash(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('evolution_flash')) return;
+    this.noiseBurst(0.4, 3600, 5200, 0.28);
+    this.tone('square', 1600, 60, 0.35, 0.22);
+  }
+
   public playFanfare(): void {
     this.initContext();
     if (!this.ctx || !this.enabled) return;

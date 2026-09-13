@@ -17,6 +17,7 @@ import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
 import { mapPreview } from './MapPreview';
 import { BallType, CaptureHud } from './CaptureSequence';
+import { EvolutionHud } from './EvolutionSequence';
 import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
@@ -41,6 +42,8 @@ export interface UIState {
   captureHint: string | null;
   /** Live capture set piece, or null when no ball is in the air. */
   captureCinema: CaptureHud | null;
+  /** Live evolution set piece, or null when no tower is evolving. */
+  evolutionCinema: EvolutionHud | null;
   cupName: string;
   round: number;
   /** The round whose clear wins the course; play continues past it. */
@@ -102,6 +105,7 @@ export class StadiumUI {
 
   // Callbacks
   private cinemaEl!: HTMLElement;
+  private evoCinemaEl!: HTMLElement;
   private cinemaVerdict: string = '';
   private trophyTimer: number = 0;
   private trophyView = new TrophyModelView();
@@ -203,6 +207,26 @@ export class StadiumUI {
         .cinema-live #announcer-banner { display:none !important; }
         #capture-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .18s ease; }
         #capture-cinema.live { opacity:1; }
+
+        /* ---- Evolution cinematic overlay ---- */
+        .evo-live #top-bar, .evo-live #controls-bar, .evo-live #card-deck,
+        .evo-live #tower-panel, .evo-live #poke-mart,
+        .evo-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
+        .evo-live #announcer-banner { display:none !important; }
+        #evo-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .18s ease; }
+        #evo-cinema.live { opacity:1; }
+        #evo-vignette { position:absolute; inset:0; background:radial-gradient(ellipse 60% 50% at 50% 52%, rgba(0,0,0,0) 30%, rgba(46,32,3,.5) 74%, rgba(20,14,2,.85) 100%); }
+        #evo-flash { position:absolute; inset:0; background:#fff8e0; opacity:0; mix-blend-mode:screen; }
+        #evo-kicker {
+          position:absolute; left:50%; top:calc(13vh + 30px); transform:translateX(-50%) skew(-7deg);
+          font-family:'Teko','Impact',sans-serif; font-size:30px; letter-spacing:3px; color:#fff3c4;
+          text-shadow:0 0 20px rgba(255,227,140,.85), 3px 4px #3a2a02; transition:opacity .2s ease;
+        }
+        #evo-caption {
+          position:absolute; left:50%; bottom:calc(6.5vh - 26px); transform:translateX(-50%) skew(-7deg);
+          font-family:'Teko','Impact',sans-serif; font-size:38px; letter-spacing:1.6px; color:#fff;
+          text-shadow:0 0 18px rgba(0,0,0,.9), 3px 4px #0a1428; white-space:nowrap; max-width:90vw; overflow:hidden; text-overflow:ellipsis;
+        }
         .cine-bar { position:absolute; left:0; right:0; height:13vh; background:#04070d; box-shadow:0 0 40px rgba(0,0,0,.9); transform:translateY(0); }
         .cine-bar.top { top:0; }
         .cine-bar.bottom { bottom:0; }
@@ -1122,6 +1146,16 @@ export class StadiumUI {
         <div id="cine-verdict"></div>
       </div>
       <div id="capture-trophy"></div>
+
+      <!-- Evolution Cinematic -->
+      <div id="evo-cinema">
+        <div class="cine-bar top"></div>
+        <div class="cine-bar bottom"></div>
+        <div id="evo-vignette"></div>
+        <div id="evo-flash"></div>
+        <div id="evo-kicker">WHAT?!</div>
+        <div id="evo-caption"></div>
+      </div>
       <div id="defeat-screen" class="interactive" hidden>
         <div class="defeat-card">
           <div class="defeat-kicker">STADIUM HP DEPLETED</div>
@@ -1143,6 +1177,7 @@ export class StadiumUI {
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
     this.cinemaEl = document.getElementById('capture-cinema')!;
+    this.evoCinemaEl = document.getElementById('evo-cinema')!;
 
     this.bindEvents();
     this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => button.addEventListener('click', () => this.onBuyBall(button.dataset.buyBall as BallType)));
@@ -1536,6 +1571,30 @@ export class StadiumUI {
   }
 
   /**
+   * Mirrors the live evolution set piece: letterbox bars ride in like the
+   * capture cinematic, the vignette glows warm instead of dread-blue, and a
+   * kicker/caption pair carries "WHAT?! X IS EVOLVING!" through to the
+   * "X EVOLVED INTO Y!" payoff. A separate overlay from capture's since the
+   * two never play at once and the beats read very differently.
+   */
+  private renderEvolutionCinema(cinema: EvolutionHud | null): void {
+    if (!cinema) {
+      this.evoCinemaEl.classList.remove('live');
+      this.container.classList.remove('evo-live');
+      return;
+    }
+    this.evoCinemaEl.classList.add('live');
+    this.container.classList.add('evo-live');
+
+    const bars = this.evoCinemaEl.querySelectorAll<HTMLElement>('.cine-bar');
+    bars[0].style.transform = `translateY(${(cinema.letterbox - 1) * 100}%)`;
+    bars[1].style.transform = `translateY(${(1 - cinema.letterbox) * 100}%)`;
+    this.evoCinemaEl.querySelector<HTMLElement>('#evo-flash')!.style.opacity = `${cinema.flash}`;
+    this.evoCinemaEl.querySelector<HTMLElement>('#evo-kicker')!.style.opacity = cinema.phase === 'reveal' ? '0' : '1';
+    this.evoCinemaEl.querySelector<HTMLElement>('#evo-caption')!.innerText = cinema.caption;
+  }
+
+  /**
    * The release meter: a marker sweeping a bar with a gold window. It freezes
    * where the player let go and reports the grade, then retires once the ball
    * is in the air.
@@ -1586,6 +1645,7 @@ export class StadiumUI {
 
   public showDefeat(mapName: string, round: number, winRound: number, report: MatchReportEntry[] = []): void {
     this.renderCaptureCinema(null);
+    this.renderEvolutionCinema(null);
     document.getElementById('defeat-report')!.innerHTML = reportListHtml(report);
     document.getElementById('defeat-detail')!.innerText = round > winRound
       ? `${mapName.toUpperCase()} · FELL IN FREEPLAY ROUND ${round}`
@@ -1694,6 +1754,7 @@ export class StadiumUI {
       button.disabled = state.balls[type] <= 0;
     });
     this.renderCaptureCinema(state.captureCinema);
+    this.renderEvolutionCinema(state.evolutionCinema);
     const captureHint = document.getElementById('capture-hint')!;
     captureHint.innerText = state.captureHint || '';
     const mart = document.getElementById('poke-mart')!;
