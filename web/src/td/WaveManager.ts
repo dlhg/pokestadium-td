@@ -363,6 +363,7 @@ export class WaveManager {
   private spawnQueue: { config: CreepConfig; delay: number }[] = [];
   private spawnTimer: number = 0;
   private routes: THREE.Vector3[][];
+  private lifts?: number[][];
   private nextRoute = 0;
   private announcer: StadiumAnnouncer;
   private difficulty: MapDifficulty;
@@ -373,9 +374,10 @@ export class WaveManager {
   private generated = new Map<number, WaveDefinition>();
   public readonly winRound: number;
 
-  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer, difficulty: MapDifficulty) {
+  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer, difficulty: MapDifficulty, lifts?: number[][]) {
     if (!routes.length || routes.some(route => route.length < 2)) throw new Error('A course needs a traversable route');
     this.routes = routes;
+    this.lifts = lifts;
     this.announcer = announcer;
     this.difficulty = difficulty;
     this.winRound = WIN_ROUNDS[difficulty];
@@ -453,7 +455,7 @@ export class WaveManager {
       while (this.spawnQueue.length > 0 && this.spawnTimer <= 0) {
         const next = this.spawnQueue.shift()!;
         this.spawnTimer += next.delay;
-        const creep = new Creep(next.config, this.routes[this.nextRoute]);
+        const creep = new Creep(next.config, this.routes[this.nextRoute], this.lifts?.[this.nextRoute]);
         this.nextRoute = (this.nextRoute + 1) % this.routes.length;
         onSpawn(creep);
         if (creep.threat === 'elite') this.announcer.trigger('elite_spawn', creep.name);

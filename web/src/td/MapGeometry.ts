@@ -1,6 +1,47 @@
 import * as THREE from 'three';
-import type { MapPoint, StadiumMap } from './MapCatalog';
+import type { MapBridge, MapPoint, StadiumMap } from './MapCatalog';
 import { LANE_RIDE_HEIGHT, landformHeight, type MapTerrain } from './MapTerrain';
+
+/** Plank tops sit this far above the ground at the bridge's centre, before any arch. */
+export const BRIDGE_DECK_TOP = 0.5;
+/** Run beyond each deck end over which a walker steps up onto the planks. */
+const BRIDGE_RAMP = 1.2;
+
+/** Extra height of the deck `dx` along the span from the bridge centre. */
+export function bridgeArch(bridge: MapBridge, dx: number): number {
+  const half = bridge.width/2;
+  return bridge.rise && Math.abs(dx) < half ? bridge.rise*(1-(dx/half)**2) : 0;
+}
+
+/** The bridge whose deck covers this point, shrunk along the span by `inset`. */
+export function bridgeAt(map: StadiumMap, x: number, z: number, inset = 0): MapBridge | undefined {
+  return map.bridges.find(b => Math.abs(x-b.x) < b.width/2-inset && Math.abs(z-b.z) <= b.depth/2);
+}
+
+/**
+ * Walking routes: the lane centreline raised onto bridge decks. The ground
+ * routes stay untouched for terrain cutting, stairs and build collision.
+ * `lifts` records how much of each point's height is deck, not terrain.
+ */
+export function liftRoutesOverBridges(map: StadiumMap, routes: THREE.Vector3[][], terrain: MapTerrain): { routes: THREE.Vector3[][]; lifts: number[][] } {
+  const lifts = routes.map(route => route.map(point => {
+    let lift = 0;
+    for (const bridge of map.bridges) {
+      const dx = point.x-bridge.x;
+      if (Math.abs(point.z-bridge.z) > bridge.depth/2) continue;
+      const beyond = Math.abs(dx) - bridge.width/2;
+      if (beyond > BRIDGE_RAMP) continue;
+      const deck = terrain.heightAt(bridge.x,bridge.z) + BRIDGE_DECK_TOP + bridgeArch(bridge,dx) + LANE_RIDE_HEIGHT;
+      const weight = beyond <= 0 ? 1 : THREE.MathUtils.smoothstep(BRIDGE_RAMP-beyond, 0, BRIDGE_RAMP);
+      lift = Math.max(lift, (deck-point.y)*weight);
+    }
+    return lift;
+  }));
+  return {
+    routes: routes.map((route, r) => route.map((point, i) => point.clone().setY(point.y + lifts[r][i]))),
+    lifts,
+  };
+}
 
 /** One sampled centreline drives the preview, rendered lane, movement and collision. */
 export function sampleMapRoutes(map: StadiumMap): THREE.Vector3[][] {

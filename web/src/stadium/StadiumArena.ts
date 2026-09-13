@@ -11,7 +11,7 @@
 
 import * as THREE from 'three';
 import { DEFAULT_STADIUM_MAP, type MapObstacle, type StadiumMap } from '../td/MapCatalog';
-import { buildLaneRibbon, mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
+import { bridgeAt, buildLaneRibbon, liftRoutesOverBridges, mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
 import { LANE_RIDE_HEIGHT, MapTerrain } from '../td/MapTerrain';
 import { buildMapGround, buildMapObstacle, disposeScenery, maskGroundProps } from './MapScenery';
 import { StadiumBackdrop } from './StadiumBackdrop';
@@ -42,6 +42,10 @@ export class StadiumArena {
   public group: THREE.Group = new THREE.Group();
   public waypoints: THREE.Vector3[] = [];
   public routes: THREE.Vector3[][] = [];
+  /** Routes as creeps walk them: raised onto bridge decks. */
+  public walkRoutes: THREE.Vector3[][] = [];
+  /** Per walk point, the height added by a bridge deck (no stair slowdown). */
+  public walkLifts: number[][] = [];
 
   /** Towers may be placed anywhere inside this radius of the pitch centre. */
   public readonly buildableRadius: number;
@@ -71,7 +75,8 @@ export class StadiumArena {
     this.buildableRadius = map.buildableRadius;
     this.routes = sampleMapRoutes(map);
     this.terrain = new MapTerrain(map, this.routes);
-    this.waypoints = this.routes[0];
+    ({ routes: this.walkRoutes, lifts: this.walkLifts } = liftRoutesOverBridges(map, this.routes, this.terrain));
+    this.waypoints = this.walkRoutes[0];
     this.environmentGroup.name = 'arena-environment';
     this.gameplayGroup.name = 'tower-defense-overlay';
     this.noBuildGroup.name = 'no-build-zones';
@@ -112,9 +117,15 @@ export class StadiumArena {
     this.routes.forEach((points, routeIndex) => {
       // Swept ribbon with tapered inner corners; all routes use
       // exactly the same sampled points as movement and placement collision.
-      for (const edge of [true,false]) {
+      // Break the ribbon where a bridge deck carries the lane; its ends tuck under the planks.
+      const runs: THREE.Vector3[][] = [[]];
+      for (const point of points) {
+        if (bridgeAt(this.map,point.x,point.z,0.6)) { if (runs[runs.length-1].length) runs.push([]); }
+        else runs[runs.length-1].push(point);
+      }
+      for (const run of runs.filter(run => run.length > 1)) for (const edge of [true,false]) {
         const halfWidth=this.map.laneWidth/2+(edge?0.22:0);
-        const geometry=buildLaneRibbon(points,halfWidth,edge?0.12:0.14);
+        const geometry=buildLaneRibbon(run,halfWidth,edge?0.12:0.14);
         const track=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({color:edge?this.map.palette.edge:this.map.palette.path,side:THREE.DoubleSide}));
         track.receiveShadow=true;track.name=`route-${routeIndex}-${edge?'edge':'lane'}`;
         this.gameplayGroup.add(track);
@@ -122,6 +133,7 @@ export class StadiumArena {
       // Direction chevrons make the winding and crossing routes legible.
       for(let i=8;i<points.length-8;i+=28) {
         const point=points[i], next=points[i+2];
+        if (bridgeAt(this.map,point.x,point.z)) continue;
         const shape=new THREE.Shape();
         shape.moveTo(-0.65,0.38);shape.lineTo(0, -0.38);shape.lineTo(0.65,0.38);
         shape.lineTo(0.65,0.05);shape.lineTo(0,-0.7);shape.lineTo(-0.65,0.05);shape.closePath();

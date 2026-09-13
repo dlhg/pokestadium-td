@@ -159,7 +159,7 @@ export class StadiumTDGame {
     this.aimPreview.visible = false;
     this.renderer.scene.add(this.aimPreview);
 
-    this.waveManager = new WaveManager(this.arena.routes, this.announcer, this.map.difficulty);
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, this.map.difficulty, this.arena.walkLifts);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
 
     this.bindUIEvents();
@@ -329,7 +329,7 @@ export class StadiumTDGame {
     this.arena.dispose();
     this.arena = new StadiumArena(map);
     this.renderer.scene.add(this.arena.group);
-    this.waveManager = new WaveManager(this.arena.routes, this.announcer, this.map.difficulty);
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, this.map.difficulty, this.arena.walkLifts);
     this.money = 420;
     this.lives = 6;
     // A brand-new trainer gets extra balls to build a team with.

@@ -110,6 +110,8 @@ export class Creep {
 
   // Path following
   private waypoints: THREE.Vector3[];
+  /** Height each waypoint gains from a bridge deck; walking over it is not a climb. */
+  private lifts: number[];
   private currentWpIdx: number = 0;
   private remainingAtWaypoint: number[];
   /** Negative distance to the exit: comparable even on routes of different lengths. */
@@ -134,7 +136,7 @@ export class Creep {
   private threatAura: THREE.Mesh | null = null;
   private captureRing: THREE.Mesh;
 
-  constructor(config: CreepConfig, waypoints: THREE.Vector3[]) {
+  constructor(config: CreepConfig, waypoints: THREE.Vector3[], lifts?: number[]) {
     this.id = `creep_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     this.name = config.name;
     this.type = config.type;
@@ -150,6 +152,7 @@ export class Creep {
     this.threat = config.threat || (config.isBoss ? 'titan' : 'normal');
     this.isBoss = this.threat === 'titan' || !!config.isBoss;
     this.waypoints = waypoints;
+    this.lifts = lifts ?? new Array(waypoints.length).fill(0);
     this.remainingAtWaypoint = new Array(waypoints.length).fill(0);
     for (let i = waypoints.length - 2; i >= 0; i--) {
       this.remainingAtWaypoint[i] = this.remainingAtWaypoint[i + 1] + waypoints[i].distanceTo(waypoints[i + 1]);
@@ -302,6 +305,16 @@ export class Creep {
 
     if (source) this.credit(source, this.maxHp * STATUS_CONTRIBUTION);
     return true;
+  }
+
+  /** Bridge lift at the current position, `dist` short of the next waypoint. */
+  private liftHere(dist: number): number {
+    const i = this.currentWpIdx, next = this.lifts[i];
+    if (i === 0) return next;
+    const previous = this.lifts[i - 1];
+    if (previous === next) return next;
+    const span = this.waypoints[i - 1].distanceTo(this.waypoints[i]);
+    return THREE.MathUtils.lerp(next, previous, span > 1e-4 ? Math.min(1, dist / span) : 0);
   }
 
   /** Shoves the creep back along its route, never past where it started. */
@@ -511,7 +524,7 @@ export class Creep {
       const targetWp = this.waypoints[this.currentWpIdx];
       const dist = this.position.distanceTo(targetWp);
       // Climbing stairs costs pace: a stair's slope turns into a natural choke point.
-      const climb = dist > 1e-4 ? Math.max(0, targetWp.y - this.position.y) / dist : 0;
+      const climb = dist > 1e-4 ? Math.max(0, (targetWp.y - this.lifts[this.currentWpIdx]) - (this.position.y - this.liftHere(dist))) / dist : 0;
       const pace = 1 / (1 + climb * CLIMB_SLOWDOWN);
 
       if (dist <= step * pace) {
