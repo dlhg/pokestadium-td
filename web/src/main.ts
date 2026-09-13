@@ -302,6 +302,16 @@ window.addEventListener('DOMContentLoaded', () => {
           for (let frame = 0; frame < 24; frame++) game.update(1 / 60, input);
           frozenShot = true;
         }, 1500);
+      } else if (shot === 'catch_picker') {
+        // A weakened pack bunched on the track: stacked tags, the CATCH NOW tray, and an open picker.
+        const lead = game.arena.waypoints[8];
+        [c1, c2, c4].forEach((creep, i) => {
+          creep.position.set(lead.x + i * 0.9, lead.y, lead.z + i * 0.5);
+          creep.group.position.copy(creep.position);
+          creep.hp = creep.maxHp * (0.12 + i * 0.08);
+        });
+        game.balls = { poke: 3, great: 1, ultra: 0 };
+        window.setTimeout(() => game.ui.onOpenCatch(c2), 1200);
       } else if (shot === 'action_cam') {
         game.camera.setMode('action');
       } else if (shot === 'pause') {
@@ -322,8 +332,7 @@ window.addEventListener('DOMContentLoaded', () => {
         window.setTimeout(() => {
           c1.hp = c1.maxHp * 0.15;
           game.balls.ultra = 1;
-          game.ui.onSelectBall('ultra');
-          game.tryCapture(c1);
+          game.tryCapture(c1, 'ultra');
           const step = (frames: number) => {
             for (let frame = 0; frame < frames; frame++) game.update(1 / 60, input);
           };

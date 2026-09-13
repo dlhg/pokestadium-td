@@ -17,6 +17,8 @@ import { STATUS_CONTRIBUTION } from './progression/Stats';
 const CLIMB_SLOWDOWN = 2.6;
 /** Gap between the top of a loaded model and its HP bar. */
 const HP_BAR_CLEARANCE = 0.7;
+/** A creep at or below this share of its HP can be targeted with a ball. */
+export const CATCH_HP_FRACTION = 0.35;
 /** Canvas pixels below the HP bar reserved for trait badges. */
 const TRAIT_STRIP_HEIGHT = 16;
 
@@ -330,6 +332,16 @@ export class Creep {
 
   public get hpFraction(): number { return this.hp / this.maxHp; }
 
+  /** Weak enough for a ball, and not already fainted or inside one. */
+  public get catchable(): boolean {
+    return this.alive && !this.captureLocked && this.hpFraction <= CATCH_HP_FRACTION;
+  }
+
+  /** Height above the creep's origin where screen tags should sit: just over the HP bar. */
+  public get hudAnchorHeight(): number {
+    return this.hpSprite.position.y + this.hpSprite.scale.y * 0.5;
+  }
+
   public beginCapture(): void {
     this.captureLocked = true;
     this.hpSprite.visible = false;
@@ -377,7 +389,7 @@ export class Creep {
       ctx.fillText(this.threat.toUpperCase(), w - 6, 14);
     }
 
-    if (pct <= 0.35 && this.alive && !this.captureLocked) {
+    if (this.catchable) {
       ctx.fillStyle = '#ffe46b';
       ctx.font = 'bold 10px sans-serif';
       ctx.textAlign = 'left';
@@ -400,7 +412,7 @@ export class Creep {
     this.drawTraitBadges(ctx, h);
 
     this.hpTexture.needsUpdate = true;
-    this.captureRing.visible = pct <= 0.35 && this.alive && !this.captureLocked;
+    this.captureRing.visible = this.catchable;
   }
 
   private drawTraitBadges(ctx: CanvasRenderingContext2D, top: number): void {

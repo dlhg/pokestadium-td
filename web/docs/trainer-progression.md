@@ -234,8 +234,13 @@ Each phase leaves the game playable.
 ## Capture safety net
 
 A new player starts with two Pokémon and has to catch the rest. Bad luck must
-never leave them with empty hands. Throwing at a creep that isn't weakened enough
-is already refused (`hpFraction > 0.35`), so a ball is only spent on a real attempt.
+never leave them with empty hands. A ball can only be thrown at a creep that is
+weakened enough (`CATCH_HP_FRACTION`, 35% HP), so a ball is only spent on a real attempt.
+
+Catching starts from the target, not the ball. Each catchable creep gets a floating
+CATCH tag, and the capture kit's CATCH NOW tray lists them all, even ones off screen.
+A tag or chip opens a picker with each ball's count and odds; Q cycles targets and
+1–3 throw while the picker is open.
 On top of that:
 
 - **Trainer's luck:** a persistent counter in `TrainerSave`. Each failed catch adds
