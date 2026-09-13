@@ -212,7 +212,8 @@ export class TrainerScreens {
         ? `<button class="tr-slot filled" data-slot="${slot}" title="Remove from team" style="${typeArtStyle(formOf(pokemon).type)}">
             <span class="tr-model" data-model="${formOf(pokemon).name}" data-species="${pokemon.speciesId}"></span>
             <span class="tr-slot-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
-            <span class="tr-slot-meta">LV ${pokemon.level} ${typeChips(pokemon)}</span>
+            <span class="tr-slot-meta">LV ${pokemon.level}</span>
+            <span class="tr-slot-types">${typeChips(pokemon)}</span>
             ${xpBar(pokemon)}
           </button>`
         : `<div class="tr-slot empty"><span>SLOT ${slot + 1}</span></div>`).join('');
@@ -224,7 +225,8 @@ export class TrainerScreens {
           <button class="tr-card-main" data-toggle="${pokemon.uid}" title="Add to team" style="${typeArtStyle(formOf(pokemon).type)}">
             <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
             <span class="tr-card-form">${pokemon.nickname ? formOf(pokemon).name : '&nbsp;'}</span>
-            <span class="tr-card-meta">LV ${pokemon.level} ${typeChips(pokemon)}</span>
+            <span class="tr-card-meta">LV ${pokemon.level}</span>
+            <span class="tr-card-types">${typeChips(pokemon)}</span>
             ${strong.length ? `<span class="tr-matchup">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
             ${xpBar(pokemon)}
             <span class="tr-check">+ ADD</span>

@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { DEFAULT_STADIUM_MAP, type MapObstacle, type StadiumMap } from '../td/MapCatalog';
 import { buildLaneRibbon, mapBuildBlock, sampleMapRoutes, type MapBuildBlock } from '../td/MapGeometry';
 import { LANE_RIDE_HEIGHT, MapTerrain } from '../td/MapTerrain';
-import { buildMapGround, buildMapObstacle, disposeScenery } from './MapScenery';
+import { buildMapGround, buildMapObstacle, disposeScenery, maskGroundProps } from './MapScenery';
 import { StadiumBackdrop } from './StadiumBackdrop';
 
 export type BuildBlockReason = MapBuildBlock;
@@ -62,6 +62,7 @@ export class StadiumArena {
   private crowdMood: number = 0;
   private targetCrowdMood: number = 0;
   private crowdBatches: CrowdBatch[] = [];
+  private groundPropMask = '';
   /** Re-rolled per arena instance so empty seats land somewhere new each level. */
   private emptySeatRate: number = EMPTY_SEAT_RATE_MIN + Math.random() * (EMPTY_SEAT_RATE_MAX - EMPTY_SEAT_RATE_MIN);
 
@@ -546,6 +547,14 @@ export class StadiumArena {
     disposeScenery(this.noBuildGroup);
     this.noBuildGroup.clear();
     zones.forEach(zone => this.noBuildGroup.add(buildMapObstacle(zone,this.map,this.terrain)));
+  }
+
+  /** Clears grass and other incidental dressing beneath placed tower pads. */
+  public clearGroundPropsBelow(centres: readonly THREE.Vector3[], radius: number): void {
+    const signature = centres.map(point => `${point.x.toFixed(3)},${point.z.toFixed(3)}`).sort().join('|');
+    if (signature === this.groundPropMask) return;
+    this.groundPropMask = signature;
+    maskGroundProps(this.environmentGroup, centres.map(point => ({ x: point.x, z: point.z, radius })));
   }
 
   public dispose(): void {

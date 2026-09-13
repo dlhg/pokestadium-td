@@ -33,6 +33,38 @@ function hash2(x: number, z: number): number {
   const s = Math.sin(x*127.1 + z*311.7) * 43758.5453;
   return s - Math.floor(s);
 }
+
+type ClearableGroundProps = {
+  matrices: THREE.Matrix4[];
+  positions: THREE.Vector2[];
+  radius: number;
+};
+
+/**
+ * Hides procedural ground dressing covered by a deployment plinth. Reapplying
+ * the surviving footprints restores props when a tower is sold.
+ */
+export function maskGroundProps(
+  root: THREE.Object3D,
+  footprints: readonly { x: number; z: number; radius: number }[],
+): void {
+  const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+  root.traverse(object => {
+    if (!(object instanceof THREE.InstancedMesh)) return;
+    const batch = object.userData.clearableGroundProps as ClearableGroundProps | undefined;
+    if (!batch) return;
+    batch.positions.forEach((position, index) => {
+      const covered = footprints.some(footprint => {
+        const reach = footprint.radius + batch.radius;
+        const dx = position.x - footprint.x;
+        const dz = position.y - footprint.z;
+        return dx * dx + dz * dz < reach * reach;
+      });
+      object.setMatrixAt(index, covered ? hidden : batch.matrices[index]);
+    });
+    object.instanceMatrix.needsUpdate = true;
+  });
+}
 /** Cheap value noise for broad colour patches on terrain. */
 function valueNoise(x: number, z: number): number {
   const ix = Math.floor(x), iz = Math.floor(z), fx = x-ix, fz = z-iz;
@@ -227,6 +259,8 @@ function scatterGrass(group: THREE.Group, map: StadiumMap, terrain: MapTerrain, 
   const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(map.palette.patch).offsetHSL(0,0.05,-0.08), flatShading: true });
   const tufts = new THREE.InstancedMesh(tuft, mat, 900);
   const dummy = new THREE.Object3D();
+  const matrices: THREE.Matrix4[] = [];
+  const positions: THREE.Vector2[] = [];
   let count = 0;
   for (let attempt = 0; attempt < 5000 && count < 900; attempt++) {
     const x = (random()*2-1)*33, z = (random()*2-1)*33;
@@ -243,9 +277,13 @@ function scatterGrass(group: THREE.Group, map: StadiumMap, terrain: MapTerrain, 
       dummy.scale.setScalar(0.7 + random()*0.7);
       dummy.updateMatrix();
       tufts.setMatrixAt(count++, dummy.matrix);
+      matrices.push(dummy.matrix.clone());
+      positions.push(new THREE.Vector2(bx,bz));
     }
   }
   tufts.count = count;
+  tufts.name = 'procedural-ground-props';
+  tufts.userData.clearableGroundProps = { matrices, positions, radius: 0.16 } satisfies ClearableGroundProps;
   tufts.receiveShadow = true;
   group.add(tufts);
 }

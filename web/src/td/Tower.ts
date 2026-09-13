@@ -33,6 +33,7 @@ export const TOWER_BASE_HEIGHT = 0.3;
 
 /** Shared field-stone albedo: every tower uses one GPU texture. */
 let deployPadStone: THREE.Texture | undefined;
+let deployPadSideStone: THREE.Texture | undefined;
 function getDeployPadStone(): THREE.Texture | undefined {
   // Gameplay tests run this module in Node, where image-backed textures do not
   // exist. The tinted material remains a representative fallback there.
@@ -44,6 +45,18 @@ function getDeployPadStone(): THREE.Texture | undefined {
     deployPadStone.magFilter = THREE.NearestFilter;
   }
   return deployPadStone;
+}
+
+function getDeployPadSideStone(): THREE.Texture | undefined {
+  const stone = getDeployPadStone();
+  if (!stone) return undefined;
+  if (!deployPadSideStone) {
+    deployPadSideStone = stone.clone();
+    deployPadSideStone.wrapS = THREE.RepeatWrapping;
+    deployPadSideStone.repeat.x = 3;
+    deployPadSideStone.needsUpdate = true;
+  }
+  return deployPadSideStone;
 }
 
 /** Range gained per unit a tower stands above its target, up to a summit-sized drop. */
@@ -169,6 +182,19 @@ export class Tower {
 
     // Keep the structural edge simple and chunky, like a low-poly piece of
     // arena kit. The separate top prevents the stone albedo stretching down it.
+    const discSide = new THREE.MeshStandardMaterial({
+      map: getDeployPadSideStone(),
+      color: 0xb1babe,
+      metalness: 0.06,
+      roughness: 0.9,
+      flatShading: true,
+    });
+    const discCap = new THREE.MeshStandardMaterial({
+      color: 0x52616b,
+      metalness: 0.12,
+      roughness: 0.82,
+      flatShading: true,
+    });
     const disc = new THREE.Mesh(
       new THREE.CylinderGeometry(
         TOWER_FOOTPRINT_RADIUS * 0.88,
@@ -176,7 +202,7 @@ export class Tower {
         TOWER_BASE_HEIGHT,
         20
       ),
-      new THREE.MeshStandardMaterial({ color: 0x52616b, metalness: 0.12, roughness: 0.82, flatShading: true })
+      [discSide, discCap, discCap]
     );
     disc.receiveShadow = true;
     disc.castShadow = true;

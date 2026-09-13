@@ -21,6 +21,7 @@ const result = await build({
       "export { SummonSequence } from './src/td/SummonSequence.ts';",
       "export { CaptureSequence } from './src/td/CaptureSequence.ts';",
       "export { castSignature, SIGNATURES } from './src/td/Signatures.ts';",
+      "export { maskGroundProps } from './src/stadium/MapScenery.ts';",
       "export * as THREE from 'three';",
     ].join('\n'),
     resolveDir: fileURLToPath(new URL('../', import.meta.url)),
@@ -32,9 +33,33 @@ const result = await build({
   loader: { '.css': 'empty' },
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
-const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES,
+const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
   createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
+
+// Incidental ground props vanish beneath a tower footprint and return when
+// that footprint is removed (for example, after selling the tower).
+{
+  const root = new THREE.Group();
+  const props = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 2);
+  const matrices = [new THREE.Matrix4().makeTranslation(0, 0, 0), new THREE.Matrix4().makeTranslation(5, 0, 0)];
+  matrices.forEach((matrix, index) => props.setMatrixAt(index, matrix));
+  props.userData.clearableGroundProps = {
+    matrices,
+    positions: [new THREE.Vector2(0, 0), new THREE.Vector2(5, 0)],
+    radius: 0.1,
+  };
+  root.add(props);
+  const resultMatrix = new THREE.Matrix4();
+  maskGroundProps(root, [{ x: 0, z: 0, radius: 1.6 }]);
+  props.getMatrixAt(0, resultMatrix);
+  assert.equal(resultMatrix.getMaxScaleOnAxis(), 0, 'covered ground prop is hidden');
+  props.getMatrixAt(1, resultMatrix);
+  assert.equal(new THREE.Vector3().setFromMatrixPosition(resultMatrix).x, 5, 'clear ground prop remains');
+  maskGroundProps(root, []);
+  props.getMatrixAt(0, resultMatrix);
+  assert.equal(resultMatrix.getMaxScaleOnAxis(), 1, 'ground prop returns after tower removal');
+}
 
 // Starting the next match must release a keyboard-only pause, or the wave
 // enters its active state with a spawn queue that never advances.
