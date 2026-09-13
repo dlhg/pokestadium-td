@@ -68,7 +68,19 @@ export class RosterModelView {
     if (this.pokemon) this.pivot.remove(this.pokemon.mesh);
     this.pokemon = null;
     RosterModelView.views.delete(this);
-    if (!RosterModelView.views.size) RosterModelView.stop();
+    if (!RosterModelView.views.size) {
+      // Callers rebuild card grids by destroying every view then immediately
+      // creating fresh ones in the same tick. Tearing the shared renderer
+      // down synchronously here would dispose it only to allocate a new
+      // WebGL context moments later — `dispose()` doesn't call
+      // `forceContextLoss()`, so the abandoned context lingers until GC and
+      // repeated rebuilds can exhaust the browser's context limit, evicting
+      // the main game renderer. Deferring the check lets same-tick rebuilds
+      // see the new views before deciding the stage is really empty.
+      queueMicrotask(() => {
+        if (!RosterModelView.views.size) RosterModelView.stop();
+      });
+    }
   }
 
   private static start(): void {
