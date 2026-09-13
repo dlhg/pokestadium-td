@@ -205,14 +205,16 @@ window.addEventListener('DOMContentLoaded', () => {
       }
 
       // Spawn creeps along the track
+      const captureDemo = shot?.startsWith('capture_');
       const c1 = new Creep({
         id: 'demo_1',
-        name: 'Rattata',
+        name: captureDemo ? 'Pidgey' : 'Rattata',
         type: 'Normal',
+        secondaryType: captureDemo ? 'Flying' : undefined,
         maxHp: 100,
         speed: 4.0,
         reward: 15,
-        modelType: 'rattata'
+        modelType: captureDemo ? 'zubat' : 'rattata'
       }, game.arena.waypoints);
       c1.position.copy(game.arena.waypoints[8]);
       c1.group.position.copy(c1.position);

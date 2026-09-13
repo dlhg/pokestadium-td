@@ -20,6 +20,7 @@ export class RosterModelView {
   private context: CanvasRenderingContext2D;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(27, 1, 0.1, 100);
+  private cameraTarget = new THREE.Vector3();
   private pivot = new THREE.Group();
   private pokemon: AnimatedPokemon | null = null;
   private generation = 0;
@@ -41,7 +42,10 @@ export class RosterModelView {
     rim.position.set(-4, 3, -3);
     this.scene.add(rim);
     this.scene.add(this.pivot);
-    this.frameCamera(MODEL_HEIGHT);
+    this.frameCamera(new THREE.Box3(
+      new THREE.Vector3(-MODEL_HEIGHT * .5, 0, -MODEL_HEIGHT * .5),
+      new THREE.Vector3(MODEL_HEIGHT * .5, MODEL_HEIGHT, MODEL_HEIGHT * .5),
+    ));
 
     RosterModelView.views.add(this);
     RosterModelView.start();
@@ -53,12 +57,9 @@ export class RosterModelView {
       if (generation !== this.generation) return;
       this.pokemon = loaded;
       this.pivot.add(loaded.mesh);
-      const bounds = new THREE.Box3().setFromObject(loaded.mesh);
-      const size = bounds.getSize(new THREE.Vector3());
-      loaded.mesh.position.x -= (bounds.min.x + bounds.max.x) * .5;
-      loaded.mesh.position.z -= (bounds.min.z + bounds.max.z) * .5;
-      this.frameCamera(size.y || MODEL_HEIGHT, Math.max(size.x, size.z));
       loaded.update(0, 0, 'idle');
+      loaded.mesh.updateMatrixWorld(true);
+      this.frameCamera(new THREE.Box3().setFromObject(loaded.mesh, true));
     });
   }
 
@@ -136,10 +137,15 @@ export class RosterModelView {
     this.context.drawImage(renderer.domElement, 0, 0, pixelWidth, pixelHeight);
   }
 
-  private frameCamera(height: number, width = height): void {
-    const framingHeight = Math.max(height, width * .92);
+  private frameCamera(bounds: THREE.Box3): void {
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    const height = size.y || MODEL_HEIGHT;
+    const width = Math.max(size.x, size.z);
+    const framingHeight = Math.max(height, width / Math.max(this.camera.aspect, .01)) * 1.14;
     const distance = (framingHeight * .58) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    this.camera.position.set(0, height * .54, distance);
-    this.camera.lookAt(0, height * .48, 0);
+    this.cameraTarget.copy(center);
+    this.camera.position.set(center.x, center.y, center.z + distance);
+    this.camera.lookAt(this.cameraTarget);
   }
 }
