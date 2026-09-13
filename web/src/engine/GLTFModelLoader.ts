@@ -108,7 +108,13 @@ export class GLTFModelLoader {
       }
       clonedScene.scale.multiplyScalar(scale);
       bounds = new THREE.Box3().setFromObject(clonedScene);
-      clonedScene.position.y -= bounds.min.y;
+      // Stadium authors levitating species (Geodude, Magnemite, Zubat) with the
+      // body a full height or more above the origin. Keep that hover, capped at
+      // one body height, instead of sitting them on the ground; close-ups stay grounded.
+      const authoredHover = bounds.min.y > boundsHeight * scale;
+      const hover = fitHeight === undefined && authoredHover ? Math.min(bounds.min.y, height) : 0;
+      clonedScene.position.y -= bounds.min.y - hover;
+      height += hover;
 
       const rootGroup = new THREE.Group();
       rootGroup.userData = { authenticStadiumAsset: true, species: entry.species, romMd5: manifest!.romMd5 };
