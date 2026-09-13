@@ -679,22 +679,22 @@
   gap: 10px;
 }
 
-/* Course selection: illustrated venue behind an opaque tournament board. */
+/* Course selection: tournament board backdrop behind the illustrated venue board. */
 #map-select {
-  background:
-    linear-gradient(180deg, rgba(5, 13, 43, .22), rgba(3, 8, 28, .78)),
-    url('/ui/course-select-stadium.jpg') center / cover no-repeat;
-}
-
-.map-select-panel.stadium-panel {
-  border-width: 7px;
-  border-radius: 18px;
   background-image:
     linear-gradient(rgba(12, 25, 78, .9), rgba(4, 12, 43, .95)),
     url('/ui/indigo-quilt.png'),
     linear-gradient(rgba(247, 242, 221, .9), rgba(180, 189, 192, .95)),
     url('/ui/cream-plastic.png');
   background-size: auto, 230px 230px, auto, 190px 190px;
+}
+
+.map-select-panel.stadium-panel {
+  border-width: 7px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(5, 13, 43, .22), rgba(3, 8, 28, .78)),
+    url('/ui/course-select-stadium.jpg') center / cover no-repeat;
   box-shadow: 0 0 0 3px var(--broadcast-ink), 8px 10px 0 rgba(0, 0, 0, .58), inset 0 0 0 2px #7598f3;
 }
 
