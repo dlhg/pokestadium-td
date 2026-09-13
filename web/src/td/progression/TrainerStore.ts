@@ -272,14 +272,19 @@ export class TrainerStore {
     const clamped = Math.max(1, Math.min(MAX_LEVEL, Math.round(level)));
     pokemon.xp = xpForLevel(clamped);
     pokemon.level = clamped;
-    return this.syncLevel(pokemon);
+    return this.syncLevel(pokemon, true);
   }
 
-  private syncLevel(pokemon: OwnedPokemon): XpResult {
+  private syncLevel(pokemon: OwnedPokemon, forceEvolutionSync = false): XpResult {
     const before = pokemon.level;
     const beforeName = formOf(pokemon).name;
     pokemon.level = Math.max(pokemon.level, levelForXp(pokemon.xp));
-    const stage = Math.max(pokemon.stage, stageForLevel(speciesOf(pokemon), pokemon.level));
+    // Wild Pokemon can legitimately be caught above an evolution threshold.
+    // Preserve that exact form until it actually levels up; otherwise even a
+    // single point of XP would undo the explicit capture stage.
+    const stage = forceEvolutionSync || pokemon.level > before
+      ? Math.max(pokemon.stage, stageForLevel(speciesOf(pokemon), pokemon.level))
+      : pokemon.stage;
     const evolved = stage !== pokemon.stage;
     pokemon.stage = stage;
     return { levelsGained: pokemon.level - before, evolvedFrom: evolved ? beforeName : null };
