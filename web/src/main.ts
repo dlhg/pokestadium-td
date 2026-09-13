@@ -176,13 +176,15 @@ window.addEventListener('DOMContentLoaded', () => {
       const t1 = new Tower(shotPokemon('charmander', 36), new THREE.Vector3(8, TOWER_BASE_HEIGHT, -6)); // Charizard
       t1.buyUpgrade(0); // Inferno: Flamethrower
       t1.buyUpgrade(0); // Inferno: Wide Flame
+      t1.buyUpgrade(0); // Inferno: Fire Blast signature
       t1.buyUpgrade(2); // Rage: Rage
       game.renderer.scene.add(t1.group);
       game.towers.push(t1);
 
       const t3 = new Tower(shotPokemon('squirtle', 36), new THREE.Vector3(0, TOWER_BASE_HEIGHT, 8)); // Blastoise
-      t3.buyUpgrade(0); // Pressure: BubbleBeam
-      t3.buyUpgrade(0); // Pressure: Full Pressure
+      t3.buyUpgrade(1); // Chill: Chilling Water
+      t3.buyUpgrade(1); // Chill: Cold Front
+      t3.buyUpgrade(1); // Chill: Blizzard signature
       game.renderer.scene.add(t3.group);
       game.towers.push(t3);
 

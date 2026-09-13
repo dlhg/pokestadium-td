@@ -16,6 +16,7 @@ import { MoveDefinition } from '../stadium/MoveDatabase';
 import { Creep } from './Creep';
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
 import { PathTier, SpeciesDef } from './progression/Species';
+import { SIGNATURES } from './Signatures';
 import { AttackProfile, buildAttackProfile, MAX_PATHS_BOUGHT, SECONDARY_PATH_MAX_TIER } from './TowerAttack';
 import { towerModifiers, TowerModifiers } from './progression/Stats';
 import { displayName, formOf, OwnedPokemon, speciesOf, statsOf } from './progression/TrainerStore';
@@ -68,6 +69,10 @@ export class Tower {
   public attack: AttackProfile;
   /** Attack-rate bonus from a nearby tower's aura, refreshed every frame by the game. */
   public rateBuff = 0;
+  /** Signature PP left this round, by signature id. Refilled when a round starts. */
+  public pp: Record<string, number> = {};
+  /** A temporary attack-rate surge from a signature (Growth, Agility). */
+  private surge = { bonus: 0, timer: 0 };
   /** The evolution stage the on-screen model was built for. */
   private renderedStage: number;
   public modifiers: TowerModifiers;
@@ -274,6 +279,8 @@ export class Tower {
     this.tiers[pathIdx]++;
     this.totalInvested += next.cost;
     this.attack = this.buildAttack();
+    // A freshly unlocked signature arrives ready to use.
+    for (const id of this.attack.signatures) if (!(id in this.pp)) this.pp[id] = SIGNATURES[id].pp;
     this.updateRangeRing();
     return true;
   }
@@ -287,6 +294,16 @@ export class Tower {
   /** A move's range against one creep, stretched when the tower stands above it. */
   public reachAgainst(range: number, creep: Creep): number {
     return range * highGroundRangeScale(this.position.y - TOWER_BASE_HEIGHT, creep.position.y - LANE_RIDE_HEIGHT);
+  }
+
+  /** Tops every unlocked signature back up to full PP. */
+  public refillPP(): void {
+    this.pp = Object.fromEntries(this.attack.signatures.map(id => [id, SIGNATURES[id].pp]));
+  }
+
+  /** Attack-rate surge for `duration` seconds; a stronger surge replaces a weaker one. */
+  public boost(bonus: number, duration: number): void {
+    if (bonus >= this.surge.bonus || this.surge.timer <= 0) this.surge = { bonus, timer: duration };
   }
 
   /** The attack's reach — what the range ring shows, and how far auras spread. */
@@ -375,6 +392,11 @@ export class Tower {
     }
     if (this.entranceAnimTimer > 0) this.entranceAnimTimer -= dt;
 
+    if (this.surge.timer > 0) {
+      this.surge.timer -= dt;
+      if (this.surge.timer <= 0) this.surge.bonus = 0;
+    }
+
     const attack = this.attack;
     const move = attack.move;
     const target = this.findTarget(creeps, move);
@@ -388,7 +410,7 @@ export class Tower {
     if (target && this.cooldown <= 0) {
       // Add the interval to the overdue deadline so a slow frame does not
       // permanently lower the attack rate by discarding overshoot.
-      this.cooldown += 1.0 / (move.attackSpeed * attack.rate * (1 + this.rateBuff) * this.modifiers.rate);
+      this.cooldown += 1.0 / (move.attackSpeed * attack.rate * (1 + this.rateBuff + this.surge.bonus) * this.modifiers.rate);
       this.isAttackingAnim = true;
       this.attackAnimTimer = 0.35;
       this.animPokemon.playMove?.(move.name);

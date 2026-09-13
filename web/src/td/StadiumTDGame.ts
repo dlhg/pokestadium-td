@@ -13,7 +13,7 @@ import { ParticleSystem } from '../engine/ParticleSystem';
 import { Input } from '../engine/Input';
 import { StadiumArena, type BuildBlockReason } from '../stadium/StadiumArena';
 import { StadiumAnnouncer } from '../stadium/Announcer';
-import { StadiumUI, type PlacementStatus } from './StadiumUI';
+import { StadiumUI, type PlacementStatus, type SignatureSlot } from './StadiumUI';
 import {
   Tower,
   TARGET_PRIORITIES,
@@ -25,8 +25,10 @@ import { LANE_RIDE_HEIGHT } from './MapTerrain';
 import { Creep, type CreepTrait } from './Creep';
 import { Projectile } from './Projectile';
 import { Hazard } from './Hazard';
+import { castSignature, SIGNATURES, type SignatureContext } from './Signatures';
 import { WaveManager, getMilestone } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
+import { TYPE_COLORS } from '../stadium/TypeMatrix';
 import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
 import { BallType, CaptureSequence } from './CaptureSequence';
@@ -83,6 +85,14 @@ export class StadiumTDGame {
   public creeps: Creep[] = [];
   public projectiles: Projectile[] = [];
   public hazards: Hazard[] = [];
+  /** Signatures that keep firing for a while after the button press (Hydro Pump). */
+  private channels: { remaining: number; interval: number; timer: number; tick: () => void }[] = [];
+  /** A `point` or `line` signature waiting for the player to click where it goes. */
+  private aiming: { tower: Tower; signatureId: string } | null = null;
+  private aimPreview: THREE.Group = new THREE.Group();
+  private aimPreviewKind: string | null = null;
+  /** Signatures may cut to the action cam unless the player turned it off. */
+  private signatureCuts = true;
 
   /** The team this match was started with, plus anything caught during it. */
   public roster: OwnedPokemon[] = [];
@@ -126,11 +136,15 @@ export class StadiumTDGame {
     this.renderer.scene.add(this.particles.group);
     this.placementPreview.visible = false;
     this.renderer.scene.add(this.placementPreview);
+    this.aimPreview.visible = false;
+    this.renderer.scene.add(this.aimPreview);
 
     this.waveManager = new WaveManager(this.arena.routes, this.announcer, this.map.difficulty);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
 
     this.bindUIEvents();
+    this.signatureCuts = readSignatureCutsSetting();
+    this.ui.setSignatureCuts(this.signatureCuts);
 
   }
 
@@ -162,6 +176,13 @@ export class StadiumTDGame {
       this.audio.playSelect();
     };
     this.ui.onSelectMap = (map) => this.loadMap(map);
+    this.ui.onToggleSignatureCuts = () => {
+      this.signatureCuts = !this.signatureCuts;
+      writeSignatureCutsSetting(this.signatureCuts);
+      this.ui.setSignatureCuts(this.signatureCuts);
+      this.audio.playSelect();
+    };
+    this.ui.onCastSignature = (tower, signatureId) => this.requestSignature(tower, signatureId);
     this.ui.onSelectMember = (member) => {
       if (this.selectedTower) {
         this.selectedTower.setSelected(false);
@@ -252,6 +273,8 @@ export class StadiumTDGame {
     this.creeps.forEach(creep => creep.destroy(this.renderer.scene));
     this.projectiles.forEach(projectile => projectile.destroy(this.renderer.scene));
     this.hazards.forEach(hazard => hazard.destroy(this.renderer.scene));
+    this.channels = [];
+    this.aiming = null;
     this.towers = [];
     this.creeps = [];
     this.projectiles = [];
@@ -311,22 +334,31 @@ export class StadiumTDGame {
   }
 
   private removeTower(tower: Tower): void {
+    if (this.aiming?.tower === tower) {
+      this.aiming = null;
+      this.captureHint = null;
+    }
     tower.destroy(this.renderer.scene);
     this.towers = this.towers.filter(t => t.id !== tower.id);
   }
 
   public handleInput(input: Input): void {
-    // Hotkeys
-    if (input.isKeyJustPressed('Digit1')) this.camera.setMode('tactical');
-    if (input.isKeyJustPressed('Digit2')) this.camera.setMode('stadium');
-    if (input.isKeyJustPressed('Digit3')) this.camera.setMode('action');
+    // Hotkeys: C cycles the camera, 1–9 call signature moves in bar order.
+    if (input.isKeyJustPressed('KeyC')) {
+      const modes: CameraMode[] = ['tactical', 'stadium', 'action'];
+      this.camera.setMode(modes[(modes.indexOf(this.camera.mode) + 1) % modes.length]);
+    }
+    this.signatureSlots().slice(0, 9).forEach((slot, i) => {
+      if (input.isKeyJustPressed(`Digit${i + 1}`)) this.requestSignature(slot.tower, slot.def.id);
+    });
     if (input.isKeyJustPressed('Space') && !this.pauseMenuOpen) this.isPaused = !this.isPaused;
     if (input.isKeyJustPressed('Escape')) {
       if (this.pauseMenuOpen) {
         this.ui.onResumeGame();
         return;
       }
-      const dismissedSelection = Boolean(this.selectedMember || this.selectedTower || this.selectedBall);
+      const dismissedSelection = Boolean(this.selectedMember || this.selectedTower || this.selectedBall || this.aiming);
+      this.aiming = null;
       this.clearSelection();
       this.selectedBall = null;
       this.captureHint = null;
@@ -338,6 +370,7 @@ export class StadiumTDGame {
       return;
     }
     if (input.rightClicked) {
+      this.aiming = null;
       this.clearSelection();
       this.selectedBall = null;
       this.captureHint = null;
@@ -345,6 +378,12 @@ export class StadiumTDGame {
 
     // Free placement: the cursor's spot on the pitch is the candidate site.
     const ground = this.arena.terrain.raycast(input.pointerRay(this.camera.camera));
+
+    if (this.aiming) {
+      this.updateAim(ground, input);
+      return;
+    }
+    this.aimPreview.visible = false;
 
     if (this.selectedBall) {
       if (input.clicked && !input.clickedOnUI) this.tryCapture(this.pickCreep(input, ground));
@@ -800,6 +839,18 @@ export class StadiumTDGame {
       });
     });
 
+    // Update channelled signatures
+    for (let i = this.channels.length - 1; i >= 0; i--) {
+      const channel = this.channels[i];
+      channel.timer -= dt;
+      while (channel.timer <= 0 && channel.remaining > 0) {
+        channel.tick();
+        channel.timer += channel.interval;
+        channel.remaining -= channel.interval;
+      }
+      if (channel.remaining <= 0) this.channels.splice(i, 1);
+    }
+
     // Update Hazards
     for (let i = this.hazards.length - 1; i >= 0; i--) {
       const hazard = this.hazards[i];
@@ -925,8 +976,110 @@ export class StadiumTDGame {
         placementStatus: this.placementStatus,
         mapName: this.map.name,
         mapStrategy: this.map.strategy,
+        signatures: this.signatureSlots(),
       }
     );
+  }
+
+  /** Every signature on the pitch, in placement order — the bar and the 1–9 hotkeys. */
+  private signatureSlots(): SignatureSlot[] {
+    return this.towers.flatMap(tower => tower.attack.signatures.map(id => ({
+      tower,
+      def: SIGNATURES[id],
+      pp: tower.pp[id] ?? 0,
+      aiming: this.aiming?.tower === tower && this.aiming.signatureId === id,
+    })));
+  }
+
+  /** A button or hotkey press: instant signatures fire now, aimed ones wait for a click. */
+  private requestSignature(tower: Tower, signatureId: string): void {
+    if (this.gameOver || this.capture || this.evolution || this.isPaused) return;
+    if ((tower.pp[signatureId] ?? 0) <= 0 || !this.towers.includes(tower)) return;
+    const def = SIGNATURES[signatureId];
+    if (def.targeting === 'point' || def.targeting === 'line') {
+      const same = this.aiming?.tower === tower && this.aiming.signatureId === signatureId;
+      this.clearSelection();
+      this.selectedBall = null;
+      this.aiming = same ? null : { tower, signatureId };
+      this.captureHint = same ? null : `${def.name.toUpperCase()} · CLICK ${def.targeting === 'point' ? 'A SPOT' : 'A DIRECTION'} · ESC TO CANCEL`;
+      this.audio.playSelect();
+      return;
+    }
+    this.fireSignature(tower, signatureId, null);
+  }
+
+  private fireSignature(tower: Tower, signatureId: string, aim: THREE.Vector3 | null): void {
+    const def = SIGNATURES[signatureId];
+    if (!castSignature(def, tower, aim, this.signatureContext())) {
+      this.captureHint = `${def.name.toUpperCase()} HAS NOTHING TO HIT`;
+      return;
+    }
+    tower.pp[signatureId]--;
+    tower.animPokemon.playMove?.(def.name);
+    this.announcer.trigger('signature', `${tower.name.toUpperCase()}, ${def.name.toUpperCase()}!`);
+    this.audio.playAttack(tower.primaryMove.fxType);
+  }
+
+  /** Shows where an aimed signature will land and fires it on click. */
+  private updateAim(ground: THREE.Vector3 | null, input: Input): void {
+    const { tower, signatureId } = this.aiming!;
+    const def = SIGNATURES[signatureId];
+    if (!this.towers.includes(tower)) {
+      this.aiming = null;
+      this.captureHint = null;
+      return;
+    }
+    if (!ground) {
+      this.aimPreview.visible = false;
+      return;
+    }
+    const color = TYPE_COLORS[def.type]?.num ?? 0xffffff;
+    if (this.aimPreviewKind !== signatureId) {
+      this.aimPreview.clear();
+      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
+      const geometry = def.targeting === 'point'
+        ? new THREE.RingGeometry((def.radius ?? 4) - 0.35, def.radius ?? 4, 48).rotateX(-Math.PI / 2)
+        : new THREE.PlaneGeometry(2.8, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.renderOrder = 6;
+      this.aimPreview.add(mesh);
+      this.aimPreviewKind = signatureId;
+    }
+    if (def.targeting === 'point') {
+      this.aimPreview.position.set(ground.x, ground.y + 0.4, ground.z);
+      this.aimPreview.rotation.set(0, 0, 0);
+      this.aimPreview.scale.setScalar(1);
+    } else {
+      // A strip from the tower toward the cursor, as long as the beam reaches.
+      const length = signatureId === 'solar_beam' ? 80 : tower.getMaxRange() * 1.6;
+      this.aimPreview.position.set(tower.position.x, tower.position.y + 0.4, tower.position.z);
+      this.aimPreview.rotation.set(0, Math.atan2(ground.x - tower.position.x, ground.z - tower.position.z), 0);
+      this.aimPreview.scale.set(1, 1, length);
+    }
+    this.aimPreview.visible = true;
+
+    if (input.clicked && !input.clickedOnUI && !this.isPaused) {
+      this.aiming = null;
+      this.captureHint = null;
+      this.aimPreview.visible = false;
+      this.fireSignature(tower, signatureId, ground);
+    }
+  }
+
+  private signatureContext(): SignatureContext {
+    return {
+      creeps: this.creeps,
+      towers: this.towers,
+      hit: this.hitContext(),
+      particles: this.particles,
+      camera: this.camera,
+      announcer: this.announcer,
+      cinematicCuts: this.signatureCuts,
+      channel: (duration, interval, tick) => {
+        tick();
+        this.channels.push({ remaining: duration - interval, interval, timer: interval, tick });
+      },
+    };
   }
 
   /** Slow auras reach creeps in a tower's range; rate auras reach towers in it. */
@@ -976,6 +1129,8 @@ export class StadiumTDGame {
 
   /** Milestone payouts, and the win itself — which never stops the run. */
   private handleRoundCleared(round: number): void {
+    // PP is per round: every signature is ready again for the next one.
+    this.towers.forEach(tower => tower.refillPP());
     this.applyXp(this.progress.awardWaveClear(this.towers));
     // Autosave per wave: closing the tab loses at most the wave in progress.
     this.store.recordMap(this.map.id, round, round >= this.waveManager.winRound);
@@ -1081,5 +1236,23 @@ export class StadiumTDGame {
 
   public render(): void {
     this.renderer.render(this.camera.camera);
+  }
+}
+
+const SIGNATURE_CUTS_KEY = 'pokestadium.signatureCuts';
+
+function readSignatureCutsSetting(): boolean {
+  try {
+    return localStorage.getItem(SIGNATURE_CUTS_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function writeSignatureCutsSetting(enabled: boolean): void {
+  try {
+    localStorage.setItem(SIGNATURE_CUTS_KEY, enabled ? 'on' : 'off');
+  } catch {
+    // Storage can be unavailable (private windows); the setting just won't stick.
   }
 }

@@ -17,6 +17,7 @@ const result = await build({
       "export { xpForLevel } from './src/td/progression/Stats.ts';",
       "export { getSpecies } from './src/td/progression/Species.ts';",
       "export { Hazard } from './src/td/Hazard.ts';",
+      "export { castSignature, SIGNATURES } from './src/td/Signatures.ts';",
       "export * as THREE from 'three';",
     ].join('\n'),
     resolveDir: fileURLToPath(new URL('../', import.meta.url)),
@@ -29,7 +30,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, MOVES,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, Hazard, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, Hazard, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Starting the next match must release a keyboard-only pause, or the wave
@@ -54,7 +55,7 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
     let shots = 0;
     const target = { position: new THREE.Vector3() };
     const tower = {
-      attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0,
+      attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0, surge: { bonus: 0, timer: 0 },
       modifiers: { rate: 1 }, rollShot: () => ({}),
       findTarget: () => target,
       animPokemon: { mesh: new THREE.Group(), update() {} },
@@ -72,7 +73,7 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   let burstShots = 0;
   const target = { position: new THREE.Vector3() };
   const idleTower = {
-    attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0,
+    attack: { move: { range: 10, attackSpeed: 2, name: 'Test' }, rate: 1 }, cooldown: 0, rateBuff: 0, surge: { bonus: 0, timer: 0 },
     modifiers: { rate: 1 }, rollShot: () => ({}),
     findTarget: () => hasTarget ? target : null,
     animPokemon: { mesh: new THREE.Group(), update() {} },
@@ -276,7 +277,7 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
 {
   const pathTower = (speciesId, level) => {
     const tower = Object.create(Tower.prototype);
-    Object.assign(tower, { species: getSpecies(speciesId), pokemon: { level }, totalInvested: 0, updateRangeRing() {} });
+    Object.assign(tower, { species: getSpecies(speciesId), pokemon: { level }, totalInvested: 0, pp: {}, updateRangeRing() {} });
     tower.tiers = tower.species.paths.map(() => 0);
     tower.attack = tower.buildAttack();
     return tower;
@@ -293,6 +294,10 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   assert.deepEqual(pikachu.upgradeConsequences(2), { closes: [], caps: [0] }, 'claiming tier 3 warns it caps the other path');
   assert.ok(pikachu.buyUpgrade(2), 'agility claims tier 3');
   assert.equal(pikachu.attack.move.id, 'quick_attack', 'the main path now decides the attack');
+  assert.deepEqual(pikachu.pp, { agility: 2 }, 'tier 3 unlocks its signature with full PP');
+  pikachu.pp.agility = 0;
+  pikachu.refillPP();
+  assert.equal(pikachu.pp.agility, 2, 'PP refills to full');
   assert.equal(pikachu.getUpgradeBlockReason(0), 'tier_capped', 'storm is capped at tier 2');
 
   const lowLevel = pathTower('charmander', 5);
@@ -348,4 +353,35 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   hazard.destroy(scene);
 }
 
-console.log('PASS: gameplay timing, capture, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, and hazard regressions.');
+// Signatures with nothing to act on refuse the cast, so no PP is spent. Blaze
+// cashes in remaining burns; Fly dives on the healthiest creep it can see.
+{
+  const damage = [];
+  const creep = (name, hp, traits = [], burnTimer = 0) => ({
+    name, hp, maxHp: 100, alive: true, captureLocked: false, isBoss: false, types: ['Normal'],
+    position: new THREE.Vector3(), hasTrait: trait => traits.includes(trait),
+    damageStatus: burnTimer ? { effect: 'burn', timer: burnTimer, source: null } : null,
+    applyStatus: () => true, pushBack() {},
+    takeDamage(amount) { damage.push([name, Math.round(amount)]); return false; },
+  });
+  const noop = { emitRing() {}, emitAura() {}, emitBeam() {}, emitImpact() {}, emitGroundBurst() {} };
+  const tower = { position: new THREE.Vector3(), modifiers: { damage: 1, rate: 1, status: 1 }, seesPhantoms: false,
+    getMaxRange: () => 10, reachAgainst: range => range };
+  const context = creeps => ({
+    creeps, towers: [tower], particles: noop, camera: { shake() {}, triggerActionCam() {} }, announcer: { trigger() {} },
+    cinematicCuts: false, channel() {},
+    hit: { creeps, particles: noop, audio: { playHit() {} }, announcer: { trigger() {} }, onFaint() {} },
+  });
+
+  assert.equal(castSignature(SIGNATURES.blaze, tower, null, context([creep('dry', 50)])), false, 'blaze needs a burn');
+  const burning = creep('burning', 80, [], 2);
+  assert.equal(castSignature(SIGNATURES.blaze, tower, null, context([burning])), true, 'blaze fires');
+  assert.deepEqual(damage.pop(), ['burning', 16], 'blaze deals the remaining burn at once');
+  assert.equal(burning.damageStatus, null, 'blaze consumes the burn');
+
+  castSignature(SIGNATURES.fly, tower, null, context([creep('small', 30), creep('ghost', 900, ['phantom']), creep('big', 90)]));
+  assert.equal(damage.pop()[0], 'big', 'fly dives on the healthiest creep it can target');
+  assert.equal(castSignature(SIGNATURES.fire_blast, tower, null, context([])), false, 'aimed signatures need a spot');
+}
+
+console.log('PASS: gameplay timing, capture, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, and signature regressions.');

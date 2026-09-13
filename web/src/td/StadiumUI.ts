@@ -11,6 +11,7 @@
 
 import { Tower } from './Tower';
 import { attackChips } from './TowerAttack';
+import type { SignatureDef } from './Signatures';
 import { TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
 import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
@@ -61,7 +62,23 @@ export interface UIState {
   placementStatus: PlacementStatus | null;
   mapName: string;
   mapStrategy: string;
+  /** Every signature move on the pitch, in hotkey order. */
+  signatures: SignatureSlot[];
 }
+
+export interface SignatureSlot {
+  tower: Tower;
+  def: SignatureDef;
+  pp: number;
+  /** The player is picking a spot or direction for this one. */
+  aiming: boolean;
+}
+
+/** Effect glyph a signature's button wears, by its type. */
+const SIGNATURE_GLYPHS: Partial<Record<string, ParticleFXType>> = {
+  Grass: 'razor_leaf', Fire: 'flamethrower', Water: 'water_stream', Electric: 'lightning',
+  Ice: 'blizzard', Psychic: 'psychic_wave', Flying: 'impact',
+};
 
 /**
  * Abstract geometric marks for each effect family — deliberately simple
@@ -123,6 +140,8 @@ export class StadiumUI {
   public onOpenMaps: () => void = () => {};
   public onResumeMap: () => void = () => {};
   public onResumeGame: () => void = () => {};
+  public onCastSignature: (tower: Tower, signatureId: string) => void = () => {};
+  public onToggleSignatureCuts: () => void = () => {};
   public onQuitToMenu: () => void = () => {};
   public onRetryMap: () => void = () => {};
   public onSelectBall: (ball: BallType | null) => void = () => {};
@@ -340,6 +359,29 @@ export class StadiumUI {
 
         #capture-hint { position:absolute; bottom:136px; left:18px; color:#fff2a7; font-weight:800; letter-spacing:.8px; text-shadow:0 2px 3px #000; z-index:31; background:rgba(9,25,51,.88); border-left:3px solid #f6c437; padding:6px 10px; }
         #capture-hint:empty { display:none; }
+        #signature-bar {
+          position:absolute; left:18px; bottom:18px; z-index:31;
+          display:flex; flex-wrap:wrap-reverse; gap:10px 8px; max-width:calc(100% - 520px);
+        }
+        #signature-bar:empty { display:none; }
+        .sig-btn {
+          position:relative; display:grid; grid-template-columns:30px auto; align-items:center; gap:2px 7px;
+          min-width:118px; padding:5px 9px 5px 6px; border:2px solid #b9d1e2; border-radius:0;
+          background:linear-gradient(180deg,#3b75aa,#11345f); color:#fff; cursor:pointer; text-align:left;
+          box-shadow:2px 2px 0 rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.28);
+          font-family:'Teko','Impact',sans-serif;
+        }
+        .sig-btn:hover:not(:disabled) { border-color:#ffd700; box-shadow:0 0 12px rgba(255,215,0,.5); }
+        .sig-btn:disabled { opacity:.45; cursor:not-allowed; }
+        .sig-btn.aiming { border-color:#ffd700; background:linear-gradient(180deg,#8a6a12,#3d2c06); }
+        .sig-mark { grid-row:span 2; width:30px; height:30px; display:grid; place-items:center; border:1.5px solid #fff0ad; }
+        .sig-name { font-size:18px; line-height:.85; letter-spacing:.4px; white-space:nowrap; }
+        .sig-meta { display:flex; align-items:center; gap:5px; font-size:11px; line-height:.9; letter-spacing:.8px; color:#bcd7ec; white-space:nowrap; }
+        .sig-pp { display:flex; gap:2px; }
+        .sig-pp i { width:7px; height:7px; border:1px solid #fff4af; background:#07182f; }
+        .sig-pp i.on { background:#f6c437; }
+        .sig-key { position:absolute; top:-8px; right:-6px; min-width:16px; padding:1px 3px; background:#f6c437; color:#07162f; font-size:13px; line-height:1; text-align:center; border:1px solid #07162f; }
+        .pause-setting { margin-top:10px; font-size:12px; }
         #poke-mart { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:flex; gap:7px; align-items:center; }
         #poke-mart strong { color:#f6c437; font-family:'Impact',sans-serif; letter-spacing:1px; }
         .mart-item { font-size:11px; padding:4px 7px; }
@@ -1162,6 +1204,7 @@ export class StadiumUI {
             <button class="stadium-btn active" id="btn-pause-resume">RESUME</button>
             <button class="stadium-btn" id="btn-pause-quit">QUIT TO COURSE SELECT</button>
           </div>
+          <button class="stadium-btn pause-setting" id="btn-signature-cuts">SIGNATURE CAMERA CUTS: ON</button>
         </section>
       </div>
 
@@ -1205,6 +1248,7 @@ export class StadiumUI {
         </div>
       </div>
       <div id="poke-mart" class="stadium-panel interactive"><strong>POKÉ MART</strong><button class="stadium-btn mart-item" data-buy-ball="poke">BALL $35</button><button class="stadium-btn mart-item" data-buy-ball="great">GREAT $85</button><button class="stadium-btn mart-item" data-buy-ball="ultra">ULTRA $170</button></div>
+      <div id="signature-bar" class="interactive" aria-label="Signature moves"></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
     `;
@@ -1330,6 +1374,7 @@ export class StadiumUI {
     });
     document.getElementById('btn-pause-resume')!.addEventListener('click', () => this.onResumeGame());
     document.getElementById('btn-pause-quit')!.addEventListener('click', () => this.onQuitToMenu());
+    document.getElementById('btn-signature-cuts')!.addEventListener('click', () => this.onToggleSignatureCuts());
     this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(button=>{
       button.addEventListener('click',()=>{
         const filter=button.dataset.difficulty;
@@ -1766,8 +1811,46 @@ export class StadiumUI {
     this.trainer.showMatchReport(report, mapName, onContinue);
   }
 
+  private signatureBarKey = '';
+
+  /** Rebuilds the bar when the set of signatures changes; PP and aim state refresh every frame. */
+  private renderSignatureBar(slots: SignatureSlot[], blocked: boolean): void {
+    const bar = document.getElementById('signature-bar')!;
+    const key = slots.map(slot => `${slot.tower.id}:${slot.def.id}`).join('|');
+    if (key !== this.signatureBarKey) {
+      this.signatureBarKey = key;
+      bar.innerHTML = slots.map((slot, i) => {
+        const color = TYPE_COLORS[slot.def.type]?.hex ?? '#fff';
+        return `
+          <button class="sig-btn" data-sig="${i}" title="${escapeHtml(slot.def.description)}">
+            <span class="sig-mark" style="background:${color}55">${glyph(SIGNATURE_GLYPHS[slot.def.type] ?? 'impact', color, 22)}</span>
+            <span class="sig-name">${slot.def.name.toUpperCase()}</span>
+            <span class="sig-meta">${escapeHtml(slot.tower.name.toUpperCase())}<span class="sig-pp"></span></span>
+            ${i < 9 ? `<span class="sig-key">${i + 1}</span>` : ''}
+          </button>`;
+      }).join('');
+      bar.querySelectorAll<HTMLButtonElement>('.sig-btn').forEach(button => {
+        const slot = slots[Number(button.dataset.sig)];
+        button.addEventListener('click', () => this.onCastSignature(slot.tower, slot.def.id));
+      });
+    }
+    bar.querySelectorAll<HTMLButtonElement>('.sig-btn').forEach((button, i) => {
+      const slot = slots[i];
+      button.disabled = blocked || slot.pp <= 0;
+      button.classList.toggle('aiming', slot.aiming);
+      const pips = Array.from({ length: slot.def.pp }, (_, p) => `<i class="${p < slot.pp ? 'on' : ''}"></i>`).join('');
+      const ppEl = button.querySelector<HTMLElement>('.sig-pp')!;
+      if (ppEl.innerHTML !== pips) ppEl.innerHTML = pips;
+    });
+  }
+
+  public setSignatureCuts(enabled: boolean): void {
+    document.getElementById('btn-signature-cuts')!.textContent = `SIGNATURE CAMERA CUTS: ${enabled ? 'ON' : 'OFF'}`;
+  }
+
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
+    this.renderSignatureBar(state.signatures, !!state.captureCinema || !!state.evolutionCinema);
     [1,2,3].forEach(speed => document.getElementById(`btn-speed-${speed}`)!.classList.toggle('active',state.gameSpeed===speed));
     ['tactical','stadium','action'].forEach(mode => document.getElementById(`btn-cam-${mode}`)!.classList.toggle('active',state.cameraMode===mode));
 

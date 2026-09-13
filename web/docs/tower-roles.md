@@ -322,6 +322,10 @@ playtesting can move them.
 - **PP carry-over:** none.
 - **Auto-cast:** not in this build.
 - **Water placement:** deferred. Psyduck and Lapras get roles that don't need water.
+- **Hotkeys:** `1`–`9` call signatures in bar order, so camera modes moved from
+  `1`–`3` to `C` (cycles tactical → stadium → action).
+- **Aimed signatures** come in two kinds: `point` (click a spot) and `line` (click a
+  direction from the tower). Casting is blocked while paused.
 - **Trait callouts:** shown the first time a trait appears in each match, not once per
   save, so there is no save schema change.
 
@@ -363,13 +367,13 @@ Tick each box as it lands. Each phase ends with `npm run build`,
 
 ### Phase 3 · Signature moves
 
-- [ ] Signature definitions; tier 3 unlocks one per path
-- [ ] PP per tower, refilled at round start
-- [ ] Signature bar with portraits, PP pips and hotkeys
-- [ ] Targeting: instant, aimed (click the map), auto
-- [ ] Each starter signature's effect
-- [ ] Announcer call and a short action-cam cut (setting to turn it off)
-- [ ] Regression tests for PP and refills
+- [x] Signature definitions; tier 3 unlocks one per path
+- [x] PP per tower, refilled at round start
+- [x] Signature bar with portraits, PP pips and hotkeys
+- [x] Targeting: instant, aimed (click the map), auto
+- [x] Each starter signature's effect
+- [x] Announcer call and a short action-cam cut (setting to turn it off)
+- [x] Regression tests for PP and refills
 
 ### Phase 4 · The rest of the roster
 
