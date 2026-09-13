@@ -91,6 +91,7 @@ input.tr-input, .tr-starter-names input, .tr-rename input, .trophy-nickname inpu
 .tr-slot.empty { align-items: center; justify-content: center; border: 3px dashed #5f7fb8; background: rgba(6, 18, 43, .6); box-shadow: none; cursor: default; color: #6f8fc0; font: 17px 'Teko', sans-serif; letter-spacing: 1px; }
 .tr-slot-name { font: 700 19px/1 'Teko', Impact, sans-serif; color: var(--broadcast-cream-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-slot-meta, .tr-card-meta { color: #ffe082; font: 15px/1.2 'Teko', sans-serif; letter-spacing: .5px; }
+.tr-slot-types, .tr-card-types { display: block; margin-top: 2px; }
 .tr-collection-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin: 16px 0 8px; color: #bcd7ec; font: 15px 'Teko', sans-serif; letter-spacing: .8px; }
 .tr-collection { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 9px; max-height: min(38vh, 360px); overflow-y: auto; padding: 4px 6px 6px 2px; scrollbar-width: thin; scrollbar-color: #5280b8 #071326; }
 .tr-card { position: relative; }

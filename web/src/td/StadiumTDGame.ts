@@ -33,7 +33,7 @@ import { MOVES } from '../stadium/MoveDatabase';
 import { TYPE_COLORS } from '../stadium/TypeMatrix';
 import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
-import { BallType, CaptureSequence } from './CaptureSequence';
+import { BALL_PRICES, BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
@@ -224,9 +224,8 @@ export class StadiumTDGame {
       this.audio.playSelect();
     };
     this.ui.onBuyBall = (ball) => {
-      const cost: Record<BallType, number> = { poke: 35, great: 85, ultra: 170 };
-      if (this.waveManager.inWave || this.money < cost[ball]) return;
-      this.money -= cost[ball];
+      if (this.waveManager.inWave || this.money < BALL_PRICES[ball]) return;
+      this.money -= BALL_PRICES[ball];
       this.balls[ball]++;
       this.audio.playSelect();
     };
@@ -869,6 +868,10 @@ export class StadiumTDGame {
     } else if (!this.evolution) {
       this.handleInput(input);
     }
+
+    // Procedural grass is cosmetic and yields to the tower's physical pad.
+    // The arena caches this footprint set, so unchanged frames cost no traversal.
+    this.arena.clearGroundPropsBelow?.(this.towers.map(tower => tower.position), TOWER_FOOTPRINT_RADIUS);
 
     // A capture or evolution set piece runs in real time while it drags the
     // rest of the world into slow motion. At most one of these is ever

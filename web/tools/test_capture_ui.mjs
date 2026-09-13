@@ -67,7 +67,7 @@ try {
     await click(`[data-ball-type="${type}"]`);
     assert.equal(await evaluate(`document.querySelector('[data-ball-type="${type}"]').getAttribute('aria-pressed')`),'false',`${type} disarms`);
   }
-  assert.equal(await evaluate(`(()=>{const a=document.querySelector('#poke-mart').getBoundingClientRect(); return a.left>=0&&a.bottom<=innerHeight})()`),true,'Mart stays inside the viewport');
+  assert.equal(await evaluate(`(()=>{const a=document.querySelector('#capture-kit').getBoundingClientRect(); return a.left>=0&&a.bottom<=innerHeight})()`),true,'Capture kit stays inside the viewport');
   assert.equal(await evaluate(`document.querySelector('#btn-maps')===null`),true,'Always-visible Maps control is removed');
   await press('Escape','Escape');
   assert.equal(await evaluate(`document.querySelector('#pause-screen').hidden`),false,'Escape opens the pause sheet');
@@ -78,8 +78,8 @@ try {
   await click('#trainer-screen [data-continue]');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('#map-select')).display`),'grid','Quit opens course selection');
   assert.equal(await evaluate(`document.querySelector('#btn-resume-map').hidden`),true,'Quit cannot resume the abandoned match');
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('#poke-mart')).visibility`),'hidden','Mart hidden during map selection');
-  assert.equal(await evaluate(`document.querySelector('#poke-mart').inert`),true,'Mart cannot receive input during map selection');
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('#capture-kit')).visibility`),'hidden','Capture kit hidden during map selection');
+  assert.equal(await evaluate(`document.querySelector('#capture-kit').inert`),true,'Capture kit cannot receive input during map selection');
   console.log('PASS: persistent ball controls, Escape pause/resume, quit-to-course-select, and menu input isolation.');
 } finally {
   socket?.close();

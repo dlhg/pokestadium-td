@@ -18,7 +18,7 @@ import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
 import { mapPreview } from './MapPreview';
-import { BallType, CaptureHud } from './CaptureSequence';
+import { BALL_PRICES, BallType, CaptureHud } from './CaptureSequence';
 import { EvolutionHud } from './EvolutionSequence';
 import { SummonHud } from './SummonSequence';
 import type { MilestoneReward } from './WaveManager';
@@ -30,6 +30,8 @@ import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import type { MatchReportEntry } from './progression/MatchProgress';
 import './map-select.css';
 import stadiumThemeUrl from './stadium-ui-theme.css?url';
+
+const BALL_NAMES: Record<BallType, string> = { poke: 'POKÉ', great: 'GREAT', ultra: 'ULTRA' };
 
 /** What the roster hint says about the spot the cursor is currently over. */
 export interface PlacementStatus {
@@ -220,17 +222,14 @@ export class StadiumUI {
         }
 
         .ui-pokeball.lost { opacity: 0.2; filter: grayscale(1); transform: scale(0.85); }
-        .capture-kit { display:flex; gap:4px; align-items:center; }
-        .ball-choice { min-width:38px; padding:4px 5px; font-size:11px; }
-        .ball-choice.selected { border-color:#fff; box-shadow:0 0 10px #f6c437; background:linear-gradient(180deg,#f6c437,#a85d00); color:#071326; }
         /* Headless verification freezes single frames; show settled states, not mid-transition ones. */
         .shot-mode *, .shot-mode *::before, .shot-mode *::after { transition:none !important; animation-duration:0s !important; }
 
         /* ---- Capture cinematic overlay ---- */
         /* Gameplay chrome recedes so the ball owns the screen. */
-        #top-bar, #controls-bar, #card-deck, #tower-panel, #poke-mart, #capture-hint { transition:opacity .28s ease, filter .28s ease; }
+        #top-bar, #controls-bar, #card-deck, #tower-panel, #capture-kit, #capture-hint { transition:opacity .28s ease, filter .28s ease; }
         .cinema-live #top-bar, .cinema-live #controls-bar, .cinema-live #card-deck,
-        .cinema-live #tower-panel, .cinema-live #poke-mart,
+        .cinema-live #tower-panel, .cinema-live #capture-kit,
         .cinema-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
         .cinema-live #announcer-banner { display:none !important; }
         #capture-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .18s ease; }
@@ -238,7 +237,7 @@ export class StadiumUI {
 
         /* ---- Evolution cinematic overlay ---- */
         .evo-live #top-bar, .evo-live #controls-bar, .evo-live #card-deck,
-        .evo-live #tower-panel, .evo-live #poke-mart,
+        .evo-live #tower-panel, .evo-live #capture-kit,
         .evo-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
         .evo-live #announcer-banner { display:none !important; }
         #evo-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .18s ease; }
@@ -258,7 +257,7 @@ export class StadiumUI {
 
         /* ---- Poké Ball deployment cinematic ---- */
         .summon-live #top-bar, .summon-live #controls-bar, .summon-live #card-deck,
-        .summon-live #tower-panel, .summon-live #poke-mart, .summon-live #signature-bar,
+        .summon-live #tower-panel, .summon-live #capture-kit, .summon-live #signature-bar,
         .summon-live #capture-hint { opacity:.08; filter:blur(2px) saturate(.3); pointer-events:none; }
         .summon-live #announcer-banner { display:none !important; }
         #summon-cinema { position:absolute; inset:0; z-index:60; pointer-events:none; opacity:0; transition:opacity .16s ease; }
@@ -418,9 +417,21 @@ export class StadiumUI {
         .pause-audio { display:grid; grid-template-columns:64px 1fr 34px; align-items:center; gap:8px; margin-top:10px; font-size:11px; letter-spacing:1px; color:#bcd7ec; }
         .pause-audio input { width:100%; accent-color:#f6c437; }
         .pause-audio output { color:#f6c437; text-align:right; }
-        #poke-mart { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:flex; gap:7px; align-items:center; }
-        #poke-mart strong { color:#f6c437; font-family:'Impact',sans-serif; letter-spacing:1px; }
-        .mart-item { font-size:11px; padding:4px 7px; }
+        #capture-kit { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:grid; gap:5px; }
+        .capture-kit-title { color:#f6c437; font-family:'Teko','Impact',sans-serif; font-size:15px; line-height:.9; letter-spacing:1.2px; }
+        .capture-row { display:grid; grid-template-columns:1fr auto; gap:5px; }
+        .ball-choice { display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px; min-width:132px; padding:4px 8px 4px 6px; text-align:left; }
+        .ball-count { display:inline-block; color:#f6c437; }
+        .ball-choice.selected { border-color:#fff; box-shadow:0 0 10px #f6c437; background:linear-gradient(180deg,#f6c437,#a85d00); color:#071326; }
+        .ball-choice.selected .ball-count { color:#071326; }
+        .ball-choice:disabled, .ball-buy:disabled { opacity:.45; cursor:not-allowed; filter:saturate(.4); }
+        .ball-buy { min-width:58px; padding:4px 7px; color:#8dff8d; }
+        .ball-count.bump { animation:ball-count-bump .35s ease-out; }
+        @keyframes ball-count-bump { 40% { transform:scale(1.45); color:#fff; } }
+        .ball-icon { width:16px; height:16px; border-radius:50%; border:1px solid #111; box-shadow:0 1px 0 #000;
+          background:radial-gradient(circle, #fff 0 2.5px, #111 2.5px 4px, transparent 4px), linear-gradient(180deg, #d90429 46%, #111 46% 54%, #f4f4f4 54%); }
+        .ball-icon.great { background:radial-gradient(circle, #fff 0 2.5px, #111 2.5px 4px, transparent 4px), linear-gradient(90deg, transparent 22%, #e8283a 22% 34%, transparent 34% 66%, #e8283a 66% 78%, transparent 78%) top/100% 46% no-repeat, linear-gradient(180deg, #2f6fd6 46%, #111 46% 54%, #f4f4f4 54%); }
+        .ball-icon.ultra { background:radial-gradient(circle, #fff 0 2.5px, #111 2.5px 4px, transparent 4px), linear-gradient(90deg, transparent 26%, #f6c437 26% 40%, transparent 40% 60%, #f6c437 60% 74%, transparent 74%) top/100% 46% no-repeat, linear-gradient(180deg, #222 46%, #111 46% 54%, #f4f4f4 54%); }
 
         /* Controls (Top Right) */
         #controls-bar {
@@ -1186,14 +1197,6 @@ export class StadiumUI {
           <span class="stat-label">STADIUM HP</span>
           <div class="pokeball-tray" id="stadium-hp"></div>
         </div>
-        <div class="stat-badge">
-          <span class="stat-label">CAPTURE BALLS</span>
-          <div class="capture-kit" id="capture-kit">
-            <button class="stadium-btn ball-choice" data-ball-type="poke" title="Poké Ball" aria-pressed="false">POKÉ 3</button>
-            <button class="stadium-btn ball-choice" data-ball-type="great" title="Great Ball" aria-pressed="false" disabled>GREAT 0</button>
-            <button class="stadium-btn ball-choice" data-ball-type="ultra" title="Ultra Ball" aria-pressed="false" disabled>ULTRA 0</button>
-          </div>
-        </div>
         <button class="stadium-btn active" id="btn-wave">START MATCH</button>
       </div>
 
@@ -1297,7 +1300,19 @@ export class StadiumUI {
           </div>
         </div>
       </div>
-      <div id="poke-mart" class="stadium-panel interactive"><strong>POKÉ MART</strong><button class="stadium-btn mart-item" data-buy-ball="poke">BALL $35</button><button class="stadium-btn mart-item" data-buy-ball="great">GREAT $85</button><button class="stadium-btn mart-item" data-buy-ball="ultra">ULTRA $170</button></div>
+      <!-- Capture Kit: pick a ball to throw, or restock it, from one row -->
+      <div id="capture-kit" class="stadium-panel interactive" aria-label="Capture balls">
+        <strong class="capture-kit-title">CAPTURE BALLS</strong>
+        ${(['poke', 'great', 'ultra'] as BallType[]).map(type => `
+          <div class="capture-row" data-ball-row="${type}">
+            <button class="stadium-btn ball-choice" data-ball-type="${type}" aria-pressed="false" disabled>
+              <span class="ball-icon ${type}" aria-hidden="true"></span>
+              <span class="ball-name">${BALL_NAMES[type]}</span>
+              <span class="ball-count">×0</span>
+            </button>
+            <button class="stadium-btn ball-buy" data-buy-ball="${type}">+$${BALL_PRICES[type]}</button>
+          </div>`).join('')}
+      </div>
       <div id="signature-bar" class="interactive" aria-label="Signature moves"></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
@@ -1346,7 +1361,7 @@ export class StadiumUI {
     const chooser=this.container.querySelector<HTMLElement>('#map-select')!;
     chooser.style.display=visible?'grid':'none';
     this.container.classList.toggle('map-select-open',visible);
-    ['top-bar','controls-bar','card-deck','tower-panel','poke-mart','capture-hint'].forEach(id=>{
+    ['top-bar','controls-bar','card-deck','tower-panel','capture-kit','capture-hint'].forEach(id=>{
       this.container.querySelector<HTMLElement>(`#${id}`)!.inert=visible;
     });
     this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
@@ -1968,23 +1983,38 @@ export class StadiumUI {
       }
     }
 
+    // Buttons are patched in place, never rebuilt, so a held click survives frame updates.
     const captureKit = document.getElementById('capture-kit')!;
     captureKit.querySelectorAll<HTMLButtonElement>('[data-ball-type]').forEach(button => {
       const type = button.dataset.ballType as BallType;
-      button.classList.toggle('selected', state.selectedBall === type);
-      button.setAttribute('aria-pressed', String(state.selectedBall === type));
-      const name = type === 'poke' ? 'POKÉ' : type === 'great' ? 'GREAT' : 'ULTRA';
-      const label = state.selectedBall === type ? `THROW ${name}` : `${name} ${state.balls[type]}`;
-      if (button.textContent !== label) button.textContent = label;
+      const selected = state.selectedBall === type;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
       button.disabled = state.balls[type] <= 0;
+      const nameEl = button.querySelector<HTMLElement>('.ball-name')!;
+      const name = selected ? `THROW ${BALL_NAMES[type]}` : BALL_NAMES[type];
+      if (nameEl.textContent !== name) nameEl.textContent = name;
+      const countEl = button.querySelector<HTMLElement>('.ball-count')!;
+      const count = `×${state.balls[type]}`;
+      if (countEl.textContent !== count) {
+        const gained = state.balls[type] > Number(countEl.textContent!.slice(1));
+        countEl.textContent = count;
+        if (gained) { countEl.classList.remove('bump'); void countEl.offsetWidth; countEl.classList.add('bump'); }
+      }
+    });
+    captureKit.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => {
+      const type = button.dataset.buyBall as BallType;
+      button.disabled = state.inWave || state.money < BALL_PRICES[type];
+      const title = state.inWave ? 'Shop reopens between matches'
+        : state.money < BALL_PRICES[type] ? 'Not enough prize money'
+        : `Buy one ${BALL_NAMES[type]} BALL`;
+      if (button.title !== title) button.title = title;
     });
     this.renderCaptureCinema(state.captureCinema);
     this.renderEvolutionCinema(state.evolutionCinema);
     this.renderSummonCinema(state.summonCinema);
     const captureHint = document.getElementById('capture-hint')!;
     captureHint.innerText = state.captureHint || '';
-    const mart = document.getElementById('poke-mart')!;
-    mart.style.display = state.inWave ? 'none' : 'flex';
 
     // Wave button label
     const waveBtn = document.getElementById('btn-wave')!;

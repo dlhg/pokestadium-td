@@ -47,7 +47,7 @@
 .map-legend span:last-child::before { background: #fa8e76; }
 .map-select-open > #top-bar, .map-select-open > #controls-bar, .map-select-open > #announcer-banner,
 .map-select-open > #card-deck, .map-select-open > #tower-panel,
-.map-select-open > #poke-mart, .map-select-open > #capture-hint { visibility: hidden; }
+.map-select-open > #capture-kit, .map-select-open > #capture-hint { visibility: hidden; }
 #btn-maps { margin-right: 10px; }
 @media (max-width: 950px) {
   .map-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }

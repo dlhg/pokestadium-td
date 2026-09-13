@@ -212,10 +212,6 @@
   color: var(--broadcast-cream-bright);
 }
 
-.ball-choice {
-  min-width: 40px;
-  padding-inline: 6px;
-}
 
 .ball-choice.selected {
   border-color: #fff6b2;
@@ -601,20 +597,18 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .5);
 }
 
-/* Shop and current-course plaque */
-#poke-mart {
+/* Capture balls: select and restock */
+#capture-kit {
   bottom: 96px;
   border-radius: 13px;
 }
 
-#poke-mart strong {
+.capture-kit-title {
   color: #ffe15b;
-  font-family: 'Teko', 'Impact', sans-serif;
   font-size: 18px;
-  line-height: .9;
 }
 
-.mart-item {
+.ball-buy {
   padding: 4px 8px;
   font-size: 15px;
 }
