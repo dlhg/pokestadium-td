@@ -1976,7 +1976,7 @@ export class StadiumUI {
     grade.innerText = aim.grade === 'perfect' ? `PERFECT! +${Math.round(aim.bonus * 100)}% ODDS`
       : aim.grade === 'good' ? `GOOD! +${Math.round(aim.bonus * 100)}% ODDS`
       : aim.grade === 'wide' ? `WIDE! ${Math.round(aim.bonus * 100)}% ODDS`
-      : 'CLICK OR PRESS SPACE TO THROW';
+      : 'CLICK OR PRESS SPACE TO THROW POKÉ BALL';
   }
 
   /** Milestone payout card, sharing the trophy card's slot and timing. */
