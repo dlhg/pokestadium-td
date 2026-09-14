@@ -97,6 +97,9 @@ const VERDICT_HOLD_SUCCESS = 1.9;
 const VERDICT_HOLD_FAIL = 1.3;
 const AIM_TIMEOUT = 3.4;
 const BALL_REST_Y = 0.34;
+// The two shell halves need a little overlap at the equator. Exact tangency
+// leaves a lighting/rasterization hairline during the closed part of capture.
+const BALL_SHELL_OVERLAP = 0.025;
 const CAMERA_ANGLE_SAMPLES = 32;
 const CAMERA_OBSTACLE_MARGIN = 0.45;
 
@@ -369,8 +372,8 @@ export class CaptureSequence {
 
     // Halves swing apart, then snap shut over the final quarter of the beat.
     const open = p < 0.75 ? Math.sin(Math.min(1, p / 0.55) * Math.PI * 0.5) : (1 - (p - 0.75) / 0.25);
-    this.ballTop.position.y = open * 0.42;
-    this.ballBottom.position.y = -open * 0.12;
+    this.ballTop.position.y = open * 0.42 - BALL_SHELL_OVERLAP;
+    this.ballBottom.position.y = -open * 0.12 + BALL_SHELL_OVERLAP;
 
     // It struggles against the pull the whole way in, hardest at the start.
     const struggle = (1 - p) * 0.5;
@@ -513,8 +516,8 @@ export class CaptureSequence {
   private updateBreak(p: number): void {
     // Burst: halves fly apart and the target shakes itself off, defiant.
     const burst = Math.min(1, p / 0.35);
-    this.ballTop.position.y = burst * 1.6;
-    this.ballBottom.position.y = -burst * 0.4;
+    this.ballTop.position.y = burst * 1.6 - BALL_SHELL_OVERLAP;
+    this.ballBottom.position.y = -burst * 0.4 + BALL_SHELL_OVERLAP;
     this.ball.rotation.z += burst * 0.3;
     this.ball.visible = p < 0.45;
     this.ballLight.intensity = 8 * (1 - burst);
