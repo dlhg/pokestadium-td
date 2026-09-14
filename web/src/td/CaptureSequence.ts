@@ -96,7 +96,9 @@ const WOBBLE_CLICK = 0.46;
 const VERDICT_HOLD_SUCCESS = 1.9;
 const VERDICT_HOLD_FAIL = 1.3;
 const AIM_TIMEOUT = 3.4;
-const BALL_REST_Y = 0.34;
+// Keep the ball's lowest point just above the pitch so terrain variation and
+// shadowing do not make it visibly clip during the drop and wobble beats.
+const BALL_REST_Y = 0.46;
 // The two shell halves need a little overlap at the equator. Exact tangency
 // leaves a lighting/rasterization hairline during the closed part of capture.
 const BALL_SHELL_OVERLAP = 0.025;
