@@ -581,6 +581,17 @@ export class StadiumTDGame {
     this.renderer.floodlightDim = 0;
   }
 
+  /**
+   * The player's own decision to back out before the throw commits. Unlike
+   * abortCapture (used for match resets, where the ball count is reset too),
+   * this hands the ball back — a misclick shouldn't cost a Master Ball.
+   */
+  private cancelCaptureAttempt(): void {
+    if (!this.capture?.sequence.awaitingRelease) return;
+    this.balls[this.capture.ball]++;
+    this.abortCapture();
+  }
+
   /** Weakened, free Pokémon a ball can be thrown at, nearest the exit first. */
   private catchableCreeps(): Creep[] {
     return this.creeps.filter(creep => creep.catchable).sort((a, b) => b.pathProgress - a.pathProgress);
@@ -899,8 +910,12 @@ export class StadiumTDGame {
         this.summon.sequence.skip();
       }
     } else if (this.capture) {
-      // A UI click is the one that picked the ball; it must not also release the meter.
-      if (this.capture.sequence.awaitingRelease && ((input.clicked && !input.clickedOnUI) || input.isKeyJustPressed('Space'))) {
+      // Escape backs out before the throw commits and hands the ball back; once
+      // released, the meter's timing check owns Space/click and there's no undo.
+      if (input.isKeyJustPressed('Escape')) {
+        this.cancelCaptureAttempt();
+      } else if (this.capture.sequence.awaitingRelease && ((input.clicked && !input.clickedOnUI) || input.isKeyJustPressed('Space'))) {
+        // A UI click is the one that picked the ball; it must not also release the meter.
         this.capture.sequence.release();
       }
     } else if (!this.evolution) {
