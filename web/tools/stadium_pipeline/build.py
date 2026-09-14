@@ -32,7 +32,24 @@ import glb as glb_mod
 import rom as rom_mod
 
 N_POKEMON = 151
-EXTRA_NAMES = {152: 'Surfing Pikachu'}   # only the one identified with confidence
+EXTRA_NAMES = {
+    152: 'Surfing Pikachu',
+    # Identified by byte-for-byte matching texture 00 (the body material) against
+    # 019_rattata's own: both average to RGB (156, 106, 197), and the teeth strip
+    # (a distinctive 3-tooth cutout) is pixel-identical too. This is the separate,
+    # simplified 34-bone rig (the battle model has 43) driving "Run! Rattata, Run!",
+    # fragment8's minigame -- that code is still mostly un-decompiled, so this ID
+    # rests on the texture match plus anim 1's motion (see EXTRA_ANIM_NAMES below).
+    174: 'Rattata (Run! Rattata, Run! minigame)',
+}
+# Per-extra-model animation names, keyed by the model's own local anim index.
+# Only clip 1 here is confidently identified: it is the sole anim with the 0x8
+# flag bit (unique among this model's 6 clips), it wraps (loops) over a tight 15
+# frames, and its leg-chain bones (indices 2-10 and their mirrors 29-33) swing
+# through a full sinusoidal cycle in bounding-gait phase (left/right pairs near
+# in-phase, front/back pairs offset) -- a running gait, not the idle's single
+# slow settle. The rest are left as anim0/anim2../anim5 pending further work.
+EXTRA_ANIM_NAMES = {174: {1: 'run'}}
 
 # The explicit default is intentionally the verified Rev 2 filename. A caller
 # may supply a different path, but Rom still requires the exact supported MD5.
@@ -234,6 +251,10 @@ def main(argv):
     want_fx = '--no-effects' not in args
     pokemon_only = '--pokemon-only' in args
     only = {int(x) for x in args['--only'].split(',')} if '--only' in args else None
+    # Additive to --pokemon-only: specific non-species file numbers to keep
+    # alongside the 151 species (e.g. a minigame model), without opening up
+    # --only's exclusive filter to every other caller of --pokemon-only.
+    also = {int(x) for x in args['--also'].split(',')} if '--also' in args else set()
 
     if not rom_path or not os.path.exists(rom_path):
         sys.exit('Pokemon Stadium (USA) Rev 2 ROM not found. Pass --rom=PATH. Searched:\n  '
@@ -265,7 +286,7 @@ def main(argv):
     move_rows, anim_names, index, fx_count = {}, {}, [], 0
 
     for fileno, blob in enumerate(blobs):
-        if pokemon_only and fileno >= N_POKEMON:
+        if pokemon_only and fileno >= N_POKEMON and fileno not in also:
             continue
         if only is not None and fileno not in only:
             continue
@@ -291,8 +312,9 @@ def main(argv):
         else:
             slug = f'x{fileno:03d}_model'
             data['name'] = EXTRA_NAMES.get(fileno, f'Model {fileno}')
+            overrides = EXTRA_ANIM_NAMES.get(fileno, {})
             for i, a in enumerate(data['anims']):
-                a['name'] = f'anim{i}'
+                a['name'] = overrides.get(i, f'anim{i}')
                 a['aux'] = 0 if data['auxAnims'] else -1
 
         nfx = attach_effects(data, species) if want_fx else 0

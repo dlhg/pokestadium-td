@@ -15,6 +15,7 @@ interface ManifestAnimation {
 interface ManifestPokemon {
   species: number;
   name: string;
+  slug: string;
   glb: string;
   /** Idle footprint (twice the farthest horizontal reach) and height, in native units. */
   size?: { footprint: number; height: number };
@@ -24,6 +25,7 @@ interface ManifestPokemon {
 interface StadiumManifest {
   romMd5: string;
   pokemon: ManifestPokemon[];
+  extra: ManifestPokemon[];
 }
 
 export class GLTFModelLoader {
@@ -39,6 +41,72 @@ export class GLTFModelLoader {
         .catch(() => null);
     }
     return this.manifestPromise;
+  }
+
+  private static prepareMesh(scene: THREE.Group): void {
+    scene.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        const textured = material as THREE.MeshStandardMaterial;
+        if (textured.map) {
+          textured.map.magFilter = THREE.NearestFilter;
+          textured.map.minFilter = THREE.NearestFilter;
+          textured.map.generateMipmaps = false;
+          textured.map.needsUpdate = true;
+        }
+      }
+    });
+  }
+
+  /**
+   * Species whose battle clips never walk get a second, standalone model
+   * spliced in just for the `walk` state: a separate extracted asset (its own
+   * skeleton, so its clip can't be retargeted onto the battle rig) shown in
+   * place of the battle model while moving. Rattata's battle model (43 bones)
+   * has no run cycle -- Stadium never needed one for a Pokemon that just
+   * stands and swings -- but the "Run! Rattata, Run!" minigame's own Rattata
+   * rig (34 bones, extra model x174) does, as clip `run` (see build.py).
+   */
+  private static readonly runOverlays: Record<string, string> = { rattata: 'x174_model' };
+
+  private static async loadRunOverlay(
+    slug: string, targetHeight: number
+  ): Promise<{ scene: THREE.Group; mixer: THREE.AnimationMixer; action: THREE.AnimationAction } | null> {
+    const manifest = await this.loadManifest();
+    const entry = manifest?.extra.find((model) => model.slug === slug);
+    if (!entry) return null;
+    const url = `${this.baseUrl}${entry.glb}`;
+    try {
+      let pending = this.cache.get(url);
+      if (!pending) {
+        pending = this.loader.loadAsync(url).then((gltf) => ({ scene: gltf.scene, animations: gltf.animations }));
+        this.cache.set(url, pending);
+      }
+      const cached = await pending;
+      const scene = cloneSkeleton(cached.scene) as THREE.Group;
+      this.prepareMesh(scene);
+
+      const bounds = new THREE.Box3().setFromObject(scene);
+      const boundsHeight = Math.max(bounds.getSize(new THREE.Vector3()).y, 0.001);
+      scene.scale.multiplyScalar(targetHeight / boundsHeight);
+      const grounded = new THREE.Box3().setFromObject(scene);
+      scene.position.y -= grounded.min.y;
+
+      const runClip = entry.animations.find((animation) => animation.name === 'run');
+      const clip = runClip && cached.animations[runClip.index];
+      if (!clip) return null;
+      const mixer = new THREE.AnimationMixer(scene);
+      const action = mixer.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity);
+      return { scene, mixer, action };
+    } catch (error) {
+      this.cache.delete(url);
+      console.warn(`[GLTFModelLoader] Could not load run overlay ${slug}:`, error);
+      return null;
+    }
   }
 
   private static rolesFor(animation: ManifestAnimation): PokemonAnimationState[] {
@@ -137,22 +205,7 @@ export class GLTFModelLoader {
       }
       const cached = await pending;
       const clonedScene = cloneSkeleton(cached.scene) as THREE.Group;
-      clonedScene.traverse((child) => {
-        const mesh = child as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        for (const material of materials) {
-          const textured = material as THREE.MeshStandardMaterial;
-          if (textured.map) {
-            textured.map.magFilter = THREE.NearestFilter;
-            textured.map.minFilter = THREE.NearestFilter;
-            textured.map.generateMipmaps = false;
-            textured.map.needsUpdate = true;
-          }
-        }
-      });
+      this.prepareMesh(clonedScene);
 
       let bounds = new THREE.Box3().setFromObject(clonedScene);
       const boundsHeight = Math.max(bounds.getSize(new THREE.Vector3()).y, 0.001);
@@ -216,6 +269,13 @@ export class GLTFModelLoader {
       const parts: Record<string, THREE.Object3D> = {};
       clonedScene.traverse((node) => { if (node.name) parts[node.name] = node; });
 
+      const overlaySlug = this.runOverlays[name.toLowerCase()];
+      const overlay = overlaySlug ? await this.loadRunOverlay(overlaySlug, height) : null;
+      if (overlay) {
+        overlay.scene.visible = false;
+        rootGroup.add(overlay.scene);
+      }
+
       return {
         mesh: rootGroup,
         height,
@@ -226,6 +286,21 @@ export class GLTFModelLoader {
           requestedAttack = moveActions.get(GLTFModelLoader.moveKey(moveName)) || actions.attack || null;
         },
         update(_time: number, dt: number, state: PokemonAnimationState) {
+          // The run overlay is a wholly separate skeleton, so it gets shown
+          // and driven in place of the battle model rather than through its
+          // animation mixer/action machinery below.
+          if (overlay) {
+            const running = state === 'walk';
+            if (running !== overlay.scene.visible) {
+              overlay.scene.visible = running;
+              clonedScene.visible = !running;
+              if (running) overlay.action.reset().play();
+            }
+            if (running) {
+              overlay.mixer.update(dt);
+              return;
+            }
+          }
           mixer.update(dt);
           // A swing already under way plays out; retargeting or a new shot
           // shouldn't cut it off mid-lunge. Hits, faints and entrances still can.
