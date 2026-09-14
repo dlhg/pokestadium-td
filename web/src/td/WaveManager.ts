@@ -20,6 +20,10 @@ export interface WaveDefinition {
   spawns: { config: CreepConfig; count: number; interval: number }[];
 }
 
+/** Density/toughness tradeoff applied to rank-and-file creeps at spawn time. */
+const TRASH_COUNT_MULTIPLIER = 0.5;
+const TRASH_HP_MULTIPLIER = 2;
+
 /** The opening cups, hand-authored. Later rounds are generated. */
 const AUTHORED_WAVES: WaveDefinition[] = [
   // POKE CUP (Waves 1 - 5)
@@ -412,15 +416,26 @@ export class WaveManager {
     this.spawnTimer = 0;
     this.nextRoute = this.currentWaveIndex % this.routes.length;
 
-    // Populate spawn queue
+    // Populate spawn queue.
+    // Rank-and-file creeps spawn at half density with double HP (and reward,
+    // and spacing, so total wave income and duration are unchanged) — fewer,
+    // tankier trash mobs instead of a swarm. Bosses/elites/titans are already
+    // singular set-pieces and are left alone.
     wave.spawns.forEach(group => {
-      for (let i = 0; i < group.count; i++) {
+      const isTrash = !group.config.isBoss && group.config.threat !== 'elite' && group.config.threat !== 'titan';
+      const count = isTrash ? Math.max(1, Math.round(group.count * TRASH_COUNT_MULTIPLIER)) : group.count;
+      const hpMultiplier = isTrash ? TRASH_HP_MULTIPLIER : 1;
+      const interval = isTrash ? group.interval / TRASH_COUNT_MULTIPLIER : group.interval;
+
+      for (let i = 0; i < count; i++) {
         this.spawnQueue.push({
           config: {
             ...group.config,
+            maxHp: Math.round(group.config.maxHp * hpMultiplier),
+            reward: Math.round(group.config.reward * hpMultiplier),
             level: creepLevel(wave.round, this.difficulty, group.config.threat ?? (group.config.isBoss ? 'titan' : 'normal')),
           },
-          delay: group.interval
+          delay: interval
         });
       }
     });
