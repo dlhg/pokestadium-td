@@ -39,7 +39,7 @@ import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
 import { speciesForCreepName } from './progression/Species';
-import { createPokemon, displayName, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
+import { createPokemon, displayName, MATCH_GUEST_SLOTS, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
 import { MatchProgress, XpAward } from './progression/MatchProgress';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
@@ -124,6 +124,7 @@ export class StadiumTDGame {
 
   /** The team this match was started with, plus anything caught during it. */
   public roster: OwnedPokemon[] = [];
+  private guestSlotsUsed = 0;
   /** True from a match's first frame until its XP and records are banked. */
   private matchActive = false;
   /** Whether this match's battle loop has started, so resuming from a menu restores it. */
@@ -358,6 +359,7 @@ export class StadiumTDGame {
     this.abortEvolution();
     this.traitsIntroduced.clear();
     this.roster = [...this.store.team];
+    this.guestSlotsUsed = 0;
     this.roster.forEach(member => member.record.matches++);
     this.progress.start(this.roster);
     this.store.data.matchesPlayed++;
@@ -638,15 +640,14 @@ export class StadiumTDGame {
       this.creeps = this.creeps.filter(creep => creep !== target);
       target.destroy(this.renderer.scene);
       this.store.data.captureLuck = 0;
-      const caught = this.addCaughtPokemon(target, ball);
-      this.store.commit();
+      const caught = this.createCaughtPokemon(target, ball);
       this.money += Math.ceil(target.reward * 1.5);
       this.captureHint = `CAUGHT ${target.name.replace(/^Titan /, '').toUpperCase()}! READY TO DEPLOY`;
       this.timedCaptureHint = this.captureHint;
       this.captureHintTimer = CAPTURE_DEPLOY_HINT_DURATION;
       this.announcer.trigger('capture_success', target.name);
       if (!this.audio.playJingle(CAPTURE_JINGLE)) this.audio.playFanfare();
-      if (caught) this.promptNickname(caught);
+      if (caught) this.promptCaughtPokemon(caught);
     } else {
       this.store.data.captureLuck++;
       this.store.commit();
@@ -659,28 +660,38 @@ export class StadiumTDGame {
     }
   }
 
-  /** The catch joins the collection for good and can be deployed this match as a bonus slot. */
-  private addCaughtPokemon(creep: Creep, ball: BallType): OwnedPokemon | null {
+  /** Builds a pending catch; the trophy card decides whether it is kept or researched. */
+  private createCaughtPokemon(creep: Creep, ball: BallType): OwnedPokemon | null {
     const match = speciesForCreepName(creep.name);
     if (!match) return null;
     const pokemon = createPokemon(match.speciesId, creep.level, {
       kind: 'caught', mapId: this.map.id, round: this.waveManager.round, ball, at: Date.now(),
     }, { stage: match.stage });
-    this.store.add(pokemon);
-    this.roster.push(pokemon);
-    this.progress.track(pokemon, true);
-    this.ui.setRoster(this.roster);
     return pokemon;
   }
 
-  /** The trophy card asks for a nickname; the match waits for the answer. */
-  private promptNickname(pokemon: OwnedPokemon): void {
+  /** The trophy card asks whether to keep a duplicate, then optionally asks for a nickname. */
+  private promptCaughtPokemon(pokemon: OwnedPokemon): void {
     if (!this.isPaused) {
       this.isPaused = true;
       this.namingHold = true;
     }
-    this.ui.showCaptureTrophy(pokemon, (name) => {
-      if (name !== null) this.store.rename(pokemon.uid, name);
+    const duplicate = this.store.hasSpecies(pokemon.speciesId);
+    const guestSlotsLeft = Math.max(0, MATCH_GUEST_SLOTS - this.guestSlotsUsed);
+    this.ui.showCaptureTrophy(pokemon, duplicate, guestSlotsLeft, (name, destination) => {
+      if (destination === 'match' || destination === 'storage') {
+        this.store.add(pokemon, false);
+        if (destination === 'match') {
+          this.guestSlotsUsed++;
+          this.roster.push(pokemon);
+        }
+        this.progress.track(pokemon, true);
+        if (name !== null) this.store.rename(pokemon.uid, name);
+      } else {
+        const points = this.store.convertDuplicate(pokemon.speciesId);
+        this.ui.showResearchResult(displayName(pokemon), points);
+      }
+      this.store.commit();
       this.ui.setRoster(this.roster);
       if (this.namingHold) {
         this.namingHold = false;
