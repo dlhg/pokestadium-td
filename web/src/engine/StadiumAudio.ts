@@ -3,8 +3,8 @@
  *
  * Uses locally generated Pokémon Stadium audio when it is available, then
  * falls back to a procedural N64-inspired soundscape. Nintendo audio is never
- * part of the web distribution: the optional files live under the ignored
- * generated/stadium/audio directory.
+ * part of the web distribution: the optional files live under the gitignored
+ * generated/stadium/audio and music directories.
  */
 
 import { PokemonType } from '../stadium/TypeMatrix';
