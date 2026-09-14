@@ -45,6 +45,8 @@ export interface StadiumMap {
   /** Omitted on flat courses. */
   terrain?: MapTerrainSpec;
   decor?: MapDecor[];
+  /** Set false when decor already marks the route ends (a cave mouth, a named arch), so the generic IN/OUT signs would be redundant. Default true. */
+  showGates?: boolean;
 }
 
 // Victory Road → Indigo Plateau tiers. Outlines run past the arena rim; the rim trims them.
@@ -189,6 +191,8 @@ export const STADIUM_MAPS: StadiumMap[] = [
       { kind:'flowers', x:-12, z:22, radius:2 }, { kind:'flowers', x:14, z:14.5, radius:1.6 },
       { kind:'flowers', x:-26, z:-8, radius:1.8 }, { kind:'flowers', x:6, z:-24.5, radius:1.4 },
     ],
+    // The cave mouth and the INDIGO PLATEAU arch already mark the route ends.
+    showGates: false,
   },
   {
     id:'mt-silver-crown', name:'Mt. Silver Crown', venue:'TWIN-TRAIL SUMMIT', difficulty:'hard',
@@ -247,6 +251,8 @@ export const STADIUM_MAPS: StadiumMap[] = [
       { kind:'torch', x:-13.2, z:-18.5 }, { kind:'torch', x:13.2, z:-18.5 },
       { kind:'flowers', x:-26, z:8, radius:1.5 }, { kind:'flowers', x:26, z:8, radius:1.5 },
     ],
+    // Both trailheads already open from a cave mouth.
+    showGates: false,
   },
 ];
 

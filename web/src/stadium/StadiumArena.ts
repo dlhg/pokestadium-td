@@ -151,6 +151,7 @@ export class StadiumArena {
         this.gameplayGroup.add(arrow);
       }
     });
+    if (this.map.showGates === false) return;
     // Routes that meet at one endpoint share one gate and one label.
     // Average their approach directions so the shared gate faces both lanes.
     for (const entry of [true, false]) {
