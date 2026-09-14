@@ -1,7 +1,7 @@
 /**
  * Announcer.ts — The Legendary Pokémon Stadium Announcer Subsystem
  *
- * Manages reactive text banners and synthesized announcer voice callouts
+ * Manages reactive text banners and recorded announcer voice callouts
  * based on battle events and intensity.
  */
 
@@ -13,8 +13,6 @@ export interface AnnouncerQuote {
 export class StadiumAnnouncer {
   private currentBanner: { text: string; timer: number; intensity: string } | null = null;
   private voiceEnabled: boolean = true;
-  private speechSynth: SpeechSynthesis | null = null;
-  private selectedVoice: SpeechSynthesisVoice | null = null;
   private lastSpeakTime: number = 0;
   private static readonly speechPolicy: Partial<Record<string, { cooldown: number; chance: number }>> = {
     battle_start: { cooldown: 0, chance: 1 },
@@ -40,29 +38,6 @@ export class StadiumAnnouncer {
     wave_cleared: [367, 368],
   };
 
-  constructor() {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      this.speechSynth = window.speechSynthesis;
-      this.initVoices();
-    }
-  }
-
-  private initVoices(): void {
-    if (!this.speechSynth) return;
-    const updateVoices = () => {
-      const voices = this.speechSynth?.getVoices() || [];
-      // Prefer an enthusiastic English male voice if available (like Daniel or Fred or Google US)
-      this.selectedVoice = voices.find(v =>
-        v.lang.startsWith('en') && (v.name.includes('Daniel') || v.name.includes('David') || v.name.includes('Google') || v.name.includes('Natural'))
-      ) || voices.find(v => v.lang.startsWith('en')) || null;
-    };
-
-    updateVoices();
-    if (this.speechSynth.onvoiceschanged !== undefined) {
-      this.speechSynth.onvoiceschanged = updateVoices;
-    }
-  }
-
   public trigger(event: string, detail?: string): void {
     const quotes = this.getQuotesForEvent(event, detail);
     if (!quotes || quotes.length === 0) return;
@@ -76,7 +51,7 @@ export class StadiumAnnouncer {
 
     const policy = StadiumAnnouncer.speechPolicy[event];
     if (policy && Math.random() <= policy.chance) {
-      this.speak(chosen.text, chosen.intensity, event, policy.cooldown);
+      this.speak(event, policy.cooldown);
     }
   }
 
@@ -186,40 +161,23 @@ export class StadiumAnnouncer {
     }
   }
 
-  private speak(text: string, intensity: string, event: string, cooldown: number): void {
+  private speak(event: string, cooldown: number): void {
     if (!this.voiceEnabled) return;
 
     // Throttle speech so it doesn't overlap excessively
     const now = performance.now();
     if (now - this.lastSpeakTime < cooldown) return;
-    this.lastSpeakTime = now;
 
     const clips = StadiumAnnouncer.originalVoiceClips[event];
-    if (clips?.length) {
-      const clip = clips[Math.floor(Math.random() * clips.length)];
-      const nativeVoice = new Audio(`/generated/stadium/audio/announcer/stadium_mort_${String(clip).padStart(3, '0')}.wav`);
-      nativeVoice.volume = 0.9;
-      nativeVoice.play().catch(() => this.speakWithBrowserVoice(text, intensity));
-      return;
-    }
-    this.speakWithBrowserVoice(text, intensity);
-  }
+    if (!clips?.length) return; // No recorded clip for this event — show the banner only, stay silent.
 
-  private speakWithBrowserVoice(text: string, intensity: string): void {
-    if (!this.speechSynth) return;
-    try {
-      this.speechSynth.cancel(); // Interrupt prior speech
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (this.selectedVoice) {
-        utterance.voice = this.selectedVoice;
-      }
-      utterance.rate = intensity === 'epic' ? 1.15 : 1.1;
-      utterance.pitch = intensity === 'epic' ? 1.2 : 1.05;
-      utterance.volume = 0.9;
-      this.speechSynth.speak(utterance);
-    } catch {
-      // Audio or speech synthesis blocked by browser autoplay policy until user gesture
-    }
+    this.lastSpeakTime = now;
+    const clip = clips[Math.floor(Math.random() * clips.length)];
+    const nativeVoice = new Audio(`/generated/stadium/audio/announcer/stadium_mort_${String(clip).padStart(3, '0')}.wav`);
+    nativeVoice.volume = 0.9;
+    nativeVoice.play().catch(() => {
+      // Audio blocked by browser autoplay policy until user gesture
+    });
   }
 
   public update(dt: number): void {
