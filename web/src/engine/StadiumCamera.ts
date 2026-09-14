@@ -47,6 +47,7 @@ export class StadiumCamera {
   private actionFollowFocus: THREE.Vector3 = new THREE.Vector3();
   private actionFollowGoal: THREE.Vector3 = new THREE.Vector3(0, 1, 0);
   private actionOrbitAngle: number = Math.PI * 0.25;
+  private actionDistance: number = 13.5;
   private actionHandoffTimer: number = 0;
   private actionHandoffDirection: number = 1;
 
@@ -180,11 +181,19 @@ export class StadiumCamera {
     }
 
     if (input.wheelDelta !== 0) {
-      this.distance = THREE.MathUtils.clamp(
-        this.distance * Math.exp(input.wheelDelta * 0.001),
-        this.minDistance,
-        this.maxDistance,
-      );
+      if (this.mode === 'action') {
+        this.actionDistance = THREE.MathUtils.clamp(
+          this.actionDistance * Math.exp(input.wheelDelta * 0.001),
+          7.5,
+          this.maxDistance,
+        );
+      } else {
+        this.distance = THREE.MathUtils.clamp(
+          this.distance * Math.exp(input.wheelDelta * 0.001),
+          this.minDistance,
+          this.maxDistance,
+        );
+      }
     }
 
     const forwardAmount = Number(forwardPressed) - Number(backPressed);
@@ -324,7 +333,14 @@ export class StadiumCamera {
       } else {
         this.actionOrbitAngle += 0.055 * dt;
       }
-      this.cinematicPositionAt(this.actionFollowFocus, 13.5, 5.8, this.actionOrbitAngle, this.desiredPos);
+      const actionHeight = 3.5 + this.actionDistance * 0.17;
+      this.cinematicPositionAt(
+        this.actionFollowFocus,
+        this.actionDistance,
+        actionHeight,
+        this.actionOrbitAngle,
+        this.desiredPos,
+      );
       this.desiredTarget.copy(this.actionFollowFocus).add(new THREE.Vector3(0, 1.35, 0));
     }
 
