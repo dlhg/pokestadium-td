@@ -91,7 +91,7 @@ export class StadiumAnnouncer {
       case 'round_start':
         return [
           { text: `ROUND ${detail || ''}! LET THE BATTLE CONTINUE!`, intensity: 'high' },
-          { text: `${detail || 'THE NEXT ROUND'} IS UNDERWAY!`, intensity: 'high' }
+          { text: detail ? `ROUND ${detail} IS UNDERWAY!` : 'THE NEXT ROUND IS UNDERWAY!', intensity: 'high' }
         ];
       case 'super_effective':
         return [

@@ -34,6 +34,23 @@ import stadiumThemeUrl from './stadium-ui-theme.css?url';
 
 const BALL_NAMES: Record<BallType, string> = { poke: 'POKÉ', great: 'GREAT', ultra: 'ULTRA' };
 
+const UI_SCALE_KEY = 'pokestadium.uiScale';
+const UI_SCALE_BASE_WIDTH = 1440;
+const UI_SCALE_BASE_HEIGHT = 900;
+const UI_SCALE_AUTO_MAX = 1.5;
+type UIScalePreference = 'auto' | number;
+
+function readUiScalePreference(): UIScalePreference {
+  try {
+    const saved = localStorage.getItem(UI_SCALE_KEY);
+    if (!saved || saved === 'auto') return 'auto';
+    const scale = Number(saved);
+    return [1, 1.25, 1.5, 1.75, 2].includes(scale) ? scale : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
 /** What the roster hint says about the spot the cursor is currently over. */
 export interface PlacementStatus {
   valid: boolean;
@@ -144,6 +161,9 @@ export class StadiumUI {
   private renderedLives = -1;
   private rosterViews = new Map<string, RosterModelView>();
   public readonly trainer: TrainerScreens;
+  private uiScale = 1;
+  private uiScalePreference: UIScalePreference = readUiScalePreference();
+  private readonly handleUiResize = (): void => this.applyUiScale();
 
   // Callbacks
   private cinemaEl!: HTMLElement;
@@ -184,6 +204,8 @@ export class StadiumUI {
     this.camera = camera;
 
     this.initDOM();
+    this.applyUiScale();
+    window.addEventListener('resize', this.handleUiResize);
     this.trainer = new TrainerScreens(container, store);
     // A new trainer picks a starter before anything else.
     if (!store.data.starterChosen) this.trainer.openStarterSelect(() => this.setMapSelectVisible(true));
@@ -215,6 +237,21 @@ export class StadiumUI {
         }
 
         .stat-badge { display: flex; flex-direction: column; align-items: center; }
+
+        #start-match-bar {
+          position: absolute;
+          top: 14px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          padding: 8px 16px;
+          z-index: 30;
+        }
+
+        #start-match-bar #btn-wave {
+          font-size: 20px;
+          padding: 10px 28px;
+        }
 
         .stat-label {
           font-size: 11px;
@@ -248,8 +285,8 @@ export class StadiumUI {
 
         /* ---- Capture cinematic overlay ---- */
         /* Gameplay chrome recedes so the ball owns the screen. */
-        #top-bar, #controls-bar, #card-deck, #tower-panel, #capture-kit, #capture-hint, #catch-layer { transition:opacity .28s ease, filter .28s ease; }
-        .cinema-live #top-bar, .cinema-live #controls-bar, .cinema-live #card-deck,
+        #top-bar, #start-match-bar, #controls-bar, #card-deck, #tower-panel, #capture-kit, #capture-hint, #catch-layer { transition:opacity .28s ease, filter .28s ease; }
+        .cinema-live #top-bar, .cinema-live #start-match-bar, .cinema-live #controls-bar, .cinema-live #card-deck,
         .cinema-live #tower-panel, .cinema-live #capture-kit, .cinema-live #catch-layer,
         .cinema-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
         .cinema-live #announcer-banner { display:none !important; }
@@ -257,7 +294,7 @@ export class StadiumUI {
         #capture-cinema.live { opacity:1; }
 
         /* ---- Evolution cinematic overlay ---- */
-        .evo-live #top-bar, .evo-live #controls-bar, .evo-live #card-deck,
+        .evo-live #top-bar, .evo-live #start-match-bar, .evo-live #controls-bar, .evo-live #card-deck,
         .evo-live #tower-panel, .evo-live #capture-kit, .evo-live #catch-layer,
         .evo-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
         .evo-live #announcer-banner { display:none !important; }
@@ -277,7 +314,7 @@ export class StadiumUI {
         }
 
         /* ---- Poké Ball deployment cinematic ---- */
-        .summon-live #top-bar, .summon-live #controls-bar, .summon-live #card-deck,
+        .summon-live #top-bar, .summon-live #start-match-bar, .summon-live #controls-bar, .summon-live #card-deck,
         .summon-live #tower-panel, .summon-live #capture-kit, .summon-live #signature-bar, .summon-live #catch-layer,
         .summon-live #capture-hint { opacity:.08; filter:blur(2px) saturate(.3); pointer-events:none; }
         .summon-live #announcer-banner { display:none !important; }
@@ -1145,7 +1182,14 @@ export class StadiumUI {
           clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
         }
 
-        #top-bar::before, #card-deck::before, #tower-panel::before {
+        #start-match-bar {
+          min-height: 61px;
+          padding: 7px 22px;
+          align-items: center;
+          clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+        }
+
+        #top-bar::before, #card-deck::before, #tower-panel::before, #start-match-bar::before {
           content: '';
           position: absolute;
           z-index: 1;
@@ -1182,7 +1226,7 @@ export class StadiumUI {
         }
         .stadium-btn:hover { background: linear-gradient(180deg, #77afdf, #276ca8 50%, #113f72); border-color: #fff; box-shadow: 0 0 0 1px #f6c437, 2px 3px 0 rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.6); }
         .stadium-btn.active { background: linear-gradient(180deg, #ffdd59 0 12%, #f5b928 14%, #d97a16 58%, #a8430e 100%); border-color: #fff4b4; color: #18233b; text-shadow: 1px 1px rgba(255,255,255,.45); }
-        #btn-wave { margin-left: 4px; background: linear-gradient(180deg, #ef5961 0 12%, #c52c35 14%, #921522 60%, #64101c 100%); color: #fff9db; border-color: #ffd2a5; text-shadow: 1px 1px #4e0710; }
+        #btn-wave { background: linear-gradient(180deg, #ef5961 0 12%, #c52c35 14%, #921522 60%, #64101c 100%); color: #fff9db; border-color: #ffd2a5; text-shadow: 1px 1px #4e0710; }
 
         #card-deck { width: 154px; padding: 8px; border-color: #c8d7e5; }
         .tower-rail-header { position: relative; z-index: 2; padding: 3px 5px 8px; border-bottom: 2px solid #e2b533; background: linear-gradient(90deg, #b47c13, #f1c83c 42%, #b67b10); }
@@ -1267,6 +1311,10 @@ export class StadiumUI {
           <span class="stat-label">STADIUM HP</span>
           <div class="pokeball-tray" id="stadium-hp"></div>
         </div>
+      </div>
+
+      <!-- Start Match -->
+      <div id="start-match-bar" class="stadium-panel interactive">
         <button class="stadium-btn active" id="btn-wave">START MATCH</button>
       </div>
 
@@ -1321,6 +1369,17 @@ export class StadiumUI {
           </div>
           <button class="stadium-btn pause-setting" id="btn-signature-cuts">SIGNATURE CAMERA CUTS: ON</button>
           <button class="stadium-btn pause-setting" id="btn-summon-cinematics">POKÉ BALL ENTRANCES: ON</button>
+          <div class="pause-ui-scale">
+            <label for="pause-ui-scale">UI SCALE</label>
+            <select id="pause-ui-scale">
+              <option value="auto">AUTO</option>
+              <option value="1">100%</option>
+              <option value="1.25">125%</option>
+              <option value="1.5">150%</option>
+              <option value="1.75">175%</option>
+              <option value="2">200%</option>
+            </select>
+          </div>
           <div class="pause-audio"><label for="pause-music-volume">MUSIC</label><input id="pause-music-volume" type="range" min="0" max="100" value="100"><output id="pause-music-volume-value">100%</output></div>
           <div class="pause-audio"><label for="pause-sfx-volume">SFX</label><input id="pause-sfx-volume" type="range" min="0" max="100" value="100"><output id="pause-sfx-volume-value">100%</output></div>
         </section>
@@ -1451,7 +1510,7 @@ export class StadiumUI {
     const chooser=this.container.querySelector<HTMLElement>('#map-select')!;
     chooser.style.display=visible?'grid':'none';
     this.container.classList.toggle('map-select-open',visible);
-    ['top-bar','controls-bar','card-deck','tower-panel','capture-kit','capture-hint','catch-layer'].forEach(id=>{
+    ['top-bar','start-match-bar','controls-bar','card-deck','tower-panel','capture-kit','capture-hint','catch-layer'].forEach(id=>{
       this.container.querySelector<HTMLElement>(`#${id}`)!.inert=visible;
     });
     this.container.querySelector<HTMLButtonElement>('#btn-resume-map')!.hidden=!canResume;
@@ -1533,6 +1592,13 @@ export class StadiumUI {
     document.getElementById('btn-pause-quit')!.addEventListener('click', () => this.onQuitToMenu());
     document.getElementById('btn-signature-cuts')!.addEventListener('click', () => this.onToggleSignatureCuts());
     document.getElementById('btn-summon-cinematics')!.addEventListener('click', () => this.onToggleSummonCinematics());
+    const uiScale = document.getElementById('pause-ui-scale') as HTMLSelectElement;
+    uiScale.value = String(this.uiScalePreference);
+    uiScale.addEventListener('change', () => {
+      this.uiScalePreference = uiScale.value === 'auto' ? 'auto' : Number(uiScale.value);
+      try { localStorage.setItem(UI_SCALE_KEY, String(this.uiScalePreference)); } catch { /* storage blocked */ }
+      this.applyUiScale();
+    });
     const bindVolume = (id: string, outputId: string, callback: (value: number) => void) => {
       const input = document.getElementById(id) as HTMLInputElement;
       const output = document.getElementById(outputId)!;
@@ -1591,6 +1657,31 @@ export class StadiumUI {
         this.onChangeCamera(c.mode);
       });
     });
+  }
+
+  /**
+   * Keeps the HUD physically readable on dense desktop displays while the 3D
+   * canvas continues to render at native resolution. Giving the container an
+   * inverse logical size keeps right/bottom anchored controls at the viewport
+   * edges after its visual transform is applied.
+   */
+  private applyUiScale(): void {
+    const automatic = Math.min(
+      window.innerWidth / UI_SCALE_BASE_WIDTH,
+      window.innerHeight / UI_SCALE_BASE_HEIGHT,
+      UI_SCALE_AUTO_MAX,
+    );
+    this.uiScale = this.uiScalePreference === 'auto'
+      ? Math.max(1, automatic)
+      : this.uiScalePreference;
+    this.container.style.width = `${window.innerWidth / this.uiScale}px`;
+    this.container.style.height = `${window.innerHeight / this.uiScale}px`;
+    this.container.style.transform = `scale(${this.uiScale})`;
+    this.container.style.transformOrigin = 'top left';
+    this.container.style.setProperty('--ui-scale', String(this.uiScale));
+
+    const automaticOption = this.container.querySelector<HTMLOptionElement>('#pause-ui-scale option[value="auto"]');
+    if (automaticOption) automaticOption.textContent = `AUTO (${Math.round(Math.max(1, automatic) * 100)}%)`;
   }
 
   /**
@@ -2035,7 +2126,11 @@ export class StadiumUI {
     }
     const placed: { left: number; right: number; top: number; bottom: number }[] = [];
     const visible = state.catchables
-      .filter(slot => slot.onScreen && slot.x >= 0 && slot.x <= width && slot.y >= 0 && slot.y <= height)
+      .filter(slot => {
+        const x = slot.x / this.uiScale;
+        const y = slot.y / this.uiScale;
+        return slot.onScreen && x >= 0 && x <= width && y >= 0 && y <= height;
+      })
       .sort((a, b) => b.y - a.y);
     const shown = new Set<number>();
     for (const slot of visible) {
@@ -2056,7 +2151,11 @@ export class StadiumUI {
       tag.querySelector<HTMLElement>('.catch-odds')!.textContent = `${Math.round(slot.odds[state.selectedBall] * 100)}%`;
       shown.add(id);
       const w = tag.offsetWidth;
-      const rect = { left: slot.x - w / 2, right: slot.x + w / 2, top: slot.y - CATCH_TAG_HEIGHT - 6, bottom: slot.y - 6 };
+      // Renderer coordinates are physical viewport pixels; this layer lives in
+      // the scaled HUD's logical coordinate space.
+      const x = slot.x / this.uiScale;
+      const y = slot.y / this.uiScale;
+      const rect = { left: x - w / 2, right: x + w / 2, top: y - CATCH_TAG_HEIGHT - 6, bottom: y - 6 };
       // Walk the tag up until it clears everything already placed below it.
       for (let moved = true; moved;) {
         moved = false;
@@ -2073,7 +2172,7 @@ export class StadiumUI {
       // Lower tags draw on top, so a stacked tag's stem runs behind the ones beneath it.
       tag.style.zIndex = String(visible.length - placed.length + 1);
       tag.style.transform = `translate(${Math.round(rect.left)}px, ${Math.round(rect.top)}px)`;
-      tag.style.setProperty('--stem', `${Math.max(6, Math.round(slot.y - rect.bottom))}px`);
+      tag.style.setProperty('--stem', `${Math.max(6, Math.round(y - rect.bottom))}px`);
     }
     for (const [id, tag] of this.catchTags) if (!shown.has(id)) tag.hidden = true;
 
