@@ -1317,8 +1317,7 @@ export class StadiumUI {
           <span class="stat-label" id="cup-title">POKE CUP</span>
           <span class="stat-value gold-glow" id="round-number">ROUND 1</span>
         </div>
-        <div class="stat-badge">
-          <span class="stat-label">PRIZE MONEY</span>
+        <div class="stat-badge" aria-label="Available funds">
           <span class="stat-value" style="color: #48ff48;" id="prize-money">$400</span>
         </div>
         <div class="stat-badge">
