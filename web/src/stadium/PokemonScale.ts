@@ -6,15 +6,11 @@
  * are excellent for rendering, but are not a reliable measure of a species'
  * size (Haunter was notably much taller than Blastoise despite both being 5'3").
  *
- * National Pokédex heights are the authority for inter-species scale. The
- * original Stadium geometry is still used to derive the uniform mesh scale and
- * to keep exceptionally wide models inside the narrowest TD lane.
+ * National Pokédex heights are the authority for inter-species scale. Ground
+ * space (how much room a Pokémon claims on the field) is a separate, gameplay
+ * concern — see `TOWER_FOOTPRINT_RADIUS` in Tower.ts — so this file only ever
+ * sizes height; nothing here clamps a model to fit a lane.
  */
-
-import { STADIUM_MAPS } from '../td/MapCatalog';
-
-/** Widest ground footprint any Pokémon may have, in world units. */
-export const MAX_POKEMON_FOOTPRINT = Math.min(...STADIUM_MAPS.map((map) => map.laneWidth));
 
 /** Charizard anchors the familiar battle-scale used before this correction. */
 const REFERENCE_HEIGHT_INCHES = 67;
@@ -35,17 +31,18 @@ const POKEDEX_HEIGHTS_INCHES = [
   51, 71, 83, 67, 63, 79, 71, 157, 87, 79, 16,
 ] as const;
 
-/** World units per native model unit. */
-export function worldScaleFor(nativeFootprint: number, nativeHeight: number, species: number): number {
+/** How tall a species stands in world units, softened by `SIZE_EXPONENT`. */
+export function worldHeightFor(species: number): number {
   const height = POKEDEX_HEIGHTS_INCHES[species - 1];
-  if (!height || nativeHeight <= 0) {
-    // Graceful fallback for a non-Pokédex model in a future manifest.
-    return MAX_POKEMON_FOOTPRINT / Math.max(nativeFootprint, 0.001);
-  }
+  if (!height) return REFERENCE_WORLD_HEIGHT;
+  return REFERENCE_WORLD_HEIGHT * Math.pow(height / REFERENCE_HEIGHT_INCHES, SIZE_EXPONENT);
+}
 
-  const desiredWorldHeight = REFERENCE_WORLD_HEIGHT
-    * Math.pow(height / REFERENCE_HEIGHT_INCHES, SIZE_EXPONENT);
-  const heightScale = desiredWorldHeight / nativeHeight;
-  const footprintScale = MAX_POKEMON_FOOTPRINT / Math.max(nativeFootprint, 0.001);
-  return Math.min(heightScale, footprintScale);
+/** Uniform world units per native model unit. */
+export function worldScaleFor(nativeHeight: number, species: number): number {
+  if (nativeHeight <= 0) {
+    // Graceful fallback for a non-Pokédex model in a future manifest.
+    return 1;
+  }
+  return worldHeightFor(species) / nativeHeight;
 }

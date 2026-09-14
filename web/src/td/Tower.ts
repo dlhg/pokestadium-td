@@ -21,13 +21,27 @@ import { SIGNATURES } from './Signatures';
 import { AttackProfile, buildAttackProfile, MAX_PATHS_BOUGHT, SECONDARY_PATH_MAX_TIER } from './TowerAttack';
 import { towerModifiers, TowerModifiers } from './progression/Stats';
 import { displayName, formOf, OwnedPokemon, speciesOf, statsOf } from './progression/TrainerStore';
+import { dexNumber } from './progression/Species';
+import { worldHeightFor } from '../stadium/PokemonScale';
 
 export type TargetPriority = 'first' | 'last' | 'strongest' | 'weakest';
 
 export const TARGET_PRIORITIES: TargetPriority[] = ['first', 'strongest', 'weakest', 'last'];
 
-/** Ground radius a tower occupies. Drives lane clearance and tower spacing. */
+/** Fallback radius for callers that need a generic tower footprint. */
 export const TOWER_FOOTPRINT_RADIUS = 1.6;
+
+/**
+ * Ground radius claimed by a newly placed tower. This is deliberately based
+ * on the form at placement time, not on the current form: evolution changes
+ * the model and stats but never changes the space the tower owns.
+ */
+export function placementFootprintRadius(pokemon: OwnedPokemon): number {
+  const height = worldHeightFor(dexNumber(pokemon.speciesId, pokemon.stage));
+  // Height is a useful, stable proxy for body mass in gameplay. Keep tiny
+  // forms playable and cap giants without coupling rendering to lane width.
+  return THREE.MathUtils.clamp(height * 0.48, 0.8, 2.8);
+}
 
 /** Height of the deploy pad a tower stands on, and so the tower's ground Y. */
 export const TOWER_BASE_HEIGHT = 0.3;
@@ -88,6 +102,8 @@ export class Tower {
   /** The owned Pokémon itself, shared with the save — XP lands on it directly. */
   public readonly pokemon: OwnedPokemon;
   public readonly species: SpeciesDef;
+  /** Locked when the tower is constructed; evolution must not change it. */
+  public readonly placementFootprint: number;
   public position: THREE.Vector3;
   public targetPriority: TargetPriority = 'first';
   public totalInvested: number;
@@ -134,6 +150,7 @@ export class Tower {
     this.id = `tower_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     this.pokemon = pokemon;
     this.species = speciesOf(pokemon);
+    this.placementFootprint = placementFootprintRadius(pokemon);
     this.renderedStage = pokemon.stage;
     this.modifiers = towerModifiers(statsOf(pokemon), pokemon.level);
     this.position = pos.clone();
@@ -146,7 +163,7 @@ export class Tower {
     this.group.userData.towerId = this.id;
 
     // Free placement means a tower brings its own footing to wherever it lands.
-    this.group.add(this.createBasePad());
+    this.group.add(this.createBasePad(this.placementFootprint));
 
     // Instantiate 3D Model
     this.animPokemon = this.species.createModel();
@@ -177,7 +194,7 @@ export class Tower {
   }
 
   /** League field plinth, sized to the footprint the placement rules enforce. */
-  private createBasePad(): THREE.Group {
+  private createBasePad(radius: number): THREE.Group {
     const pad = new THREE.Group();
     pad.position.y = -TOWER_BASE_HEIGHT / 2;
 
@@ -198,8 +215,8 @@ export class Tower {
     });
     const disc = new THREE.Mesh(
       new THREE.CylinderGeometry(
-        TOWER_FOOTPRINT_RADIUS * 0.88,
-        TOWER_FOOTPRINT_RADIUS,
+        radius * 0.88,
+        radius,
         TOWER_BASE_HEIGHT,
         20
       ),
@@ -211,7 +228,7 @@ export class Tower {
 
     // A stone footing sinks into the ground so a pad on a slope never floats.
     const footing = new THREE.Mesh(
-      new THREE.CylinderGeometry(TOWER_FOOTPRINT_RADIUS, TOWER_FOOTPRINT_RADIUS * 1.08, 1.6, 20),
+      new THREE.CylinderGeometry(radius, radius * 1.08, 1.6, 20),
       new THREE.MeshLambertMaterial({ color: 0x766f62, flatShading: true })
     );
     footing.position.y = -TOWER_BASE_HEIGHT / 2 - 0.8;
@@ -219,7 +236,7 @@ export class Tower {
     pad.add(footing);
 
     const top = new THREE.Mesh(
-      new THREE.CircleGeometry(TOWER_FOOTPRINT_RADIUS * 0.875, 20),
+      new THREE.CircleGeometry(radius * 0.875, 20),
       new THREE.MeshStandardMaterial({
         map: getDeployPadStone(),
         color: 0xd8e0e2,
@@ -234,7 +251,7 @@ export class Tower {
 
     // A recessed Poké Ball seal makes the plinth clearly player-authored while
     // leaving most of the natural stone visible around the Pokémon's feet.
-    const sealRadius = TOWER_FOOTPRINT_RADIUS * 0.56;
+    const sealRadius = radius * 0.56;
     const sealY = TOWER_BASE_HEIGHT / 2 + 0.012;
     const red = new THREE.MeshBasicMaterial({ color: 0xb93a3f });
     const cream = new THREE.MeshBasicMaterial({ color: 0xe8dfc4 });
@@ -263,7 +280,7 @@ export class Tower {
     pad.add(buttonRing);
 
     const rim = new THREE.Mesh(
-      new THREE.TorusGeometry(TOWER_FOOTPRINT_RADIUS * 0.9, 0.07, 8, 24),
+      new THREE.TorusGeometry(radius * 0.9, 0.07, 8, 24),
       new THREE.MeshStandardMaterial({ color: 0xd4ad4f, metalness: 0.42, roughness: 0.38 })
     );
     rim.rotation.x = Math.PI / 2;
