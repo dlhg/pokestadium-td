@@ -59,6 +59,17 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   camera.setMode('action');
   camera.setActionTarget('leader', new THREE.Vector3(12, 0, 0));
   for (let frame = 0; frame < 180; frame++) camera.update(1 / 60);
+  const followDistance = camera.actionDistance;
+  const wheelInput = delta => ({
+    dragDelta: new THREE.Vector2(), wheelDelta: delta, isKeyDown: () => false,
+  });
+  camera.handleInput(wheelInput(-400), 1 / 60);
+  assert.ok(camera.actionDistance < followDistance, 'action camera can zoom in while tracking');
+  camera.handleInput(wheelInput(800), 1 / 60);
+  assert.ok(camera.actionDistance > followDistance, 'action camera can zoom out while tracking');
+  camera.handleInput(wheelInput(100000), 1 / 60);
+  assert.equal(camera.actionDistance, camera.maxDistance, 'action camera allows the normal maximum zoom-out');
+  assert.equal(camera.actionSubjectId, 'leader', 'zooming does not release the tracked creep');
   const oldFocus = camera.actionFollowFocus.clone();
   camera.setActionTarget('rear', new THREE.Vector3(-12, 0, 0));
   camera.update(1 / 60);

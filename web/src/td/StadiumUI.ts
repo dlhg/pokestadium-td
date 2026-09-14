@@ -486,7 +486,13 @@ export class StadiumUI {
         .ball-stock.empty { opacity:.45; }
         .ball-stock:disabled { cursor:not-allowed; filter:saturate(.35); }
         .ball-count { display:inline-block; color:#f6c437; }
-        .ball-buy:disabled { opacity:.45; cursor:not-allowed; filter:saturate(.4); }
+        .ball-buy:disabled { cursor:not-allowed; }
+        .ball-buy.poor { opacity:.6; filter:saturate(.45); color:#ff6b6b; }
+        .ball-buy.locked {
+          opacity:.85; color:#9fb4cf; font-size:11px; letter-spacing:.3px;
+          background: repeating-linear-gradient(45deg, #0d1a30, #0d1a30 4px, #16273f 4px, #16273f 8px);
+          border-color:#3a608f;
+        }
 
         /* ---- Catching: one-click tags over weakened Pokémon and the CATCH NOW tray ---- */
         #catch-layer { position:absolute; inset:0; z-index:29; pointer-events:none; overflow:hidden; }
@@ -2311,9 +2317,16 @@ export class StadiumUI {
     captureKit.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => {
       const type = button.dataset.buyBall as BallType;
       const premiumLocked = type !== 'poke' && state.inWave;
-      button.disabled = premiumLocked || state.money < BALL_PRICES[type];
-      const title = premiumLocked ? 'Premium Ball shop reopens between rounds'
-        : state.money < BALL_PRICES[type] ? 'Not enough prize money'
+      const canAfford = state.money >= BALL_PRICES[type];
+      button.disabled = premiumLocked || !canAfford;
+      button.classList.toggle('locked', premiumLocked);
+      button.classList.toggle('poor', !premiumLocked && !canAfford);
+      // A locked ball can't be bought at any price right now, so the label drops the
+      // dollar sign entirely rather than showing a price that looks buyable but isn't.
+      const label = premiumLocked ? 'AFTER ROUND' : `+$${BALL_PRICES[type]}`;
+      if (button.textContent !== label) button.textContent = label;
+      const title = premiumLocked ? 'Great & Ultra Balls restock between rounds'
+        : !canAfford ? 'Not enough prize money'
         : `Buy one ${BALL_NAMES[type]} BALL`;
       if (button.title !== title) button.title = title;
     });
