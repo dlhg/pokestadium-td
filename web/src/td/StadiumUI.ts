@@ -386,6 +386,12 @@ export class StadiumUI {
         #cine-grade.perfect { color:#fff3b0; text-shadow:0 0 16px #f6c437, 2px 3px #7a3d00; }
         #cine-grade.good { color:#b9f0ff; text-shadow:0 0 14px #00f0ff, 2px 3px #06283d; }
         #cine-grade.wide { color:#ffb3b3; text-shadow:2px 3px #55070f; }
+        /* The pre-throw instruction runs longer than a grade word, so it gets its own size and can wrap. */
+        #cine-grade.hint {
+          font-size:18px; letter-spacing:1px; white-space:normal; color:#cfe3ff;
+          width:min(440px,80vw); text-align:center;
+        }
+        #cine-grade.hint .cine-cancel-hint { color:#ffb3b3; }
 
         /* Trophy card: the payoff beat after the ball locks. */
         #capture-trophy {
@@ -1972,11 +1978,11 @@ export class StadiumUI {
     meter.querySelector<HTMLElement>('.meter-marker')!.style.left = `${(aim.released ?? aim.marker) * 100}%`;
     meter.classList.toggle('spent', aim.released !== null);
 
-    grade.className = aim.grade ?? '';
-    grade.innerText = aim.grade === 'perfect' ? `PERFECT! +${Math.round(aim.bonus * 100)}% ODDS`
+    grade.className = aim.grade ?? 'hint';
+    grade.innerHTML = aim.grade === 'perfect' ? `PERFECT! +${Math.round(aim.bonus * 100)}% ODDS`
       : aim.grade === 'good' ? `GOOD! +${Math.round(aim.bonus * 100)}% ODDS`
       : aim.grade === 'wide' ? `WIDE! ${Math.round(aim.bonus * 100)}% ODDS`
-      : 'CLICK OR PRESS SPACE TO THROW POKÉ BALL';
+      : `CLICK OR PRESS SPACE TO THROW ${cinema.ballName} <span class="cine-cancel-hint">· ESC TO CANCEL</span>`;
   }
 
   /** Milestone payout card, sharing the trophy card's slot and timing. */
