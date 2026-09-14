@@ -61,10 +61,20 @@ const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
 
 /** A successful-capture prompt is informational, not a persistent mode hint. */
 const CAPTURE_DEPLOY_HINT_DURATION = 5;
+const CAPTURE_FAIL_HINT_DURATION = 3;
 
 /** Course select, starter select and team select share one loop. */
 const MENU_MUSIC = 'pokemon_select';
 const CAPTURE_JINGLE = 'pikachu_learned_surf';
+
+/** Live creep nearest the exit; fainting creeps stop owning the action camera immediately. */
+export function leadingActionCreep<T extends Pick<Creep, 'alive' | 'pathProgress'>>(creeps: readonly T[]): T | null {
+  let leader: T | null = null;
+  for (const creep of creeps) {
+    if (creep.alive && (!leader || creep.pathProgress > leader.pathProgress)) leader = creep;
+  }
+  return leader;
+}
 
 export class StadiumTDGame {
   public renderer!: StadiumRenderer;
@@ -245,7 +255,9 @@ export class StadiumTDGame {
       this.audio.playSelect();
     };
     this.ui.onBuyBall = (ball) => {
-      if (this.waveManager.inWave || this.money < BALL_PRICES[ball]) return;
+      // Regular balls keep the capture loop available during a round. Premium
+      // balls remain an intermission decision instead of an emergency refill.
+      if ((ball !== 'poke' && this.waveManager.inWave) || this.money < BALL_PRICES[ball]) return;
       this.money -= BALL_PRICES[ball];
       this.balls[ball]++;
       this.audio.playSelect();
@@ -624,6 +636,8 @@ export class StadiumTDGame {
       this.store.commit();
       target.cancelCapture();
       this.captureHint = `${target.name.toUpperCase()} BROKE FREE!`;
+      this.timedCaptureHint = this.captureHint;
+      this.captureHintTimer = CAPTURE_FAIL_HINT_DURATION;
       this.announcer.trigger('capture_failed', target.name);
       this.audio.playHit(false);
     }
@@ -742,6 +756,7 @@ export class StadiumTDGame {
       this.startSummon(tower);
     } else {
       this.audio.playDeploy();
+      this.audio.playCry(tower.formName, tower.type);
       this.particles.emitImpact(position, 0x00f0ff, 25, 5);
       this.selectPlacedTower(tower);
     }
@@ -1040,6 +1055,8 @@ export class StadiumTDGame {
     // Update Subsystems
     this.particles.update(dt);
     this.announcer.update(realDt);
+    const actionLeader = leadingActionCreep(this.creeps);
+    this.camera.setActionTarget(actionLeader?.id ?? null, actionLeader?.position ?? null);
     this.camera.update(realDt);
     this.arena.update(performance.now() * 0.001, this.camera.camera.position, realDt);
     this.renderer.update(realDt, this.waveManager.inWave ? 0.8 : 0.0);
@@ -1283,6 +1300,10 @@ export class StadiumTDGame {
     // Autosave per wave: closing the tab loses at most the wave in progress.
     this.store.recordMap(this.map.id, round, round >= this.waveManager.winRound);
     this.store.commit();
+
+    // The opening teaches capture with a dependable one-attempt-per-round
+    // cadence. Better balls still come from purchases and later milestones.
+    if (round < 10) this.balls.poke++;
 
     const milestone = getMilestone(round, this.waveManager.winRound);
     if (milestone) {

@@ -205,6 +205,7 @@ export class SummonSequence {
       this.revealed = true;
       this.stage.particles.emitAura(this.tower.position, BALL_GLOW, 28, 1.45);
       this.stage.particles.emitGroundBurst(this.tower.position, 0xdffcff, 2.2, 24);
+      this.stage.audio.playCry(this.tower.formName, this.tower.type);
     }
 
     const mesh = this.tower.animPokemon.mesh;

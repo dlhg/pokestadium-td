@@ -447,7 +447,7 @@ export class StadiumUI {
         @keyframes cine-shatter { 0% { opacity:1; transform:translate(-50%,-50%) skew(-8deg) scale(.6) rotate(-6deg); } 60% { opacity:1; transform:translate(-50%,-52%) skew(-8deg) scale(1.12) rotate(2deg); } 100% { opacity:1; transform:translate(-50%,-50%) skew(-8deg) scale(1.02) rotate(0); } }
         @media (prefers-reduced-motion: reduce) { #cine-verdict.caught, #cine-verdict.broke { animation:none; opacity:1; } }
 
-        #capture-hint { position:absolute; bottom:136px; left:18px; color:#fff2a7; font-weight:800; letter-spacing:.8px; text-shadow:0 2px 3px #000; z-index:31; background:rgba(9,25,51,.88); border-left:3px solid #f6c437; padding:6px 10px; }
+        #capture-hint { position:absolute; bottom:296px; left:18px; color:#fff2a7; font-weight:800; letter-spacing:.8px; text-shadow:0 2px 3px #000; z-index:31; background:rgba(9,25,51,.88); border-left:3px solid #f6c437; padding:6px 10px; }
         #capture-hint:empty { display:none; }
         #signature-bar {
           position:absolute; left:18px; bottom:18px; z-index:31;
@@ -671,7 +671,7 @@ export class StadiumUI {
           font-size: 10px;
           font-weight: 800;
           padding: 2px 6px;
-          border-radius: 3px;
+          border-radius: 50%;
           color: #fff;
           text-shadow: 0 1px 2px rgba(0,0,0,0.8);
           letter-spacing: 0.5px;
@@ -801,7 +801,7 @@ export class StadiumUI {
           width: 46px;
           height: 46px;
           flex: 0 0 auto;
-          border-radius: 50%;
+          border-radius: 3px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2310,8 +2310,9 @@ export class StadiumUI {
     });
     captureKit.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => {
       const type = button.dataset.buyBall as BallType;
-      button.disabled = state.inWave || state.money < BALL_PRICES[type];
-      const title = state.inWave ? 'Shop reopens between matches'
+      const premiumLocked = type !== 'poke' && state.inWave;
+      button.disabled = premiumLocked || state.money < BALL_PRICES[type];
+      const title = premiumLocked ? 'Premium Ball shop reopens between rounds'
         : state.money < BALL_PRICES[type] ? 'Not enough prize money'
         : `Buy one ${BALL_NAMES[type]} BALL`;
       if (button.title !== title) button.title = title;

@@ -8,6 +8,8 @@ const result = await build({
   stdin: {
     contents: [
       "export { StadiumTDGame } from './src/td/StadiumTDGame.ts';",
+      "export { leadingActionCreep } from './src/td/StadiumTDGame.ts';",
+      "export { StadiumCamera } from './src/engine/StadiumCamera.ts';",
       "export { Tower } from './src/td/Tower.ts';",
       "export { Creep } from './src/td/Creep.ts';",
       "export { Projectile } from './src/td/Projectile.ts';",
@@ -33,9 +35,41 @@ const result = await build({
   loader: { '.css': 'empty' },
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
-const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
+const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
   createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
+
+// Action mode follows the live creep nearest the exit. A knockout hands the
+// shot off through an eased focus move instead of teleporting to the runner-up.
+{
+  const creeps = [
+    { id: 'rear', alive: true, pathProgress: -20 },
+    { id: 'leader', alive: true, pathProgress: -2 },
+    { id: 'fainted', alive: false, pathProgress: 0 },
+  ];
+  assert.equal(leadingActionCreep(creeps)?.id, 'leader', 'action camera chooses the furthest live creep');
+  creeps[1].alive = false;
+  assert.equal(leadingActionCreep(creeps)?.id, 'rear', 'a fainted leader yields to the next live creep');
+
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: {
+    innerWidth: 1280, innerHeight: 720, addEventListener() {},
+  } });
+  const camera = new StadiumCamera();
+  camera.setMode('action');
+  camera.setActionTarget('leader', new THREE.Vector3(12, 0, 0));
+  for (let frame = 0; frame < 180; frame++) camera.update(1 / 60);
+  const oldFocus = camera.actionFollowFocus.clone();
+  camera.setActionTarget('rear', new THREE.Vector3(-12, 0, 0));
+  camera.update(1 / 60);
+  assert.ok(camera.actionFollowFocus.distanceTo(oldFocus) < 1,
+    'action camera target handoff starts with a cinematic ease');
+  for (let frame = 0; frame < 180; frame++) camera.update(1 / 60);
+  assert.ok(camera.actionFollowFocus.distanceTo(new THREE.Vector3(-12, 0, 0)) < 0.1,
+    'action camera settles onto the replacement leader');
+  if (previousWindow === undefined) delete globalThis.window;
+  else Object.defineProperty(globalThis, 'window', previousWindow);
+}
 
 // Incidental ground props vanish beneath a tower footprint and return when
 // that footprint is removed (for example, after selling the tower).
@@ -93,6 +127,39 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   assert.deepEqual(writes.pop(), ['pokestadium.summonCinematics', 'off'], 'summon opt-out persists');
   if (previousStorage === undefined) delete globalThis.localStorage;
   else Object.defineProperty(globalThis, 'localStorage', previousStorage);
+}
+
+// Regular balls can be replenished during combat, while premium balls remain
+// an intermission purchase and cannot bypass their intended scarcity.
+{
+  const game = new StadiumTDGame();
+  game.ui = {};
+  game.audio = { playSelect() {} };
+  game.waveManager = { inWave: true };
+  game.money = 500;
+  game.balls = { poke: 0, great: 0, ultra: 0 };
+  game.bindUIEvents();
+  game.ui.onBuyBall('poke');
+  game.ui.onBuyBall('great');
+  assert.deepEqual(game.balls, { poke: 1, great: 0, ultra: 0 }, 'only regular balls can be bought during combat');
+  assert.equal(game.money, 465, 'only the successful regular-ball purchase is charged');
+}
+
+// Each opening-round clear restores one regular capture attempt. The cadence
+// stops once round 10 begins awarding milestone balls.
+{
+  const game = new StadiumTDGame();
+  Object.assign(game, {
+    balls: { poke: 0, great: 0, ultra: 0 }, towers: [], map: { id: 'test' },
+    store: { recordMap() {}, commit() {} }, progress: { awardWaveClear: () => [] },
+    waveManager: { winRound: 40 }, ui: { showMilestone() {} },
+    announcer: { trigger() {} }, audio: { playFanfare() {} }, camera: { shake() {} },
+  });
+  game.handleRoundCleared(9);
+  assert.equal(game.balls.poke, 1, 'round 9 clear grants a regular ball');
+  game.handleRoundCleared(10);
+  assert.equal(game.balls.poke, 1, 'round 10 does not extend the opening regular-ball grant');
+  assert.equal(game.balls.great, 1, 'round 10 retains its premium milestone reward');
 }
 
 // Cooldown deadlines preserve overshoot, so speed-up and low frame rates do
@@ -157,7 +224,7 @@ const { StadiumTDGame, Tower, Creep, Projectile, resolveMoveHit, collectVictims,
   Object.assign(game, {
     isChoosingMap: false, lives: 1, matchActive: true,
     store: { recordMap() {}, commit() {} }, progress: { report: () => ['earned'] },
-    camera: { camera: { position: new THREE.Vector3() }, handleInput() {}, shake() {}, update() {} },
+    camera: { camera: { position: new THREE.Vector3() }, handleInput() {}, shake() {}, setActionTarget() {}, update() {} },
     renderer: { scene: new THREE.Scene(), update() {}, floodlightDim: 0 },
     audio: { playHit() {} }, announcer: { trigger() {}, update() {} },
     waveManager: { update() {}, currentWaveIndex: 0, round: 1, winRound: 40, inWave: true,
