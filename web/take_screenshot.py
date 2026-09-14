@@ -6,6 +6,14 @@ import threading
 import os
 
 shot_name = sys.argv[1] if len(sys.argv) > 1 else 'stadium_overview'
+window_size = sys.argv[2].lower().replace('x', ',') if len(sys.argv) > 2 else '1280,720'
+try:
+    width, height = (int(part) for part in window_size.split(',', 1))
+    if width < 320 or height < 240:
+        raise ValueError
+except ValueError:
+    print('Window size must look like 1280x720 (minimum 320x240).')
+    sys.exit(2)
 
 # Root directory of web
 web_dir = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +51,7 @@ cmd = [
     f"--virtual-time-budget={3500 if shot_name.startswith(('capture_', 'summon_')) else 2500}",
     f"--user-data-dir={profile_dir}",
     f"--screenshot={output_file}",
-    "--window-size=1280,720",
+    f"--window-size={width},{height}",
     f"http://127.0.0.1:{port}/?shot={shot_name}"
 ]
 

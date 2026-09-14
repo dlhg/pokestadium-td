@@ -667,6 +667,29 @@
   gap: 10px;
 }
 
+.pause-ui-scale {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #bcd7ec;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-align: left;
+}
+
+.pause-ui-scale select {
+  width: 100%;
+  border: 2px solid #d7e0ff;
+  border-radius: 4px;
+  padding: 4px 7px;
+  background: #07182f;
+  color: #fffbed;
+  font: 700 14px 'Rajdhani', sans-serif;
+  cursor: pointer;
+}
+
 /* Course selection: tournament board backdrop behind the illustrated venue board. */
 #map-select {
   background-image:

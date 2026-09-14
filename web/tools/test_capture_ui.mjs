@@ -65,12 +65,18 @@ try {
     await click(`[data-ball-type="${type}"]`);
     assert.equal(await evaluate(`document.querySelector('[data-ball-type="${type}"]').getAttribute('aria-pressed')`),'true',`${type} arms on held click`);
     await click(`[data-ball-type="${type}"]`);
-    assert.equal(await evaluate(`document.querySelector('[data-ball-type="${type}"]').getAttribute('aria-pressed')`),'false',`${type} disarms`);
+    assert.equal(await evaluate(`document.querySelector('[data-ball-type="${type}"]').getAttribute('aria-pressed')`),'true',`${type} remains selected`);
   }
   assert.equal(await evaluate(`(()=>{const a=document.querySelector('#capture-kit').getBoundingClientRect(); return a.left>=0&&a.bottom<=innerHeight})()`),true,'Capture kit stays inside the viewport');
   assert.equal(await evaluate(`document.querySelector('#btn-maps')===null`),true,'Always-visible Maps control is removed');
   await press('Escape','Escape');
+  assert.equal(await evaluate(`document.querySelector('#pause-screen').hidden`),true,'First Escape dismisses the selected tower');
+  await press('Escape','Escape');
   assert.equal(await evaluate(`document.querySelector('#pause-screen').hidden`),false,'Escape opens the pause sheet');
+  assert.equal(await evaluate(`document.querySelector('#pause-ui-scale').value`),'auto','UI scale defaults to Auto');
+  await evaluate(`(()=>{const el=document.querySelector('#pause-ui-scale');el.value='1.25';el.dispatchEvent(new Event('change'));})()`);
+  assert.equal(await evaluate(`localStorage.getItem('pokestadium.uiScale')`),'1.25','UI scale preference is saved');
+  assert.equal(await evaluate(`document.querySelector('#ui-overlay').style.transform`),'scale(1.25)','Manual UI scale is applied');
   await click('#btn-pause-resume');
   assert.equal(await evaluate(`document.querySelector('#pause-screen').hidden`),true,'Resume closes the pause sheet');
   await press('Escape','Escape');
@@ -80,7 +86,7 @@ try {
   assert.equal(await evaluate(`document.querySelector('#btn-resume-map').hidden`),true,'Quit cannot resume the abandoned match');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('#capture-kit')).visibility`),'hidden','Capture kit hidden during map selection');
   assert.equal(await evaluate(`document.querySelector('#capture-kit').inert`),true,'Capture kit cannot receive input during map selection');
-  console.log('PASS: persistent ball controls, Escape pause/resume, quit-to-course-select, and menu input isolation.');
+  console.log('PASS: persistent ball controls, UI scaling, Escape pause/resume, quit-to-course-select, and menu input isolation.');
 } finally {
   socket?.close();
   chrome.kill();
