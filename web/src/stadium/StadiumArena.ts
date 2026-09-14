@@ -562,11 +562,11 @@ export class StadiumArena {
   }
 
   /** Clears grass and other incidental dressing beneath placed tower pads. */
-  public clearGroundPropsBelow(centres: readonly THREE.Vector3[], radius: number): void {
-    const signature = centres.map(point => `${point.x.toFixed(3)},${point.z.toFixed(3)}`).sort().join('|');
+  public clearGroundPropsBelow(footprints: readonly { centre: THREE.Vector3; radius: number }[]): void {
+    const signature = footprints.map(({ centre, radius }) => `${centre.x.toFixed(3)},${centre.z.toFixed(3)},${radius.toFixed(3)}`).sort().join('|');
     if (signature === this.groundPropMask) return;
     this.groundPropMask = signature;
-    maskGroundProps(this.environmentGroup, centres.map(point => ({ x: point.x, z: point.z, radius })));
+    maskGroundProps(this.environmentGroup, footprints.map(({ centre, radius }) => ({ x: centre.x, z: centre.z, radius })));
   }
 
   public dispose(): void {

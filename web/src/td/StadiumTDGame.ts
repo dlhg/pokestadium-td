@@ -19,6 +19,7 @@ import {
   TARGET_PRIORITIES,
   TOWER_FOOTPRINT_RADIUS,
   TOWER_BASE_HEIGHT,
+  placementFootprintRadius,
   highGroundRangeScale,
 } from './Tower';
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
@@ -683,7 +684,7 @@ export class StadiumTDGame {
 
     if (!ground) return null;
     return this.towers.find(t =>
-      Math.hypot(t.position.x - ground.x, t.position.z - ground.z) <= TOWER_FOOTPRINT_RADIUS
+      Math.hypot(t.position.x - ground.x, t.position.z - ground.z) <= t.placementFootprint
     ) ?? null;
   }
 
@@ -709,7 +710,7 @@ export class StadiumTDGame {
     const blocked = this.getPlacementBlock(member, ground.x, ground.z);
     this.placementStatus = blocked
       ? { valid: false, label: PLACEMENT_BLOCK_LABELS[blocked] }
-      : { valid: true, label: `PLACE ${displayName(member).toUpperCase()}${this.highGroundNote(ground)} · ESC TO CANCEL` };
+      : { valid: true, label: `PLACE ${displayName(member).toUpperCase()}${this.highGroundNote(ground, placementFootprintRadius(member))} · ESC TO CANCEL` };
 
     this.updatePlacementPreview(member, ground, !blocked);
 
@@ -727,11 +728,12 @@ export class StadiumTDGame {
     if (this.isDeployed(member)) return 'already_deployed';
     if (this.money < speciesOf(member).deployCost) return 'too_expensive';
 
-    const arenaBlock = this.arena.isBuildable(x, z, TOWER_FOOTPRINT_RADIUS);
+    const radius = placementFootprintRadius(member);
+    const arenaBlock = this.arena.isBuildable(x, z, radius);
     if (arenaBlock) return arenaBlock;
 
     const crowded = this.towers.some(t =>
-      Math.hypot(t.position.x - x, t.position.z - z) < TOWER_FOOTPRINT_RADIUS * 2
+      Math.hypot(t.position.x - x, t.position.z - z) < t.placementFootprint + radius
     );
     return crowded ? 'overlaps_tower' : null;
   }
@@ -741,7 +743,8 @@ export class StadiumTDGame {
   }
 
   private placeTower(member: OwnedPokemon, ground: THREE.Vector3): void {
-    const position = new THREE.Vector3(ground.x, this.padHeight(ground.x, ground.z), ground.z);
+    const radius = placementFootprintRadius(member);
+    const position = new THREE.Vector3(ground.x, this.padHeight(ground.x, ground.z, radius), ground.z);
     this.money -= speciesOf(member).deployCost;
 
     const tower = new Tower(member, position);
@@ -788,15 +791,15 @@ export class StadiumTDGame {
   }
 
   /** A pad rests on the highest ground under its footprint; its footing fills the rest. */
-  private padHeight(x: number, z: number): number {
-    return this.arena.terrain.footprint(x, z, TOWER_FOOTPRINT_RADIUS).high + TOWER_BASE_HEIGHT;
+  private padHeight(x: number, z: number, radius = TOWER_FOOTPRINT_RADIUS): number {
+    return this.arena.terrain.footprint(x, z, radius).high + TOWER_BASE_HEIGHT;
   }
 
   /** Tells the player what a raised site is worth against the lowest stretch of lane. */
-  private highGroundNote(point: THREE.Vector3): string {
+  private highGroundNote(point: THREE.Vector3, radius: number): string {
     if (this.arena.terrain.flat) return '';
     const laneFloor = Math.min(...this.arena.routes.flat().map(p => p.y - LANE_RIDE_HEIGHT));
-    const bonus = Math.round((highGroundRangeScale(this.padHeight(point.x, point.z) - TOWER_BASE_HEIGHT, laneFloor) - 1) * 100);
+    const bonus = Math.round((highGroundRangeScale(this.padHeight(point.x, point.z, radius) - TOWER_BASE_HEIGHT, laneFloor) - 1) * 100);
     return bonus >= 5 ? ` · HIGH GROUND +${bonus}% RANGE BELOW` : '';
   }
 
@@ -806,6 +809,7 @@ export class StadiumTDGame {
     valid: boolean,
   ): void {
     const color = valid ? 0x00f0ff : 0xd90429;
+    const radius = placementFootprintRadius(member);
     if (this.placementPreviewTemplateId !== member.uid) {
       this.placementPreview.clear();
       const range = MOVES[speciesOf(member).basicAttack].range;
@@ -840,7 +844,7 @@ export class StadiumTDGame {
       this.placementPreview.add(rangeRing);
 
       const footprint = new THREE.Mesh(
-        new THREE.RingGeometry(TOWER_FOOTPRINT_RADIUS - 0.25, TOWER_FOOTPRINT_RADIUS, 32),
+        new THREE.RingGeometry(Math.max(0.05, radius - 0.25), radius, 32),
         new THREE.MeshBasicMaterial({
           color,
           transparent: true,
@@ -862,7 +866,7 @@ export class StadiumTDGame {
       }
     });
     // Same clearance as the tower range ring: above the lane ribbon at y = 0.5.
-    this.placementPreview.position.set(point.x, this.padHeight(point.x, point.z) + 0.35, point.z);
+    this.placementPreview.position.set(point.x, this.padHeight(point.x, point.z, radius) + 0.35, point.z);
     this.placementPreview.visible = true;
   }
 
@@ -901,7 +905,10 @@ export class StadiumTDGame {
 
     // Procedural grass is cosmetic and yields to the tower's physical pad.
     // The arena caches this footprint set, so unchanged frames cost no traversal.
-    this.arena.clearGroundPropsBelow?.(this.towers.map(tower => tower.position), TOWER_FOOTPRINT_RADIUS);
+    this.arena.clearGroundPropsBelow?.(this.towers.map(tower => ({
+      centre: tower.position,
+      radius: tower.placementFootprint,
+    })));
 
     // A capture or evolution set piece runs in real time while it drags the
     // rest of the world into slow motion. At most one of these is ever

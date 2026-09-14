@@ -159,7 +159,7 @@ export class GLTFModelLoader {
       let scale: number;
       let height: number;
       if (fitHeight === undefined && entry.size) {
-        scale = worldScaleFor(entry.size.footprint, entry.size.height, entry.species);
+        scale = worldScaleFor(entry.size.height, entry.species);
         height = entry.size.height * scale;
       } else {
         if (fitHeight === undefined) {
