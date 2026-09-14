@@ -1,6 +1,8 @@
 # Pokemon Stadium (US)
 A WIP decomp of Pokemon Stadium (US).
 
+This repository is based on [pret/pokestadium](https://github.com/pret/pokestadium), the open-source disassembly/decompilation project this work builds on. All credit for the original decomp effort goes to the pret community and its contributors.
+
 It builds the following ROMs:
 
 * pokestadium.z64: `md5: ed1378bc12115f71209a77844965ba50`

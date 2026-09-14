@@ -5,3 +5,8 @@ screenshot_*.png
 # Private output generated from the player's ROM. Never commit or redistribute.
 public/generated/stadium/
 __pycache__/
+
+# Copyrighted Pokémon Stadium soundtrack. Drop your own rips in public/music/
+# with matching names (see public/music/manifest.json) — the game runs fine
+# without them, it just falls back to procedural audio.
+public/music/*.mp3
