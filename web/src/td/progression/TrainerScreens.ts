@@ -331,9 +331,15 @@ export class TrainerScreens {
     this.clearViews();
     const record = options.map ? this.store.data.maps[options.map.id] : undefined;
     this.root.innerHTML = `
-      <section class="tr-panel stadium-panel tr-team">
+        <section class="tr-panel stadium-panel tr-team">
         <div class="tr-eyebrow">${options.map ? `TEAM SELECT / ${options.map.name.toUpperCase()}` : 'MY POKÉMON'}</div>
-        <h1 class="tr-title">${options.map ? 'PICK YOUR TEAM' : 'COLLECTION'}</h1>
+        <div class="tr-heading-row">
+          <h1 class="tr-title">${options.map ? 'PICK YOUR TEAM' : 'COLLECTION'}</h1>
+          <div class="tr-heading-actions">
+            <button class="stadium-btn" data-back>${options.map ? 'BACK TO COURSES' : 'DONE'}</button>
+            ${options.onConfirm ? '<button class="stadium-btn active tr-confirm" data-confirm></button>' : ''}
+          </div>
+        </div>
         ${options.map ? `<div class="tr-threats"><span>OPENING WAVES</span>${threats.map(typeChip).join('')}
           ${record ? `<span class="tr-record">BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}</span>` : ''}</div>` : ''}
         ${showBenchIntro ? '<p class="tr-intro">Your team is full, so new catches wait on the bench. Click one, or drag it onto a slot, to swap it in.</p>' : ''}
@@ -362,10 +368,7 @@ export class TrainerScreens {
           </div>
         </div>
         <div class="tr-collection" data-drop-bench></div>
-        <div class="tr-footer">
-          <button class="stadium-btn" data-back>${options.map ? 'BACK TO COURSES' : 'DONE'}</button>
-          ${options.onConfirm ? '<button class="stadium-btn active tr-confirm" data-confirm></button>' : ''}
-        </div>
+        <div class="tr-footer"></div>
       </section>`;
 
     const section = this.root.querySelector<HTMLElement>('.tr-team')!;

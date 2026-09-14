@@ -28,7 +28,9 @@
   background: var(--broadcast-gold); color: var(--broadcast-ink);
   font: 900 11px/1 'Trebuchet MS', sans-serif; letter-spacing: 2px;
 }
-.tr-title { margin: 8px 0 0; color: var(--broadcast-cream-bright); font: 700 42px/1 'Teko', Impact, sans-serif; text-shadow: 3px 4px var(--broadcast-ink); }
+.tr-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; }
+.tr-title { margin: 0; color: var(--broadcast-cream-bright); font: 700 42px/1 'Teko', Impact, sans-serif; text-shadow: 3px 4px var(--broadcast-ink); }
+.tr-heading-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .tr-subtitle { margin: 4px 0 16px; color: #dce6ff; font-size: 15px; }
 .tr-empty { color: #aac0e0; padding: 12px 0; }
 
@@ -212,6 +214,8 @@ select.tr-input { padding: 4px 6px; border: 2px solid #9dc0dc; border-radius: 4p
   .tr-summary-top { flex-direction: column; align-items: stretch; }
   .tr-model.large { width: 100%; }
   .tr-title { font-size: 34px; }
+  .tr-heading-row { align-items: flex-start; flex-direction: column; }
+  .tr-heading-actions { width: 100%; justify-content: flex-start; }
 }
 
 /* Dev panel: a plain utility drawer, deliberately not stadium-skinned. */

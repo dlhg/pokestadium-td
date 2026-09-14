@@ -7,10 +7,39 @@
  * generated/stadium/audio directory.
  */
 
+import { PokemonType } from '../stadium/TypeMatrix';
+
 interface NativeAudioManifest {
   version: 1;
   sounds?: Record<string, string>;
   music?: Record<string, string>;
+}
+
+/** Per-type cry timbre. Real N64 sample banks aren't decoded yet (see ROM_ASSETS.md), so
+ * every cry is synthesized — a `cry_<slug>` or `cry_<type>` native clip still wins if one is
+ * ever dropped into the audio manifest. */
+const CRY_TIMBRE: Record<PokemonType, { wave: OscillatorType; base: number }> = {
+  Normal: { wave: 'triangle', base: 420 },
+  Fire: { wave: 'sawtooth', base: 360 },
+  Water: { wave: 'sine', base: 480 },
+  Electric: { wave: 'square', base: 620 },
+  Grass: { wave: 'triangle', base: 400 },
+  Ice: { wave: 'sine', base: 700 },
+  Fighting: { wave: 'square', base: 300 },
+  Poison: { wave: 'sawtooth', base: 340 },
+  Ground: { wave: 'triangle', base: 220 },
+  Flying: { wave: 'sine', base: 560 },
+  Psychic: { wave: 'sine', base: 640 },
+  Bug: { wave: 'square', base: 520 },
+  Rock: { wave: 'triangle', base: 260 },
+  Ghost: { wave: 'sawtooth', base: 380 },
+  Dragon: { wave: 'sawtooth', base: 300 },
+};
+
+function hashName(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return h;
 }
 
 function clampVolume(value: number): number {
@@ -321,6 +350,54 @@ export class StadiumAudio {
     this.noiseBurst(0.32, 3200, 900, 0.2);
     this.tone('sine', 520, 1480, 0.4, 0.2);
     this.tone('triangle', 780, 1960, 0.32, 0.12, 0.04);
+  }
+
+  /**
+   * The Pokémon's own voice at the moment it appears — on a throw, a catch,
+   * or an evolution reveal. A `cry_<slug-of-name>` or `cry_<type>` clip in the
+   * native audio manifest takes priority; until one exists, this synthesizes
+   * a short type-flavored whoop, pitch-varied per species by name so the
+   * roster doesn't all share one cry.
+   */
+  public playCry(name: string, type: PokemonType): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if (this.playNative(`cry_${slug}`, `cry_${type.toLowerCase()}`)) return;
+
+    const timbre = CRY_TIMBRE[type];
+    const detune = 0.85 + (hashName(name) % 100) / 100 * 0.5;
+    const base = timbre.base * detune;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = timbre.wave;
+    osc.frequency.setValueAtTime(base * 0.7, now);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.6, now + 0.09);
+    osc.frequency.exponentialRampToValueAtTime(base * 0.9, now + 0.28);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.26, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    osc.connect(gain);
+    gain.connect(this.sfxBus ?? this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.32);
+
+    // A quieter octave-up voice gives the whoop body instead of a bare tone.
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(base * 1.4, now + 0.02);
+    osc2.frequency.exponentialRampToValueAtTime(base * 2.1, now + 0.1);
+    osc2.frequency.exponentialRampToValueAtTime(base * 1.3, now + 0.26);
+    gain2.gain.setValueAtTime(0.0001, now + 0.02);
+    gain2.gain.exponentialRampToValueAtTime(0.12, now + 0.06);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc2.connect(gain2);
+    gain2.connect(this.sfxBus ?? this.ctx.destination);
+    osc2.start(now + 0.02);
+    osc2.stop(now + 0.3);
   }
 
   public playAttack(type: string): void {

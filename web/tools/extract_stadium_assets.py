@@ -30,6 +30,62 @@ ARCHIVES = {
     'pokemon_models': (0x919000, 215),
 }
 
+# The second compressed bank in common_menu2_ui contains the 20x20 RGBA5551
+# type tiles used by Stadium's out-of-battle move previews. The internal type
+# table is sparse (and includes the unused Bird type), so keep the explicit
+# addresses documented by the original game's UI table rather than relying on
+# enum order.
+TYPE_BADGE_BANK = 0x4C1298
+TYPE_BADGE_OFFSETS = {
+    'normal': 0x17740,
+    'fire': 0x17A60,
+    'water': 0x17D80,
+    'ice': 0x180A0,
+    'grass': 0x183C0,
+    'electric': 0x186E0,
+    'rock': 0x18A00,
+    'ground': 0x18D20,
+    'fighting': 0x19040,
+    'bug': 0x19360,
+    'poison': 0x19680,
+    'flying': 0x199A0,
+    'psychic': 0x19CC0,
+    'ghost': 0x19FE0,
+    'dragon': 0x1A300,
+}
+
+
+def type_badge_bank(source: rom.Rom) -> bytes:
+    return rom.yay0_decompress(source.data[TYPE_BADGE_BANK:])
+
+
+def rgba5551(raw: bytes) -> bytes:
+    rgba = bytearray()
+    for i in range(0, len(raw), 2):
+        value = int.from_bytes(raw[i:i + 2], 'big')
+        rgba.extend((
+            ((value >> 11) & 0x1F) * 255 // 31,
+            ((value >> 6) & 0x1F) * 255 // 31,
+            ((value >> 1) & 0x1F) * 255 // 31,
+            (value & 1) * 255,
+        ))
+    return bytes(rgba)
+
+
+def export_type_badges(source: rom.Rom, output: Path) -> list[str]:
+    bank = type_badge_bank(source)
+    badge_dir = output / 'ui/type-badges'
+    badge_dir.mkdir(parents=True, exist_ok=True)
+    urls = []
+    for name, offset in TYPE_BADGE_OFFSETS.items():
+        raw = bank[offset:offset + 20 * 20 * 2]
+        if len(raw) != 20 * 20 * 2:
+            raise ValueError(f'{name} type badge exceeds the common menu UI bank')
+        path = badge_dir / f'{name}.png'
+        path.write_bytes(fragment.png(20, 20, rgba5551(raw)))
+        urls.append(f'ui/type-badges/{name}.png')
+    return urls
+
 
 def validate(source: rom.Rom) -> dict:
     report = {'romMd5': source.md5, 'archives': {}}
@@ -52,6 +108,10 @@ def validate(source: rom.Rom) -> dict:
     portrait = rom.decompress(archives['battle_portraits'][0])
     if len(portrait) != 64 * 64 * 2:
         raise ValueError('representative battle portrait is not a 64x64 RGBA5551 image')
+
+    badge_bank = type_badge_bank(source)
+    if any(offset + 20 * 20 * 2 > len(badge_bank) for offset in TYPE_BADGE_OFFSETS.values()):
+        raise ValueError('type badge table exceeds the common menu UI bank')
 
     stage = rom.decompress(archives['stadium_models'][arena.VENUE_MEMBERS['brock']])
     if stage[8:16] != b'FRAGMENT':
@@ -80,6 +140,10 @@ def validate(source: rom.Rom) -> dict:
         raise ValueError("Pikachu's battle table references a missing animation")
     report['representatives'] = {
         'portrait0': {'bytes': len(portrait), 'format': '64x64 RGBA5551'},
+        'typeBadges': {
+            'count': len(TYPE_BADGE_OFFSETS), 'format': '20x20 RGBA5551',
+            'bankOffset': f'0x{TYPE_BADGE_BANK:X}',
+        },
         'stadiumMember7': {'venue': 'brock', 'bytes': len(stage), 'magic': 'FRAGMENT'},
         'pokemonMember24': {
             'species': 25, 'name': 'Pikachu', 'bytes': len(pikachu),
@@ -113,20 +177,25 @@ def main() -> int:
     if args.validate_only:
         return 0
 
-    model_args = [f'--rom={args.rom}', f'--out={args.out}', '--no-js', '--no-effects', '--pokemon-only']
+    # A smoke test must not replace the live 151-species manifest with its
+    # one-species result. Keep its output in a separate generated subtree.
+    output = args.out / 'smoke/pikachu' if args.only_pikachu else args.out
+    model_args = [f'--rom={args.rom}', f'--out={output}', '--no-js', '--no-effects', '--pokemon-only']
     if args.only_pikachu:
         model_args.append('--only=24')
     build.main(model_args)
 
-    args.out.mkdir(parents=True, exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
+    type_badges = export_type_badges(source, output)
     member = arena.VENUE_MEMBERS[args.venue]
     payload, groups, fragment_bytes = arena.convert_member(source, member)
     arena_name = f'member_{member:02d}_{args.venue}.sna'
-    (args.out / arena_name).write_bytes(payload)
+    (output / arena_name).write_bytes(payload)
 
-    manifest_path = args.out / 'manifest.json'
+    manifest_path = output / 'manifest.json'
     manifest = json.loads(manifest_path.read_text())
     manifest['validation'] = report
+    manifest['typeBadges'] = type_badges
     manifest['arenas'] = [{
         'id': args.venue,
         'name': f'{args.venue.title()} Gym Leader Castle room',
@@ -140,7 +209,7 @@ def main() -> int:
     }]
     manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
     print(f'wrote {manifest_path}')
-    print(f'wrote {args.out / arena_name} ({groups} material groups)')
+    print(f'wrote {output / arena_name} ({groups} material groups)')
     return 0
 
 

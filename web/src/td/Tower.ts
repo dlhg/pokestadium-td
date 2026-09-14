@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { AnimatedPokemon, disposePokemonModel, PokemonModelFactory } from '../stadium/PokemonModels';
 import { isGroundOnly, MoveDefinition } from '../stadium/MoveDatabase';
+import { PokemonType } from '../stadium/TypeMatrix';
 import { Creep } from './Creep';
 import { LANE_RIDE_HEIGHT } from './MapTerrain';
 import { PathTier, SpeciesDef } from './progression/Species';
@@ -280,6 +281,11 @@ export class Tower {
   /** The current form's species name — what the model and type follow. */
   public get formName(): string {
     return formOf(this.pokemon).name;
+  }
+
+  /** The current form's primary elemental type — flavors its cry. */
+  public get type(): PokemonType {
+    return formOf(this.pokemon).type;
   }
 
   public get level(): number {

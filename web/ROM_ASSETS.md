@@ -26,7 +26,8 @@ npm run extract:stadium
 
 This validates all three Rev 2 archives, exports all 151 Pokémon as textured,
 skinned GLBs with the original 30 fps skeletal clips, writes a data-derived
-animation-role and move manifest, and converts member 7 of `stadium_models`
+animation-role and move manifest, exports the 15 original 20×20 type badges
+from the common menu UI bank, and converts member 7 of `stadium_models`
 (Brock's Gym Leader Castle room) to the compact `SNA2` browser cache.
 
 Output lives under `web/public/generated/stadium/` and is gitignored. The game
@@ -40,6 +41,10 @@ For a quick Pikachu-only extraction smoke test:
 ```sh
 python3 tools/extract_stadium_assets.py --only-pikachu
 ```
+
+Smoke-test output is isolated under
+`web/public/generated/stadium/smoke/pikachu/`, so it cannot replace the full
+manifest used by the game.
 
 Use `--validate-only` to inspect archive counts, bounds, compression wrappers,
 and representative identities without writing derived assets.

@@ -42,6 +42,13 @@ export class StadiumCamera {
   // Action cam target
   private actionFocusTarget: THREE.Vector3 | null = null;
   private actionTimer: number = 0;
+  private actionSubjectId: string | null = null;
+  private actionTrackingReady: boolean = false;
+  private actionFollowFocus: THREE.Vector3 = new THREE.Vector3();
+  private actionFollowGoal: THREE.Vector3 = new THREE.Vector3(0, 1, 0);
+  private actionOrbitAngle: number = Math.PI * 0.25;
+  private actionHandoffTimer: number = 0;
+  private actionHandoffDirection: number = 1;
 
   // Held cinematic shot (capture set piece): owns the camera until released.
   private cinematic: {
@@ -76,6 +83,16 @@ export class StadiumCamera {
 
   public setMode(mode: CameraMode): void {
     this.mode = mode;
+    this.actionTimer = 0;
+    this.actionFocusTarget = null;
+    this.actionSubjectId = null;
+    this.actionTrackingReady = false;
+    this.applyModePreset();
+    this.syncOrbitFromDesired();
+  }
+
+  private applyModePreset(): void {
+    const mode = this.mode;
     switch (mode) {
       case 'tactical':
         this.desiredPos.set(4, 82, 42);
@@ -90,7 +107,33 @@ export class StadiumCamera {
         this.desiredTarget.set(0, 1, 0);
         break;
     }
-    this.syncOrbitFromDesired();
+  }
+
+  /**
+   * Supplies the live leader for Action mode. Subject changes deliberately
+   * retain the previous focus and viewing angle so a knockout becomes a
+   * camera move, rather than a cut across the arena.
+   */
+  public setActionTarget(subjectId: string | null, position: THREE.Vector3 | null): void {
+    const nextGoal = position ?? new THREE.Vector3(0, 1, 0);
+    if (!this.actionTrackingReady) {
+      this.actionFollowFocus.copy(this.currentTarget);
+      this.actionOrbitAngle = Math.atan2(
+        this.currentPos.x - this.currentTarget.x,
+        this.currentPos.z - this.currentTarget.z,
+      );
+      this.actionTrackingReady = true;
+    }
+
+    if (subjectId !== this.actionSubjectId) {
+      const toNext = nextGoal.clone().sub(this.actionFollowFocus);
+      const cameraSide = this.currentPos.clone().sub(this.actionFollowFocus);
+      const cross = cameraSide.x * toNext.z - cameraSide.z * toNext.x;
+      this.actionHandoffDirection = cross < 0 ? -1 : 1;
+      this.actionHandoffTimer = 1.5;
+      this.actionSubjectId = subjectId;
+    }
+    this.actionFollowGoal.copy(nextGoal);
   }
 
   public triggerActionCam(focusPos: THREE.Vector3, duration: number = 2.0): void {
@@ -260,9 +303,29 @@ export class StadiumCamera {
     if (this.actionTimer > 0) {
       this.actionTimer -= dt;
       if (this.actionTimer <= 0) {
-        this.setMode(this.mode === 'action' ? 'stadium' : this.mode);
         this.actionFocusTarget = null;
+        this.applyModePreset();
+        if (this.mode === 'action') this.actionHandoffTimer = Math.max(this.actionHandoffTimer, 0.9);
+        else this.syncOrbitFromDesired();
       }
+    }
+
+    if (this.mode === 'action' && !this.cinematic && this.actionTimer <= 0 && this.actionTrackingReady) {
+      const handingOff = this.actionHandoffTimer > 0;
+      const focusRate = handingOff ? 1.65 : 5.5;
+      const focusBlend = 1 - Math.exp(-focusRate * dt);
+      this.actionFollowFocus.lerp(this.actionFollowGoal, focusBlend);
+
+      // A modest lateral sweep sells a target handoff as an authored camera
+      // move while preserving the side of the action the player was viewing.
+      if (handingOff) {
+        this.actionOrbitAngle += this.actionHandoffDirection * 0.42 * dt;
+        this.actionHandoffTimer = Math.max(0, this.actionHandoffTimer - dt);
+      } else {
+        this.actionOrbitAngle += 0.055 * dt;
+      }
+      this.cinematicPositionAt(this.actionFollowFocus, 13.5, 5.8, this.actionOrbitAngle, this.desiredPos);
+      this.desiredTarget.copy(this.actionFollowFocus).add(new THREE.Vector3(0, 1.35, 0));
     }
 
     // Screen shake decay
@@ -279,7 +342,8 @@ export class StadiumCamera {
     }
 
     // Smooth camera lerp (spring-like damping)
-    const lerpSpeed = dt * (this.cinematic ? 3.0 : 4.5);
+    const cameraRate = this.cinematic ? 3.0 : this.mode === 'action' ? 3.25 : 4.5;
+    const lerpSpeed = 1 - Math.exp(-cameraRate * dt);
     this.currentPos.lerp(this.desiredPos, lerpSpeed);
     this.currentTarget.lerp(this.desiredTarget, lerpSpeed);
 
