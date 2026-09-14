@@ -2055,11 +2055,8 @@ export class StadiumUI {
       answered = true;
       card.classList.remove('naming', 'interactive');
       onNamed(name);
-      // A short hold so the name lands before the card leaves.
-      this.trophyTimer = window.setTimeout(() => {
-        card.classList.remove('shown');
-        this.trophyTimer = window.setTimeout(() => this.trophyView.hide(), 400);
-      }, 900);
+      card.classList.remove('shown');
+      this.trophyTimer = window.setTimeout(() => this.trophyView.hide(), 400);
     };
     card.querySelector('form')!.addEventListener('submit', (event) => {
       event.preventDefault();
