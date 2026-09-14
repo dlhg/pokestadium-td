@@ -20,7 +20,13 @@ higher move tiers. Tiers are still bought with prize money during the match.
   returns it to the bench to be placed again (it pays the deploy cost again, and its
   tiers reset). Two Pikachu towers means catching two Pikachu.
 - **Catching mid-match** adds the Pokémon to your collection *and* lets you place it
-  in this match as a bonus slot.
+  in this match as a bonus roster member. The match has three guest slots beyond the
+  six-Pokémon team; storage and Research Data never consume those slots. Catches are
+  never hidden just because the guest roster is full.
+- **Duplicate catches** pause at the trophy card and can either be kept as another
+  individual or sent to the Professor for species-specific Research Data. Research
+  Data is persistent, does not refund the ball or award prize money, and is reserved
+  for future collection upgrades.
 - **Defeat keeps XP and catches.** Nothing is lost; losing just means less XP.
 
 ## Data model
@@ -116,6 +122,7 @@ export interface TrainerSave {
   team: (string | null)[];       // 6 uids
   maps: Record<string, { cleared: boolean; bestRound: number }>;
   pokedex: { seen: string[]; caught: string[] };
+  research: Record<string, number>; // duplicate-catch Research Data by species
   captureLuck: number;           // failed attempts since the last catch
   unlocks: string[];             // e.g. 'exp_all'; empty in v1
 }

@@ -301,7 +301,8 @@ export class TrainerScreens {
       list.scrollTop = scroll;
 
       const filtering = !!query || filter.types.size > 0 || filter.strongOnly;
-      this.root.querySelector('[data-bench-count]')!.textContent = `${filtering ? `SHOWING ${shown.length} OF ${bench.length}` : bench.length} ON BENCH · ${data.collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT`;
+      const researchTotal = Object.values(data.research).reduce((total, points) => total + points, 0);
+      this.root.querySelector('[data-bench-count]')!.textContent = `${filtering ? `SHOWING ${shown.length} OF ${bench.length}` : bench.length} ON BENCH · ${data.collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT · ${researchTotal} RESEARCH DATA`;
       // A handful of Pokémon doesn't need a toolbar; keep it while any filter is on so it can be cleared.
       this.root.querySelector<HTMLElement>('.tr-bench-tools')!.hidden = bench.length < BENCH_TOOLS_MIN && !filtering;
       this.root.querySelector<HTMLButtonElement>('[data-clear-filters]')!.hidden = !filtering;

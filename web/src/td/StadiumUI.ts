@@ -408,6 +408,8 @@ export class StadiumUI {
         #capture-trophy .trophy-moves { display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(246,196,55,.35); padding-top:9px; }
         #capture-trophy .trophy-move { display:flex; justify-content:space-between; gap:18px; font-size:12px; letter-spacing:.6px; color:#cfe3ff; }
         #capture-trophy .trophy-move em { color:#8faecf; font-style:normal; font-size:10px; letter-spacing:1.4px; }
+        #capture-trophy .trophy-nickname-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+        #capture-trophy .trophy-nickname-row input { min-width:110px; flex:1 1 110px; }
         #capture-trophy.has-model { display:flex; align-items:center; gap:18px; }
         #capture-trophy .trophy-stage {
           flex:0 0 150px; height:176px; overflow:hidden; border:2px solid rgba(246,196,55,.55);
@@ -2006,6 +2008,26 @@ export class StadiumUI {
     this.trophyTimer = window.setTimeout(() => card.classList.remove('shown'), 4200);
   }
 
+  /** Immediate payoff for converting a duplicate instead of keeping it. */
+  public showResearchResult(formName: string, points: number): void {
+    const card = document.getElementById('capture-trophy')!;
+    this.trophyView.hide();
+    card.classList.remove('has-model', 'naming', 'interactive');
+    card.innerHTML = `
+      <div class="trophy-copy research-result">
+        <div class="trophy-kicker">RESEARCH COMPLETE</div>
+        <div class="trophy-name">${formName.toUpperCase()} DATA</div>
+        <div class="trophy-moves">
+          <div class="trophy-move"><span>+${points}</span><em>RESEARCH DATA</em></div>
+        </div>
+        <div class="trophy-duplicate-note">Duplicate released to the Professor. This data is saved for future ${formName} upgrades.</div>
+      </div>
+    `;
+    card.classList.add('shown');
+    window.clearTimeout(this.trophyTimer);
+    this.trophyTimer = window.setTimeout(() => card.classList.remove('shown'), 2600);
+  }
+
   public showDefeat(mapName: string, round: number, winRound: number, report: MatchReportEntry[] = []): void {
     this.renderCaptureCinema(null);
     this.renderEvolutionCinema(null);
@@ -2024,7 +2046,12 @@ export class StadiumUI {
    * The payoff beat: the new catch with the move lines it brings, and a
    * nickname prompt. The card holds until the player names it or skips.
    */
-  public showCaptureTrophy(pokemon: OwnedPokemon, onNamed: (name: string | null) => void): void {
+  public showCaptureTrophy(
+    pokemon: OwnedPokemon,
+    duplicate: boolean,
+    guestSlotsLeft: number,
+    onNamed: (name: string | null, destination: 'match' | 'storage' | 'research') => void,
+  ): void {
     const card = document.getElementById('capture-trophy')!;
     const species = speciesOf(pokemon);
     const form = formOf(pokemon);
@@ -2035,16 +2062,18 @@ export class StadiumUI {
     card.innerHTML = `
       <div class="trophy-stage"></div>
       <div class="trophy-copy">
-        <div class="trophy-kicker">ADDED TO YOUR COLLECTION</div>
+        <div class="trophy-kicker">${duplicate ? 'DUPLICATE ENCOUNTER' : 'POKÉMON CAUGHT'}</div>
         <div class="trophy-name">${form.name.toUpperCase()} <small>LV ${pokemon.level}</small></div>
         <div class="trophy-type" style="background:${typeColor}">${form.type.toUpperCase()}</div>
         <div class="trophy-moves">${moves}</div>
+        <div class="trophy-duplicate-note">${duplicate ? 'You already own this species.' : 'Choose where this Pokémon goes.'} ${guestSlotsLeft ? `MATCH GUESTS: ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT` : 'MATCH GUESTS FULL'}</div>
         <form class="trophy-nickname">
           <label for="trophy-nickname-input">GIVE A NICKNAME TO ${form.name.toUpperCase()}?</label>
           <div class="trophy-nickname-row">
             <input id="trophy-nickname-input" maxlength="10" autocomplete="off" placeholder="${form.name}">
-            <button class="stadium-btn active" type="submit">OK</button>
-            <button class="stadium-btn" type="button" data-skip>SKIP</button>
+            ${guestSlotsLeft ? `<button class="stadium-btn active" type="submit">ADD TO MATCH · ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT</button>` : ''}
+            <button class="stadium-btn" type="button" data-storage>SEND TO STORAGE</button>
+            ${duplicate ? '<button class="stadium-btn" type="button" data-research>SEND TO RESEARCH</button>' : ''}
           </div>
         </form>
       </div>
@@ -2056,22 +2085,23 @@ export class StadiumUI {
 
     const input = card.querySelector<HTMLInputElement>('#trophy-nickname-input')!;
     let answered = false;
-    const finish = (name: string | null) => {
+    const finish = (name: string | null, destination: 'match' | 'storage' | 'research') => {
       if (answered) return;
       answered = true;
       card.classList.remove('naming', 'interactive');
-      onNamed(name);
+      onNamed(name, destination);
       card.classList.remove('shown');
       this.trophyTimer = window.setTimeout(() => this.trophyView.hide(), 400);
     };
     card.querySelector('form')!.addEventListener('submit', (event) => {
       event.preventDefault();
-      finish(input.value.trim() || null);
+      if (guestSlotsLeft) finish(input.value.trim() || null, 'match');
     });
-    card.querySelector('[data-skip]')!.addEventListener('click', () => finish(null));
+    card.querySelector('[data-storage]')!.addEventListener('click', () => finish(input.value.trim() || null, 'storage'));
+    card.querySelector('[data-research]')?.addEventListener('click', () => finish(null, 'research'));
     input.addEventListener('keydown', (event) => {
       event.stopPropagation();
-      if (event.key === 'Escape') finish(null);
+      if (event.key === 'Escape') finish(null, 'storage');
     });
     window.setTimeout(() => input.focus(), 50);
   }

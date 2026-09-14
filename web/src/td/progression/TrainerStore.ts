@@ -20,7 +20,8 @@ export const NICKNAME_MAX = 10;
 export const GUARANTEED_CATCH_BELOW = 4;
 /** Catch odds added per failed attempt since the last success. */
 export const CAPTURE_LUCK_STEP = 0.12;
-
+/** Number of caught Pokémon that may join the current match beyond the team. */
+export const MATCH_GUEST_SLOTS = 3;
 const STORAGE_KEY = 'pokestadium-td/save';
 
 export interface OwnedPokemon {
@@ -53,6 +54,8 @@ export interface TrainerSave {
   matchesPlayed: number;
   /** Unlockable perks, e.g. 'exp_all'. Empty in v1. */
   unlocks: string[];
+  /** Species-specific progress earned by converting duplicate catches. */
+  research: Record<string, number>;
 }
 
 export interface XpResult {
@@ -71,6 +74,7 @@ export function freshSave(): TrainerSave {
     captureLuck: 0,
     matchesPlayed: 0,
     unlocks: [],
+    research: {},
   };
 }
 
@@ -210,6 +214,16 @@ function migrate(raw: unknown): TrainerSave {
     }
   }
   const pokedex = data.pokedex && typeof data.pokedex === 'object' ? data.pokedex : base.pokedex;
+  const research: Record<string, number> = {};
+  if (data.research && typeof data.research === 'object') {
+    for (const [speciesId, value] of Object.entries(data.research)) {
+      try {
+        getSpecies(speciesId);
+        const points = finiteInteger(value, 0, 0, Number.MAX_SAFE_INTEGER);
+        if (points > 0) research[speciesId] = points;
+      } catch { /* Ignore research for species removed from the build. */ }
+    }
+  }
   return {
     version: 1,
     starterChosen: data.starterChosen === true,
@@ -220,6 +234,7 @@ function migrate(raw: unknown): TrainerSave {
     captureLuck: finiteInteger(data.captureLuck, 0, 0, Number.MAX_SAFE_INTEGER),
     matchesPlayed: finiteInteger(data.matchesPlayed, 0, 0, Number.MAX_SAFE_INTEGER),
     unlocks: Array.isArray(data.unlocks) ? [...new Set(data.unlocks.filter((item): item is string => typeof item === 'string'))] : [],
+    research,
   };
 }
 
@@ -268,11 +283,27 @@ export class TrainerStore {
   }
 
   /** Adds to the collection and drops into the first open team slot, if there is one. */
-  public add(pokemon: OwnedPokemon): void {
+  public add(pokemon: OwnedPokemon, addToTeam = true): void {
     this.data.collection.push(pokemon);
-    const open = this.data.team.indexOf(null);
-    if (open !== -1) this.data.team[open] = pokemon.uid;
+    if (addToTeam) {
+      const open = this.data.team.indexOf(null);
+      if (open !== -1) this.data.team[open] = pokemon.uid;
+    }
     this.markCaught(pokemon.speciesId);
+  }
+
+  public hasSpecies(speciesId: string): boolean {
+    return this.data.collection.some(pokemon => pokemon.speciesId === speciesId);
+  }
+
+  /** Duplicate catches grant diminishing species-specific research. */
+  public convertDuplicate(speciesId: string): number {
+    const prior = this.data.research[speciesId] ?? 0;
+    const ownedCopies = this.data.collection.filter(pokemon => pokemon.speciesId === speciesId).length;
+    const points = ownedCopies === 1 ? 3 : ownedCopies === 2 ? 2 : 1;
+    this.data.research[speciesId] = prior + points;
+    this.markCaught(speciesId);
+    return points;
   }
 
   public chooseStarter(starterId: string, nickname: string | null, giftNickname: string | null): void {
