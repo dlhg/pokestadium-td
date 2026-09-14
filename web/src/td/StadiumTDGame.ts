@@ -80,6 +80,8 @@ export function leadingActionCreep<T extends Pick<Creep, 'alive' | 'pathProgress
 export class StadiumTDGame {
   public renderer!: StadiumRenderer;
   public camera!: StadiumCamera;
+  /** Dedicated broadcast camera; the jumbotron always follows the lead creep. */
+  private jumbotronCamera!: StadiumCamera;
   public audio!: StadiumAudio;
   public particles!: ParticleSystem;
   public arena!: StadiumArena;
@@ -157,6 +159,8 @@ export class StadiumTDGame {
     this.progress = new MatchProgress(store);
     this.renderer = new StadiumRenderer(canvas);
     this.camera = new StadiumCamera();
+    this.jumbotronCamera = new StadiumCamera();
+    this.jumbotronCamera.setMode('action');
     this.audio = new StadiumAudio();
     this.particles = new ParticleSystem();
     this.arena = new StadiumArena(this.map);
@@ -1065,6 +1069,8 @@ export class StadiumTDGame {
     const actionLeader = leadingActionCreep(this.creeps);
     this.camera.setActionTarget(actionLeader?.id ?? null, actionLeader?.position ?? null);
     this.camera.update(realDt);
+    this.jumbotronCamera.setActionTarget(actionLeader?.id ?? null, actionLeader?.position ?? null);
+    this.jumbotronCamera.update(realDt);
     this.arena.update(performance.now() * 0.001, this.camera.camera.position, realDt);
     this.renderer.update(realDt, this.waveManager.inWave ? 0.8 : 0.0);
 
@@ -1415,6 +1421,7 @@ export class StadiumTDGame {
   }
 
   public render(): void {
+    this.arena.updateJumbotronFeed(this.renderer.renderer, this.renderer.scene, this.jumbotronCamera.camera);
     this.renderer.render(this.camera.camera);
   }
 }

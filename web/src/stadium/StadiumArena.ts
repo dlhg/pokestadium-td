@@ -62,6 +62,8 @@ export class StadiumArena {
   private jumbotronCtx: CanvasRenderingContext2D;
   private jumbotronTexture: THREE.CanvasTexture;
   private jumbotronSignature = '';
+  private jumbotronFrame: THREE.Mesh | null = null;
+  private jumbotronFeedTarget: THREE.WebGLRenderTarget;
   private crowdMaterial: THREE.ShaderMaterial | null = null;
   private crowdMood: number = 0;
   private targetCrowdMood: number = 0;
@@ -87,6 +89,11 @@ export class StadiumArena {
     this.jumbotronCanvas.height = 256;
     this.jumbotronCtx = this.jumbotronCanvas.getContext('2d')!;
     this.jumbotronTexture = new THREE.CanvasTexture(this.jumbotronCanvas);
+    this.jumbotronFeedTarget = new THREE.WebGLRenderTarget(640, 320, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: true,
+    });
     this.backdrop = new StadiumBackdrop(map);
 
     this.initArena();
@@ -483,22 +490,49 @@ export class StadiumArena {
 
   private buildJumbotron(): void {
     // Single screen on the far side, facing the default camera.
-    const frameGeo = new THREE.BoxGeometry(18, 9, 1.5);
+    const frameGeo = new THREE.BoxGeometry(36, 18, 1.5);
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x111b24 });
     const frame = new THREE.Mesh(frameGeo, frameMat);
     frame.position.set(0, 16, -38);
 
-    const screenGeo = new THREE.PlaneGeometry(16.5, 7.5);
+    const screenGeo = new THREE.PlaneGeometry(33, 15);
     const screenMat = new THREE.MeshBasicMaterial({
-      map: this.jumbotronTexture,
+      map: this.jumbotronFeedTarget.texture,
     });
     const screen = new THREE.Mesh(screenGeo, screenMat);
     screen.position.z = 0.8;
     frame.add(screen);
 
     this.environmentGroup.add(frame);
+    this.jumbotronFrame = frame;
 
     this.updateJumbotron(this.map.name.toUpperCase(), this.map.venue, 1);
+  }
+
+  /** Render the live stadium camera into the jumbotron before the main frame. */
+  public updateJumbotronFeed(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+    if (!this.jumbotronFrame) return;
+
+    const previousTarget = renderer.getRenderTarget();
+    const previousAspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : null;
+    this.jumbotronFrame.visible = false;
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.aspect = this.jumbotronFeedTarget.width / this.jumbotronFeedTarget.height;
+      camera.updateProjectionMatrix();
+    }
+
+    try {
+      renderer.setRenderTarget(this.jumbotronFeedTarget);
+      renderer.clear();
+      renderer.render(scene, camera);
+    } finally {
+      renderer.setRenderTarget(previousTarget);
+      this.jumbotronFrame.visible = true;
+      if (camera instanceof THREE.PerspectiveCamera && previousAspect !== null) {
+        camera.aspect = previousAspect;
+        camera.updateProjectionMatrix();
+      }
+    }
   }
 
   public updateJumbotron(title: string, subtitle: string, wave: number): void {
@@ -572,5 +606,6 @@ export class StadiumArena {
   public dispose(): void {
     disposeScenery(this.group);
     this.jumbotronTexture.dispose();
+    this.jumbotronFeedTarget.dispose();
   }
 }
