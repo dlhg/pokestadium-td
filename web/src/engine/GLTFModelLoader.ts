@@ -43,6 +43,25 @@ export class GLTFModelLoader {
     return this.manifestPromise;
   }
 
+  /**
+   * A dropped connection (dev-server HMR reload, a brief Wi-Fi blip, the
+   * browser's per-origin connection limit bumping a request out) surfaces as
+   * a generic `TypeError: Failed to fetch` and is usually gone a moment
+   * later; a real 404 or malformed-GLB parse failure throws a different
+   * error and won't recover, so only the network case gets retried.
+   */
+  private static async loadGLTF(url: string): ReturnType<GLTFLoader['loadAsync']> {
+    const attempts = 3;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.loader.loadAsync(url);
+      } catch (error) {
+        if (!(error instanceof TypeError) || attempt >= attempts) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+      }
+    }
+  }
+
   private static prepareMesh(scene: THREE.Group): void {
     scene.traverse((child) => {
       const mesh = child as THREE.Mesh;
@@ -83,7 +102,7 @@ export class GLTFModelLoader {
     try {
       let pending = this.cache.get(url);
       if (!pending) {
-        pending = this.loader.loadAsync(url).then((gltf) => ({ scene: gltf.scene, animations: gltf.animations }));
+        pending = this.loadGLTF(url).then((gltf) => ({ scene: gltf.scene, animations: gltf.animations }));
         this.cache.set(url, pending);
       }
       const cached = await pending;
@@ -197,7 +216,7 @@ export class GLTFModelLoader {
     try {
       let pending = this.cache.get(url);
       if (!pending) {
-        pending = this.loader.loadAsync(url).then((gltf) => {
+        pending = this.loadGLTF(url).then((gltf) => {
           this.tameRootMotion(gltf.scene, gltf.animations, entry);
           return { scene: gltf.scene, animations: gltf.animations };
         });
