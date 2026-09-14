@@ -180,7 +180,10 @@ def main() -> int:
     # A smoke test must not replace the live 151-species manifest with its
     # one-species result. Keep its output in a separate generated subtree.
     output = args.out / 'smoke/pikachu' if args.only_pikachu else args.out
-    model_args = [f'--rom={args.rom}', f'--out={output}', '--no-js', '--no-effects', '--pokemon-only']
+    # 174 is the "Run! Rattata, Run!" minigame's own Rattata rig (see
+    # stadium_pipeline/build.py's EXTRA_NAMES) -- the only extra model the web
+    # player actually uses, for its run cycle.
+    model_args = [f'--rom={args.rom}', f'--out={output}', '--no-js', '--no-effects', '--pokemon-only', '--also=174']
     if args.only_pikachu:
         model_args.append('--only=24')
     build.main(model_args)

@@ -575,25 +575,96 @@ export class PokemonModelFactory {
     const parts: Record<string, THREE.Object3D> = {};
 
     const purpleMat = new THREE.MeshLambertMaterial({ color: 0x9b5de5 });
+    const creamMat = new THREE.MeshLambertMaterial({ color: 0xf1e3c8 });
     const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+    // Body pivots forward/down at the hips so a sprint can pitch it into a dash.
+    const bodyPivot = new THREE.Group();
+    bodyPivot.position.y = 0.55;
+    root.add(bodyPivot);
+    parts.body = bodyPivot;
 
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.65, 8, 6), purpleMat);
     body.scale.set(0.8, 0.7, 1.2);
-    body.position.y = 0.5;
-    root.add(body);
-    parts.body = body;
+    bodyPivot.add(body);
+
+    // Cream belly, the giveaway silhouette from the "Run! Rattata, Run!" sprint pose
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), creamMat);
+    belly.scale.set(0.7, 0.55, 1.0);
+    belly.position.set(0, -0.18, 0.05);
+    body.add(belly);
 
     // Teeth
     const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.15), whiteMat);
     tooth.position.set(0, -0.15, 0.8);
     body.add(tooth);
 
+    // Ears, pinned back during the sprint
+    [-1, 1].forEach((dir, idx) => {
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.4, 6), purpleMat);
+      ear.position.set(dir * 0.28, 0.45, 0.55);
+      ear.rotation.x = -0.3;
+      ear.rotation.z = dir * 0.2;
+      body.add(ear);
+      parts[`ear_${idx}`] = ear;
+    });
+
+    // Whip tail, streaming out behind at full sprint
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.9, 6), purpleMat);
+    tail.geometry.translate(0, 0.45, 0);
+    tail.rotation.x = Math.PI / 2 + 0.2;
+    tail.position.set(0, 0.05, -0.75);
+    body.add(tail);
+    parts.tail = tail;
+
+    // Four scampering legs, animated as diagonal running pairs (front-left/back-right
+    // vs front-right/back-left), the way the minigame's sprint cycle actually moves.
+    const legPositions: [number, number][] = [
+      [-0.32, 0.55], // front-left
+      [0.32, 0.55],  // front-right
+      [-0.32, -0.5], // back-left
+      [0.32, -0.5],  // back-right
+    ];
+    legPositions.forEach(([x, z], idx) => {
+      const hip = new THREE.Group();
+      hip.position.set(x, -0.25, z);
+      bodyPivot.add(hip);
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.3, 4, 6), purpleMat);
+      leg.position.y = -0.18;
+      hip.add(leg);
+      parts[`leg_${idx}`] = hip;
+    });
+
     return {
       mesh: root,
       parts,
-      update(t: number, dt: number) {
-        // Scampering run
-        parts.body.position.y = 0.5 + Math.abs(Math.sin(t * 16)) * 0.2;
+      update(t: number, dt: number, state: string) {
+        if (state === 'walk') {
+          // Full-tilt sprint: low, stretched-out gallop with a frantic stride rate.
+          const strideRate = 16;
+          const p = t * strideRate;
+          const bob = Math.abs(Math.sin(p)) * 0.16;
+          parts.body.position.y = 0.42 + bob;
+          parts.body.rotation.x = 0.35 + Math.sin(p) * 0.08; // head-down forward lean
+          const legAmp = 0.9;
+          [0, 3].forEach(i => {
+            (parts[`leg_${i}`] as THREE.Group).rotation.x = Math.sin(p) * legAmp;
+          });
+          [1, 2].forEach(i => {
+            (parts[`leg_${i}`] as THREE.Group).rotation.x = -Math.sin(p) * legAmp;
+          });
+          parts.tail.rotation.z = Math.sin(p * 0.5) * 0.3;
+          (parts.tail as THREE.Mesh).position.y = 0.05 + Math.sin(p) * 0.03;
+          parts.ear_0.rotation.x = -0.55;
+          parts.ear_1.rotation.x = -0.55;
+        } else {
+          parts.body.position.y = 0.55 + Math.abs(Math.sin(t * 4)) * 0.05;
+          parts.body.rotation.x = 0;
+          for (let i = 0; i < 4; i++) (parts[`leg_${i}`] as THREE.Group).rotation.x = 0;
+          parts.tail.rotation.z = Math.sin(t * 2) * 0.15;
+          parts.ear_0.rotation.x = -0.3;
+          parts.ear_1.rotation.x = -0.3;
+        }
       }
     };
   }
