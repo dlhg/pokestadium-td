@@ -174,6 +174,7 @@ export class StadiumUI {
   private trophyView = new TrophyModelView();
 
   public onSelectMember: (member: OwnedPokemon | null) => void = () => {};
+  public onStoreMember: (member: OwnedPokemon) => void = () => {};
   public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
   public onSellTower: (tower: Tower) => void = () => {};
   public onChangeTargetPriority: (tower: Tower, dir: number) => void = () => {};
@@ -1577,6 +1578,7 @@ export class StadiumUI {
         <span class="card-cost">$${speciesOf(member).deployCost}</span>
         <span class="card-xp"><i style="width:${levelProgress(member.xp, member.level) * 100}%"></i></span>
         <span class="card-deployed">ON FIELD</span>
+        <button class="card-storage" type="button" data-store-member aria-label="Send ${escapeHtml(displayName(member))} to storage">STORE</button>
       `;
 
       const select = () => this.onSelectMember(member);
@@ -1587,6 +1589,12 @@ export class StadiumUI {
           select();
         }
       });
+      const storageButton = card.querySelector<HTMLButtonElement>('[data-store-member]')!;
+      storageButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (!storageButton.disabled) this.onStoreMember(member);
+      });
+      storageButton.addEventListener('keydown', (event) => event.stopPropagation());
 
       this.cardDeckEl.appendChild(card);
       const portraitStage = card.querySelector<HTMLElement>('.card-portrait-stage')!;
@@ -2405,6 +2413,9 @@ export class StadiumUI {
       el.classList.toggle('deployed', deployed);
       el.classList.toggle('disabled', deployed || state.money < speciesOf(member).deployCost);
       el.classList.toggle('selected', state.selectedMember?.uid === member.uid);
+      const storageButton = el.querySelector<HTMLButtonElement>('[data-store-member]')!;
+      storageButton.disabled = deployed;
+      storageButton.title = deployed ? 'Sell the tower before sending this Pokémon to storage' : 'Send to storage';
       const level = el.querySelector<HTMLElement>('.card-level')!;
       if (level.textContent !== String(member.level)) level.textContent = String(member.level);
       el.querySelector<HTMLElement>('.card-xp i')!.style.width = `${levelProgress(member.xp, member.level) * 100}%`;
