@@ -374,6 +374,23 @@
   font-size: 20px;
 }
 
+.card-storage {
+  position: absolute;
+  z-index: 3;
+  top: 5px;
+  right: 5px;
+  padding: 2px 4px;
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 3px;
+  background: rgba(5, 13, 42, .72);
+  color: #d9e8ff;
+  font: 700 9px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: .4px;
+  cursor: pointer;
+}
+.card-storage:hover:not(:disabled), .card-storage:focus-visible { border-color: var(--broadcast-gold); color: #fff2a7; }
+.card-storage:disabled { opacity: .45; cursor: not-allowed; }
+
 /* Tower strategy card */
 #tower-panel {
   top: 170px;

@@ -337,6 +337,13 @@ export class TrainerStore {
     this.commit();
   }
 
+  /** Removes a Pokémon from the active team while keeping it in the collection. */
+  public sendToStorage(uid: string): void {
+    if (!this.data.team.includes(uid)) return;
+    this.data.team = this.data.team.map(slot => (slot === uid ? null : slot));
+    this.commit();
+  }
+
   /** Toggles a Pokémon on or off the team; returns false when the team is full. */
   public toggleTeam(uid: string): boolean {
     const slot = this.data.team.indexOf(uid);

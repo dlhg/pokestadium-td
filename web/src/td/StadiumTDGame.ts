@@ -254,6 +254,14 @@ export class StadiumTDGame {
       this.placementPreview.visible = false;
       this.audio.playSelect();
     };
+    this.ui.onStoreMember = (member) => {
+      if (!this.matchActive || this.isDeployed(member)) return;
+      if (this.selectedMember?.uid === member.uid) this.clearSelection();
+      this.roster = this.roster.filter(rosterMember => rosterMember.uid !== member.uid);
+      this.store.sendToStorage(member.uid);
+      this.ui.setRoster(this.roster);
+      this.audio.playSelect();
+    };
     this.ui.onCatch = (creep) => this.tryCapture(creep, this.selectedBall);
     this.ui.onSelectBall = (ball) => {
       if (this.balls[ball] <= 0) return;
