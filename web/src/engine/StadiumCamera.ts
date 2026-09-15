@@ -58,6 +58,7 @@ export class StadiumCamera {
     height: number;
     orbitSpeed: number;
     angle: number;
+    targetYOffset: number;
     restore: { pos: THREE.Vector3; target: THREE.Vector3 };
   } | null = null;
   private readonly baseFov = 45;
@@ -222,6 +223,7 @@ export class StadiumCamera {
     height: number = 3.4,
     orbitSpeed: number = 0.32,
     startAngle?: number,
+    targetYOffset: number = 0.9,
   ): void {
     this.actionTimer = 0;
     this.actionFocusTarget = null;
@@ -233,6 +235,7 @@ export class StadiumCamera {
       // Default to swinging in from behind the player's current viewing angle;
       // a caller that knows where the clear ground is can override it.
       angle: startAngle ?? Math.atan2(this.currentPos.x - focus.x, this.currentPos.z - focus.z) - 0.5,
+      targetYOffset,
       restore: { pos: this.desiredPos.clone(), target: this.desiredTarget.clone() },
     };
   }
@@ -298,7 +301,7 @@ export class StadiumCamera {
       // The orbit must stay inside the bowl: a set piece near the rim would
       // otherwise swing the camera into the grandstands and clip through them.
       this.cinematicPositionAt(shot.focus, shot.distance, shot.height, shot.angle, this.desiredPos);
-      this.desiredTarget.copy(shot.focus).add(new THREE.Vector3(0, 0.9, 0));
+      this.desiredTarget.copy(shot.focus).add(new THREE.Vector3(0, shot.targetYOffset, 0));
     }
 
     // Field-of-view punch decays back to rest.

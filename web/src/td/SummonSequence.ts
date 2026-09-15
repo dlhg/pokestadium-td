@@ -101,7 +101,9 @@ export class SummonSequence {
     this.group.add(this.spotlight, this.spotlight.target);
 
     tower.setDeploymentLocked(true);
-    stage.camera.beginCinematic(this.focus, 8.2, 3.1, 0.2, Math.atan2(fromCamera.x, fromCamera.z));
+    // Lower the look-at point for this low hero angle: perspective makes the
+    // grounded model's visual center sit below the generic cinematic focus.
+    stage.camera.beginCinematic(this.focus, 8.2, 3.1, 0.2, Math.atan2(fromCamera.x, fromCamera.z), -0.6);
     stage.arena.setCrowdMood(-0.6);
     stage.audio.duckCrowd(0.35, 0.3);
     stage.audio.playSummonThrow();
