@@ -150,6 +150,7 @@ export class StadiumUI {
   // UI elements
   private cardDeckEl!: HTMLElement;
   private panelEl!: HTMLElement;
+  private storageConfirmEl!: HTMLElement;
   private announcerBannerEl!: HTMLElement;
 
   /** Structure is rebuilt only when the tower's purchases actually change. */
@@ -172,6 +173,8 @@ export class StadiumUI {
   private cinemaVerdict: string = '';
   private trophyTimer: number = 0;
   private trophyView = new TrophyModelView();
+  private storageConfirmMember: OwnedPokemon | null = null;
+  private storageConfirmPreviousFocus: HTMLElement | null = null;
 
   public onSelectMember: (member: OwnedPokemon | null) => void = () => {};
   public onStoreMember: (member: OwnedPokemon) => void = () => {};
@@ -248,6 +251,23 @@ export class StadiumUI {
           padding: 8px 16px;
           z-index: 30;
         }
+
+        #storage-confirm {
+          position: absolute; inset: 0; z-index: 75; display: grid; place-items: center;
+          background: rgba(3, 7, 16, .7);
+        }
+        #storage-confirm[hidden] { display: none; }
+        #storage-confirm .storage-confirm-card {
+          width: min(330px, 84vw); padding: 20px 24px; text-align: center;
+          transform: skew(-6deg); background: linear-gradient(180deg, #16305a 0%, #07142a 100%);
+          border: 3px solid var(--broadcast-gold, #f6c437);
+          box-shadow: 0 10px 0 rgba(3,7,16,.8), 0 0 42px rgba(246,196,55,.4);
+        }
+        #storage-confirm .storage-confirm-kicker { color: #f6c437; font-size: 11px; font-weight: 800; letter-spacing: 2px; }
+        #storage-confirm .storage-confirm-title { margin: 4px 0 8px; color: #fff; font: 38px/1 'Teko','Impact',sans-serif; text-shadow: 2px 3px #08152b; }
+        #storage-confirm .storage-confirm-copy { margin: 0 0 16px; color: #cfe3ff; font-size: 14px; letter-spacing: .4px; }
+        #storage-confirm .storage-confirm-actions { display: flex; justify-content: center; gap: 9px; }
+        #storage-confirm .storage-confirm-actions .stadium-btn { padding: 7px 18px; }
 
         #start-match-bar #btn-wave {
           font-size: 20px;
@@ -1366,6 +1386,18 @@ export class StadiumUI {
       <!-- Tower Purchase Roster -->
       <div id="card-deck" class="stadium-panel interactive"></div>
 
+      <div id="storage-confirm" class="interactive" hidden>
+        <section class="storage-confirm-card" role="dialog" aria-modal="true" aria-labelledby="storage-confirm-title">
+          <div class="storage-confirm-kicker">SEND TO STORAGE?</div>
+          <div id="storage-confirm-title" class="storage-confirm-title"></div>
+          <p class="storage-confirm-copy">This Pokémon will leave the current match roster.</p>
+          <div class="storage-confirm-actions">
+            <button class="stadium-btn" type="button" data-storage-cancel>CANCEL</button>
+            <button class="stadium-btn active" type="button" data-storage-confirm>CONFIRM</button>
+          </div>
+        </section>
+      </div>
+
       <div id="capture-hint"></div>
 
       <!-- Catch tags immediately throw the ball selected in the capture kit -->
@@ -1473,6 +1505,7 @@ export class StadiumUI {
     `;
 
     this.cardDeckEl = document.getElementById('card-deck')!;
+    this.storageConfirmEl = document.getElementById('storage-confirm')!;
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
     this.cinemaEl = document.getElementById('capture-cinema')!;
@@ -1480,6 +1513,18 @@ export class StadiumUI {
     this.summonCinemaEl = document.getElementById('summon-cinema')!;
 
     this.bindEvents();
+    this.storageConfirmEl.querySelector<HTMLButtonElement>('[data-storage-cancel]')!.addEventListener('click', () => this.closeStorageConfirmation());
+    this.storageConfirmEl.querySelector<HTMLButtonElement>('[data-storage-confirm]')!.addEventListener('click', () => {
+      const member = this.storageConfirmMember;
+      this.closeStorageConfirmation();
+      if (member) this.onStoreMember(member);
+    });
+    this.storageConfirmEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.closeStorageConfirmation();
+      }
+    });
     this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ball]').forEach(button => button.addEventListener('click', () => this.onBuyBall(button.dataset.buyBall as BallType)));
     this.container.querySelectorAll<HTMLButtonElement>('[data-select-ball]').forEach(button => button.addEventListener('click', () => this.onSelectBall(button.dataset.selectBall as BallType)));
     this.bindCatchEvents();
@@ -1593,7 +1638,7 @@ export class StadiumUI {
       const storageButton = card.querySelector<HTMLButtonElement>('[data-store-member]')!;
       storageButton.addEventListener('click', (event) => {
         event.stopPropagation();
-        if (!storageButton.disabled) this.onStoreMember(member);
+        if (!storageButton.disabled) this.openStorageConfirmation(member, storageButton);
       });
       storageButton.addEventListener('keydown', (event) => event.stopPropagation());
 
@@ -1604,6 +1649,22 @@ export class StadiumUI {
       view.show(form.name, speciesOf(member).createModel);
       this.rosterViews.set(member.uid, view);
     });
+  }
+
+  private openStorageConfirmation(member: OwnedPokemon, source: HTMLElement): void {
+    this.storageConfirmMember = member;
+    this.storageConfirmPreviousFocus = source;
+    this.storageConfirmEl.querySelector<HTMLElement>('#storage-confirm-title')!.innerText = displayName(member).toUpperCase();
+    this.storageConfirmEl.hidden = false;
+    this.storageConfirmEl.querySelector<HTMLButtonElement>('[data-storage-confirm]')!.focus();
+  }
+
+  private closeStorageConfirmation(): void {
+    this.storageConfirmEl.hidden = true;
+    this.storageConfirmMember = null;
+    const previousFocus = this.storageConfirmPreviousFocus;
+    this.storageConfirmPreviousFocus = null;
+    previousFocus?.focus();
   }
 
   private bindEvents(): void {
