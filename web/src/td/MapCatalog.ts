@@ -52,6 +52,9 @@ export interface StadiumMap {
 // Victory Road → Indigo Plateau tiers. Outlines run past the arena rim; the rim trims them.
 const TIER_ROUTE_23 = 3, TIER_BADGE_CHECK = 6, TIER_SUMMIT = 9;
 const TIER_SILVER_PINE = 3, TIER_SILVER_BALCONY = 6, TIER_SILVER_SADDLE = 9, TIER_SILVER_CROWN = 12;
+// Bell Tower: four nested storeys, each smaller than the one below. The route spirals
+// around the exterior, entering each storey from a different side (S, W, N, E).
+const TIER_STORY_1 = 3, TIER_STORY_2 = 6.5, TIER_STORY_3 = 10, TIER_STORY_4 = 13.5;
 
 export const STADIUM_MAPS: StadiumMap[] = [
   {
@@ -252,6 +255,48 @@ export const STADIUM_MAPS: StadiumMap[] = [
       { kind:'flowers', x:-26, z:8, radius:1.5 }, { kind:'flowers', x:26, z:8, radius:1.5 },
     ],
     // Both trailheads already open from a cave mouth.
+    showGates: false,
+  },
+  {
+    id:'bell-tower', name:'Bell Tower', venue:'ECRUTEAK ASCENT', difficulty:'hard',
+    description:'A sacred pagoda rises in four shrinking storeys above the forest. The route spirals around its balconies toward the roost at the top.',
+    strategy:'Every storey is a full ring around the tower, not a doorway — high ground here covers a whole balcony below it. But the summit is barely big enough for one tower, so place it well.',
+    theme:'plateau',
+    palette:{ ground:'#3f5c46', patch:'#4d6b52', path:'#c9a06a', edge:'#5c3a2a', accent:'#c0392b' },
+    buildableRadius:31, laneWidth:3,
+    terrain:{ plateaus:[
+      { label:'Ground-floor veranda', height:TIER_STORY_1, points:[[-22,-32],[22,-32],[22,12],[-22,12]] },
+      { label:'Second-storey balcony', height:TIER_STORY_2, points:[[-16,-26],[16,-26],[16,6],[-16,6]] },
+      { label:'Third-storey balcony', height:TIER_STORY_3, points:[[-10,-20],[10,-20],[10,0],[-10,0]] },
+      { label:'Roost platform', height:TIER_STORY_4, points:[[-5,-15],[5,-15],[5,-5],[-5,-5]] },
+    ]},
+    routes:[[
+      [24,20],[14,26],[-4,24],[-19,16],[-19,13,0],
+      [-19,3,TIER_STORY_1],                                 // first stair, straight up onto the veranda
+      [-20,-4,TIER_STORY_1],
+      [-13,-12,TIER_STORY_2],                               // second stair, diagonal, west side
+      [-12,-19,TIER_STORY_2],
+      [6,-16,TIER_STORY_3],                                 // third stair, diagonal, north side
+      [9,-16,TIER_STORY_3],[9.5,-8,TIER_STORY_3],
+      [3,-8,TIER_STORY_4],                                  // fourth stair, east side, hugging the edge
+      [3,-11],
+    ]],
+    obstacles:[
+      { x:14, z:22, radius:2.3, label:'Sacred pines', style:'pine' },
+      { x:-28, z:2, radius:2.2, label:'Sacred pines', style:'pine' },
+      { x:5, z:20, radius:2, label:'Forest grove', style:'tree' },
+      { x:-4, z:-6, radius:0.7, label:'Roost pillar', style:'pillar' },
+    ],
+    water:[{ points:[[8,16],[12,16],[12,20],[8,20]] }],
+    bridges:[],
+    decor:[
+      { kind:'arch', x:20, z:22, angle:-1.33, span:6, text:'ECRUTEAK FOREST' },
+      { kind:'arch', x:3, z:-11, angle:0, span:4, text:'BELL TOWER' },
+      { kind:'torch', x:-23, z:-1 }, { kind:'torch', x:-16, z:-16 },
+      { kind:'torch', x:3, z:-18 }, { kind:'torch', x:10, z:-8 },
+      { kind:'flowers', x:16, z:9, radius:1.6 }, { kind:'flowers', x:-26, z:16, radius:1.5 },
+    ],
+    // Both ends already have their own gateway: a torii at the trailhead, the tower door at the top.
     showGates: false,
   },
 ];
