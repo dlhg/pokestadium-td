@@ -747,10 +747,20 @@ export class StadiumUI {
         }
 
         .card-cost {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
           font-family: 'Rajdhani', sans-serif;
           font-size: 16px;
           font-weight: 800;
           color: #ffd700;
+        }
+
+        .card-cost-label {
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 0.8px;
+          color: #9fb4cf;
         }
 
         @media (max-height: 650px) {
@@ -1643,7 +1653,7 @@ export class StadiumUI {
         <span class="card-portrait-stage" style="background-image: linear-gradient(90deg, transparent 28%, rgba(4,12,43,.18) 48%, rgba(4,12,43,.96) 78%), url('${typeArt}');"></span>
         <span class="card-type-tag" style="background-color: ${typeCol};">LV <b class="card-level">${member.level}</b></span>
         <span class="card-name">${escapeHtml(displayName(member))}</span>
-        <span class="card-cost">$${speciesOf(member).deployCost}</span>
+        <span class="card-cost"><b class="card-cost-label">SEND OUT</b>$${speciesOf(member).deployCost}</span>
         <span class="card-xp"><i style="width:${levelProgress(member.xp, member.level) * 100}%"></i></span>
         <span class="card-deployed">ON FIELD</span>
         <button class="card-storage" type="button" data-store-member aria-label="Send ${escapeHtml(displayName(member))} to storage">STORE</button>
@@ -2501,7 +2511,7 @@ export class StadiumUI {
       placementHint.innerText = state.placementStatus.label;
       placementHint.style.color = state.placementStatus.valid ? '#00f0ff' : '#ff6b6b';
     } else if (state.selectedMember) {
-      placementHint.innerText = `PLACE ${displayName(state.selectedMember).toUpperCase()} · ESC TO CANCEL`;
+      placementHint.innerText = `SEND OUT ${displayName(state.selectedMember).toUpperCase()} · ESC TO CANCEL`;
       placementHint.style.color = '#00f0ff';
     } else {
       placementHint.innerText = '';

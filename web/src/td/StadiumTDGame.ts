@@ -742,7 +742,7 @@ export class StadiumTDGame {
     const blocked = this.getPlacementBlock(member, ground.x, ground.z);
     this.placementStatus = blocked
       ? { valid: false, label: PLACEMENT_BLOCK_LABELS[blocked] }
-      : { valid: true, label: `PLACE ${displayName(member).toUpperCase()}${this.highGroundNote(ground, placementFootprintRadius(member))} · ESC TO CANCEL` };
+      : { valid: true, label: `SEND OUT ${displayName(member).toUpperCase()}${this.highGroundNote(ground, placementFootprintRadius(member))} · ESC TO CANCEL` };
 
     this.updatePlacementPreview(member, ground, !blocked);
 
