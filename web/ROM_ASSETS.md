@@ -14,13 +14,22 @@ Only Pokémon Stadium (USA) Revision 2 is accepted:
 - Default local path: `baseroms/us/Pokemon Stadium (USA) (Rev 2).z64`
 
 "Rev 2" is a dump-preservation label (No-Intro/Redump style) for a later
-cartridge printing of the same US release, not a version number the game
-shows you. Different revisions can differ byte-for-byte, and this pipeline's
-extraction offsets (`tools/stadium_pipeline/rom.py`) are hardcoded to this
-one printing, so any other revision — including the pret decomp's own
-default target, USA Revision 0 (see `AGENTS.md`) — is rejected rather than
-guessed at. Do not rename this image to `baserom.z64` or run its
-fixed-offset extraction.
+cartridge printing of the same US release. The game never displays this
+number to a player, but it isn't arbitrary either: it's the same value as
+the byte at offset `0x3F` of the ROM's own N64 header (`0x02` for this
+image), which is Nintendo's internal cartridge revision field. Different
+revisions can differ byte-for-byte, and this pipeline's extraction offsets
+(`tools/stadium_pipeline/rom.py`) are hardcoded to this one printing, so any
+other revision — including the pret decomp's own default target, USA
+Revision 0 (see `AGENTS.md`) — is rejected rather than guessed at. Do not
+rename this image to `baserom.z64` or run its fixed-offset extraction.
+
+Watch out for one unrelated naming collision if you go looking for a copy:
+some ROM sites also list a `Pokemon Stadium (USA) (Rev A) (Kiosk Demo)`. That
+"Rev A" is *not* another name for one of the numbered Rev 0/1/2 home-release
+revisions above — it's a different product entirely (a store kiosk demo
+cart) with its own, separate version history. Only a numbered `Rev 2` dump
+matching the hashes above will work here.
 
 ### How the file is checked
 
