@@ -16,7 +16,7 @@ Decisions:
   new one.
 
 ## 2. Selling is confusing — purpose unclear
-Status: interviewed — ready to scope (bigger than a rename)
+Status: done (6031bc1)
 
 Unclear what selling a Pokémon is for. Players may think it's about making a
 profit. Actual intent: free up a board position so a new/different tower can
@@ -37,7 +37,7 @@ value out of Pokémon they don't want on the bench. Needs its own scoping
 pass later — not blocking the recall rename/behavior change.
 
 ## 3. Roster card price (bottom-right) is ambiguous
-Status: interviewed — ready to scope
+Status: done (7972b37)
 
 Doesn't communicate whether the number is the Pokémon's worth (sell value) or
 its deployment cost. Confirmed: it's the deployment cost.
@@ -81,7 +81,7 @@ Decisions:
   perceived gap from the other side.
 
 ## 5. Roster side panel should be collapsible
-Status: interviewed — ready to scope
+Status: done (4d1c38a)
 
 Motivation: free up board space during play (not just decluttering).
 
