@@ -35,6 +35,7 @@ import stadiumThemeUrl from './stadium-ui-theme.css?url';
 const BALL_NAMES: Record<BallType, string> = { poke: 'POKÉ', great: 'GREAT', ultra: 'ULTRA' };
 
 const UI_SCALE_KEY = 'pokestadium.uiScale';
+const PREMIUM_BALL_TIP_KEY = 'pokestadium.premiumBallTipSeen';
 const UI_SCALE_BASE_WIDTH = 1440;
 const UI_SCALE_BASE_HEIGHT = 900;
 const UI_SCALE_AUTO_MAX = 1.5;
@@ -165,6 +166,11 @@ export class StadiumUI {
   private uiScale = 1;
   private uiScalePreference: UIScalePreference = readUiScalePreference();
   private readonly handleUiResize = (): void => this.applyUiScale();
+  private premiumBallTipShown = (() => {
+    try { return localStorage.getItem(PREMIUM_BALL_TIP_KEY) === '1'; } catch { return false; }
+  })();
+  private premiumBallTipEl!: HTMLElement;
+  private wasBallLocked: Partial<Record<BallType, boolean>> = {};
 
   // Callbacks
   private cinemaEl!: HTMLElement;
@@ -521,6 +527,26 @@ export class StadiumUI {
           opacity:.85; color:#9fb4cf; font-size:11px; letter-spacing:.3px;
           background: repeating-linear-gradient(45deg, #0d1a30, #0d1a30 4px, #16273f 4px, #16273f 8px);
           border-color:#3a608f;
+        }
+        .ball-buy.unlock-flash { animation: ball-buy-unlock .5s ease-out; }
+        @keyframes ball-buy-unlock {
+          0% { transform: scale(1, 1); }
+          35% { transform: scale(1.3, 0.75); background-color:#ffe766; color:#1a1204; box-shadow:0 0 14px 4px rgba(255,231,102,.75); }
+          65% { transform: scale(0.92, 1.08); }
+          100% { transform: scale(1, 1); }
+        }
+        @media (prefers-reduced-motion: reduce) { .ball-buy.unlock-flash { animation:none; } }
+
+        #premium-ball-tip {
+          position:absolute; left:18px; bottom:238px; z-index:32; max-width:210px;
+          background:rgba(9,25,51,.94); border:2px solid #f6c437; border-radius:8px;
+          padding:8px 10px; color:#fff2a7; font-size:12px; line-height:1.35; letter-spacing:.3px;
+          box-shadow:0 4px 12px rgba(0,0,0,.5); cursor:pointer;
+        }
+        #premium-ball-tip[hidden] { display:none; }
+        #premium-ball-tip::after {
+          content:''; position:absolute; left:22px; top:100%;
+          border:6px solid transparent; border-top-color:#f6c437;
         }
 
         /* ---- Catching: one-click tags over weakened Pokémon and the CATCH NOW tray ---- */
@@ -1499,6 +1525,7 @@ export class StadiumUI {
             <button class="stadium-btn ball-buy" data-buy-ball="${type}">+$${BALL_PRICES[type]}</button>
           </div>`).join('')}
       </div>
+      <div id="premium-ball-tip" class="interactive" hidden>Great &amp; Ultra Balls only restock between rounds &mdash; stock up before you start the next one!</div>
       <div id="signature-bar" class="interactive" aria-label="Signature moves"></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
@@ -1506,6 +1533,8 @@ export class StadiumUI {
 
     this.cardDeckEl = document.getElementById('card-deck')!;
     this.storageConfirmEl = document.getElementById('storage-confirm')!;
+    this.premiumBallTipEl = document.getElementById('premium-ball-tip')!;
+    this.premiumBallTipEl.addEventListener('click', () => this.dismissPremiumBallTip());
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
     this.cinemaEl = document.getElementById('capture-cinema')!;
@@ -1665,6 +1694,12 @@ export class StadiumUI {
     const previousFocus = this.storageConfirmPreviousFocus;
     this.storageConfirmPreviousFocus = null;
     previousFocus?.focus();
+  }
+
+  private dismissPremiumBallTip(): void {
+    this.premiumBallTipEl.hidden = true;
+    this.premiumBallTipShown = true;
+    try { localStorage.setItem(PREMIUM_BALL_TIP_KEY, '1'); } catch { /* storage blocked */ }
   }
 
   private bindEvents(): void {
@@ -2432,7 +2467,26 @@ export class StadiumUI {
         : !canAfford ? 'Not enough prize money'
         : `Buy one ${BALL_NAMES[type]} BALL`;
       if (button.title !== title) button.title = title;
+      // Draw the eye back to the button the moment it unlocks, instead of
+      // letting the restock pass unnoticed.
+      if (this.wasBallLocked[type] && !premiumLocked) {
+        button.classList.remove('unlock-flash');
+        void button.offsetWidth;
+        button.classList.add('unlock-flash');
+      }
+      this.wasBallLocked[type] = premiumLocked;
     });
+    // Teach the between-rounds-only restriction once, before a player is
+    // ever surprised by it, then let it go for good.
+    if (state.inWave) {
+      if (!this.premiumBallTipShown) {
+        this.premiumBallTipEl.hidden = false;
+        this.premiumBallTipShown = true;
+        try { localStorage.setItem(PREMIUM_BALL_TIP_KEY, '1'); } catch { /* storage blocked */ }
+      }
+    } else if (!this.premiumBallTipEl.hidden) {
+      this.premiumBallTipEl.hidden = true;
+    }
     this.renderCatching(state);
     this.renderCaptureCinema(state.captureCinema);
     this.renderEvolutionCinema(state.evolutionCinema);
