@@ -430,6 +430,9 @@ export class StadiumUI {
           border:2px solid #7d93b5; box-shadow:0 4px 0 rgba(3,7,16,.7), inset 0 0 18px rgba(0,0,0,.7);
         }
         #cine-meter.spent { border-color:#f6c437; }
+        /* Rarer quarry's one-shot QTE variant reads as a hotter, more urgent meter. */
+        #cine-meter.single-pass { border-color:#ff6b6b; box-shadow:0 4px 0 rgba(3,7,16,.7), inset 0 0 18px rgba(217,4,41,.35); }
+        #cine-meter.single-pass .meter-marker { box-shadow:0 0 12px #fff, 0 0 26px #ff6b6b; }
         #cine-meter .meter-zone {
           position:absolute; top:0; bottom:0; background:linear-gradient(180deg,#ffe99a,#f6c437 55%,#a85d00);
           box-shadow:0 0 16px rgba(246,196,55,.8);
@@ -2196,6 +2199,7 @@ export class StadiumUI {
     zone.style.width = `${(aim.zoneEnd - aim.zoneStart) * 100}%`;
     meter.querySelector<HTMLElement>('.meter-marker')!.style.left = `${(aim.released ?? aim.marker) * 100}%`;
     meter.classList.toggle('spent', aim.released !== null);
+    meter.classList.toggle('single-pass', aim.variant === 'single');
 
     grade.className = aim.grade ?? 'hint';
     grade.innerHTML = aim.grade === 'perfect' ? `PERFECT! +${Math.round(aim.bonus * 100)}% ODDS`

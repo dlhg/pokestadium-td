@@ -621,9 +621,9 @@ export class StadiumTDGame {
     const held = target.movementStatus?.effect;
     const statusBonus = held === 'stun' || held === 'sleep' || held === 'freeze' ? 0.22 : target.status !== 'none' ? 0.12 : 0;
     const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
-    // Trainer's luck: every miss since the last catch sweetens the next throw.
-    const luck = this.store.captureLuckBonus;
-    return THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty + luck, 0.08, 0.95);
+    // Every miss since the last catch makes the quarry warier of the next throw.
+    const missPenalty = this.store.captureMissPenalty;
+    return THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty - missPenalty, 0.08, 0.95);
   }
 
   /** Public so the headless shot harness can stage a capture set piece. */

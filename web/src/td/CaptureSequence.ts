@@ -48,6 +48,9 @@ export interface CaptureAim {
   /** Odds the release added or removed, as a signed fraction. */
   bonus: number;
   grade: 'perfect' | 'good' | 'wide' | null;
+  /** 'sweep' repeats back and forth all window long; 'single' crosses the
+   *  zone exactly once, for rarer quarry that shouldn't be this easy to read. */
+  variant: 'sweep' | 'single';
 }
 
 /** Everything the cinematic overlay needs; mutated in place each frame. */
@@ -157,13 +160,14 @@ export class CaptureSequence {
     this.restPos = target.position.clone().setY(this.restY);
 
     const zoneStart = 0.12 + Math.random() * (0.76 - this.profile.zone);
+    const variant: CaptureAim['variant'] = target.threat === 'normal' ? 'sweep' : 'single';
     this.hud = {
       phase: 'aim',
       ballName: BALL_NAMES[ballType],
       ballType,
       targetName: target.name.toUpperCase(),
       chance,
-      aim: { marker: 0, zoneStart, zoneEnd: zoneStart + this.profile.zone, released: null, bonus: 0, grade: null },
+      aim: { marker: 0, zoneStart, zoneEnd: zoneStart + this.profile.zone, released: null, bonus: 0, grade: null, variant },
       wobbles: 0,
       totalWobbles: this.profile.wobbles,
       tension: 0,
@@ -316,12 +320,18 @@ export class CaptureSequence {
 
   private updateAim(t: number, dt: number): void {
     const aim = this.hud.aim!;
-    // Ping-pong sweep: the marker runs the meter and turns around at each end.
-    const cycle = (t * this.profile.sweep) % 2;
-    aim.marker = cycle <= 1 ? cycle : 2 - cycle;
+    if (aim.variant === 'sweep') {
+      // Ping-pong sweep: the marker runs the meter and turns around at each end.
+      const cycle = (t * this.profile.sweep) % 2;
+      aim.marker = cycle <= 1 ? cycle : 2 - cycle;
+    } else {
+      // Single crossing: rarer quarry gets exactly one pass through the zone,
+      // timed to land right as the window would otherwise auto-release.
+      aim.marker = Math.min(1, t / AIM_TIMEOUT);
+    }
     this.hud.tension = 0.3 + Math.min(0.25, t * 0.1);
     this.hud.aimTimeLeft = THREE.MathUtils.clamp(1 - t / AIM_TIMEOUT, 0, 1);
-    this.hud.caption = 'TIME YOUR THROW';
+    this.hud.caption = aim.variant === 'single' ? 'ONE SHOT — TIME IT PERFECTLY' : 'TIME YOUR THROW';
 
     // The target senses it coming and starts to brace.
     this.target.group.position.y = this.targetBaseY + Math.sin(t * 9) * 0.04;

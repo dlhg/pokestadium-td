@@ -18,8 +18,9 @@ export const TEAM_SIZE = 6;
 export const NICKNAME_MAX = 10;
 /** While the collection is smaller than this, the last ball in hand always catches. */
 export const GUARANTEED_CATCH_BELOW = 4;
-/** Catch odds added per failed attempt since the last success. */
-export const CAPTURE_LUCK_STEP = 0.12;
+/** Catch odds lost per failed attempt since the last success — a gentle
+ *  penalty so spamming throws isn't a substitute for a well-timed one. */
+export const CAPTURE_MISS_PENALTY_STEP = 0.05;
 /** Number of caught Pokémon that may join the current match beyond the team. */
 export const MATCH_GUEST_SLOTS = 3;
 const STORAGE_KEY = 'pokestadium-td/save';
@@ -424,7 +425,7 @@ export class TrainerStore {
     return threat !== 'titan' && ballsLeftAfterThrow === 0 && this.data.collection.length < GUARANTEED_CATCH_BELOW;
   }
 
-  public get captureLuckBonus(): number {
-    return this.data.captureLuck * CAPTURE_LUCK_STEP;
+  public get captureMissPenalty(): number {
+    return this.data.captureLuck * CAPTURE_MISS_PENALTY_STEP;
   }
 }
