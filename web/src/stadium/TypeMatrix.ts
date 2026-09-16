@@ -171,6 +171,20 @@ export function getCombinedEffectiveness(attackType: PokemonType, defenderTypes:
   );
 }
 
+/**
+ * Bulbasaur's spore-based status kit (Stun Spore, Sleep Powder, Spore
+ * Carpet) hits every type the same by default, because Grass has no
+ * natural 0x defender in the chart above. This carves out the intended
+ * balance instead: full effect only against what Grass actually is super
+ * effective against, a reduced effect against everything else, and an
+ * explicit Grass immunity the chart itself can't express.
+ */
+export function sporeStatusMultiplier(defenderTypes: readonly PokemonType[]): number {
+  if (defenderTypes.includes('Grass')) return 0;
+  const superEffective = defenderTypes.some(t => getEffectiveness('Grass', t) >= 2.0);
+  return superEffective ? 1 : 0.5;
+}
+
 export function getEffectivenessLabel(mult: number): { label: string; color: string } {
   if (mult >= 2.0) return { label: "SUPER EFFECTIVE!", color: "#48FF48" };
   if (mult === 0.0) return { label: "NO EFFECT!", color: "#A0A0A0" };

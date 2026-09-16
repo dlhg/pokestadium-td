@@ -14,7 +14,7 @@
 
 import * as THREE from 'three';
 import { DamageStatus, MOVES, MoveDefinition, StatusEffectType } from '../stadium/MoveDatabase';
-import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
+import { getCombinedEffectiveness, PokemonType, sporeStatusMultiplier, TYPE_COLORS } from '../stadium/TypeMatrix';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { StadiumCamera } from '../engine/StadiumCamera';
 import { StadiumAnnouncer } from '../stadium/Announcer';
@@ -42,7 +42,7 @@ export type SignatureEffect =
   /** Hits everything in reach of the tower; `disableSeconds` knocks the tower out after. */
   | { kind: 'strikeArea'; move: MoveDefinition; reach: Reach; disableSeconds?: number }
   /** A status on everything in reach. Creeps immune to `type` shrug it off. */
-  | { kind: 'areaStatus'; status: StatusEffectType; duration: number; reach: Reach; grounded?: boolean }
+  | { kind: 'areaStatus'; status: StatusEffectType; duration: number; reach: Reach; grounded?: boolean; sporeScaled?: boolean }
   /** Shoves creeps back up the lane, with a hit. */
   | { kind: 'pushWave'; move: MoveDefinition; distance: number; reach: Reach; grounded?: boolean }
   | { kind: 'allyBoost'; bonus: number; duration: number }
@@ -123,7 +123,7 @@ function def(id: string, name: string, type: PokemonType, pp: number, descriptio
 export const SIGNATURES: Record<string, SignatureDef> = Object.fromEntries([
   // ---- Bulbasaur ----------------------------------------------------------
   def('spore_carpet', 'Spore Carpet', 'Grass', 2, 'Every grounded creep in range falls asleep for 4 s.',
-    { kind: 'areaStatus', status: 'sleep', duration: 4, reach: 1, grounded: true }),
+    { kind: 'areaStatus', status: 'sleep', duration: 4, reach: 1, grounded: true, sporeScaled: true }),
   def('solar_beam', 'SolarBeam', 'Grass', 1, 'A Heavy beam that runs the length of the pitch.',
     { kind: 'strikeLine', move: hit('solar_beam', { basePower: 220, heavy: true }), reach: 'map' }),
   def('growth', 'Growth', 'Grass', 2, 'Towers in range attack 50% faster for 8 s.',
@@ -383,7 +383,9 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
         if (!targetable(creep, effect.grounded) || !inReach(tower, creep, effect.reach)) continue;
         // A type immune to the signature's element shrugs off its status too.
         if (getCombinedEffectiveness(signature.type, creep.types) <= 0) continue;
-        creep.applyStatus(effect.status, effect.duration * statusScale, tower);
+        const sporeMult = effect.sporeScaled ? sporeStatusMultiplier(creep.types) : 1;
+        if (sporeMult <= 0) continue;
+        creep.applyStatus(effect.status, effect.duration * statusScale * sporeMult, tower);
         ctx.particles.emitAura(centerMass(creep), color, 10, 1);
       }
       return true;

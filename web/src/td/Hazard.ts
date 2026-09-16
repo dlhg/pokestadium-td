@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { StatusEffectType } from '../stadium/MoveDatabase';
-import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
+import { getCombinedEffectiveness, PokemonType, TYPE_COLORS, sporeStatusMultiplier } from '../stadium/TypeMatrix';
 import { ARMOR_LIGHT_MULTIPLIER, Creep } from './Creep';
 import type { Tower } from './Tower';
 
@@ -27,13 +27,17 @@ export interface HazardSpec {
   /** Base damage per second to each creep inside, scaled by the tower's damage stat. */
   damagePerSecond: number;
   status?: { effect: StatusEffectType; duration: number };
+  /** Bulbasaur's spore kit: scale status duration by sporeStatusMultiplier instead of the base type chart. */
+  sporeScaled?: boolean;
 }
 
 export const HAZARDS: Record<HazardId, HazardSpec> = {
+  // Duration is kept under the 1s reapply interval so a standing creep gets
+  // real gaps of freedom instead of a permanent lock.
   stun_spore: { name: 'Stun Spore', type: 'Grass', radius: 2.4, duration: 4, damagePerSecond: 0,
-    status: { effect: 'paralyze', duration: 1.6 } },
+    status: { effect: 'paralyze', duration: 0.6 }, sporeScaled: true },
   sleep_powder: { name: 'Sleep Powder', type: 'Grass', radius: 3.0, duration: 5.5, damagePerSecond: 0,
-    status: { effect: 'sleep', duration: 2.2 } },
+    status: { effect: 'sleep', duration: 0.7 }, sporeScaled: true },
   ember_patch: { name: 'Embers', type: 'Fire', radius: 2.2, duration: 3, damagePerSecond: 10,
     status: { effect: 'burn', duration: 2.5 } },
   fire_spin_patch: { name: 'Fire Spin', type: 'Fire', radius: 2.6, duration: 3.5, damagePerSecond: 14,
@@ -102,6 +106,8 @@ export class Hazard {
       if (Math.hypot(creep.position.x - this.position.x, creep.position.z - this.position.z) > this.spec.radius) continue;
       const effectiveness = getCombinedEffectiveness(this.spec.type, creep.types);
       if (effectiveness <= 0) continue;
+      const sporeMult = this.spec.sporeScaled ? sporeStatusMultiplier(creep.types) : 1;
+      if (sporeMult <= 0) continue;
 
       if (this.spec.damagePerSecond > 0) {
         const armor = creep.hasTrait('armored') ? ARMOR_LIGHT_MULTIPLIER : 1;
@@ -115,7 +121,7 @@ export class Hazard {
       if (this.spec.status) {
         const ready = (this.statusCooldowns.get(creep) ?? 0) <= this.age;
         if (ready) {
-          creep.applyStatus(this.spec.status.effect, this.spec.status.duration * statusScale, this.source);
+          creep.applyStatus(this.spec.status.effect, this.spec.status.duration * statusScale * sporeMult, this.source);
           this.statusCooldowns.set(creep, this.age + STATUS_REAPPLY_INTERVAL);
         }
       }
