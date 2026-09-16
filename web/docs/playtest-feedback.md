@@ -109,7 +109,7 @@ Decisions:
   info without cluttering the default experience.
 
 ## 7. Venusaur's Sport/Carpet move is overpowered
-Status: interviewed — ready to scope
+Status: done (c13495f)
 
 Can nearly stun-lock enemies. Counterbalance (not working on Grass types) is
 insufficient. Idea: only keep it super-effective against types that Grass is
@@ -190,7 +190,7 @@ Decisions:
   bundled into this feedback round.
 
 ## 10. Great/Ultra Ball purchase-window restriction isn't communicated well
-Status: interviewed — ready to scope
+Status: done (b0d98da)
 
 Not obvious to new players that Great/Ultra Balls can only be bought
 between rounds. The option disappearing mid-round surprises them; the
@@ -209,7 +209,7 @@ Decisions:
   flash/opacity pulse — instead of just popping into existence.
 
 ## 11. Game speed options may need to go above 3x
-Status: interviewed — ready to scope
+Status: done (dcc7db6)
 
 Could partly be a symptom of the game being too easy overall rather than a
 pure speed/UX issue.
