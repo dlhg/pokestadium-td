@@ -52,7 +52,7 @@ Decisions:
   "Deploy" appears — check for other occurrences during implementation.
 
 ## 4. Red banner reads too large relative to other UI
-Status: interviewed — ready to scope
+Status: done (7964a62 — combined with #6, see note there)
 
 Red banner is at 125% scale and reads too big. Everything else could
 probably be bumped up toward that scale instead, or the banner could be made
@@ -93,7 +93,20 @@ Decisions:
   discussion — revisit if it feels wrong once built.
 
 ## 6. Type-immunity mechanics (e.g. Ghost vs. physical) are unintuitive to non-Pokémon players
-Status: interviewed — ready to scope
+Status: done (7964a62 — combined commit with #4)
+
+Implementation note: #4 and #6 share one mechanism (the strikeCreeps
+effectiveness branch in MoveDelivery.ts), so they landed as a single
+commit rather than two — splitting them would have meant fabricating
+an intermediate state that was never actually reviewed. See the commit
+message for the full reconciliation between the two decisions:
+critical-hit and immunity ("NO EFFECT!") popups are always on;
+super-effective/not-very-effective popups and the hover tooltip's
+weakness list are gated behind a new "TYPE EFFECTIVENESS INFO"
+pause-menu toggle, off by default. The hover-tooltip piece is scoped to
+catchable creeps' existing tag tooltips (lists immunities/weaknesses),
+not a full board-wide hover system — that would have been a much
+bigger lift than the rest of this pass.
 
 Considering a hover/instructional tooltip, but open to other ways to
 communicate this info.
