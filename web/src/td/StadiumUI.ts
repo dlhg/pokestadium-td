@@ -404,6 +404,18 @@ export class StadiumUI {
         #cine-card .cine-orb.poke { background:linear-gradient(180deg,#d90429 50%,#fff 50%); color:#ff5566; }
         #cine-card .cine-orb.great { background:linear-gradient(180deg,#2468c7 50%,#f14b3e 50%); color:#5fa8ff; }
         #cine-card .cine-orb.ultra { background:linear-gradient(180deg,#1b1b20 50%,#f3c532 50%); color:#ffd34d; }
+        /* How long is left to release the throw before it auto-fires. */
+        .cine-orb-wrap { position:relative; width:30px; height:30px; }
+        .cine-orb-wrap .cine-orb { position:absolute; inset:0; }
+        .cine-timer-ring { position:absolute; left:50%; top:50%; width:36px; height:36px; margin:-18px 0 0 -18px; transform:rotate(-90deg); pointer-events:none; }
+        .cine-timer-ring[hidden] { display:none; }
+        .cine-timer-ring .ring-track { fill:none; stroke:rgba(3,7,16,.65); stroke-width:6; }
+        .cine-timer-ring .ring-fill {
+          fill:none; stroke:#00f0ff; stroke-width:6; stroke-linecap:round;
+          stroke-dasharray:94.2; stroke-dashoffset:0;
+          paint-order:stroke;
+          stroke-opacity:1;
+        }
         #cine-card .cine-copy { display:flex; flex-direction:column; line-height:1; }
         #cine-target { font-family:'Teko','Impact',sans-serif; font-size:26px; letter-spacing:1.4px; color:#fff; text-shadow:2px 2px #08152b; }
         #cine-sub { font-size:11px; font-weight:800; letter-spacing:1.6px; color:#f6c437; }
@@ -1538,7 +1550,13 @@ export class StadiumUI {
         <div class="cine-bar bottom"></div>
         <div id="cine-flare"></div>
         <div id="cine-card">
-          <div class="cine-orb poke" id="cine-orb"></div>
+          <div class="cine-orb-wrap">
+            <svg class="cine-timer-ring" id="cine-timer-ring" viewBox="0 0 36 36" width="36" height="36" hidden>
+              <circle class="ring-track" cx="18" cy="18" r="15" />
+              <circle class="ring-fill" cx="18" cy="18" r="15" />
+            </svg>
+            <div class="cine-orb poke" id="cine-orb"></div>
+          </div>
           <div class="cine-copy"><span id="cine-target">CHALLENGER</span><span id="cine-sub">POKÉ BALL · 0%</span></div>
           <div id="cine-pips"></div>
         </div>
@@ -2103,6 +2121,14 @@ export class StadiumUI {
       cinema.phase === 'wobble' ? `${0.04 + Math.abs(Math.sin(performance.now() * 0.006)) * 0.05 * cinema.tension}` : '0';
 
     this.cinemaEl.querySelector<HTMLElement>('#cine-orb')!.className = `cine-orb ${cinema.ballType}`;
+    const timerRing = this.cinemaEl.querySelector<SVGElement>('#cine-timer-ring')!;
+    const showRing = cinema.phase === 'aim';
+    timerRing.toggleAttribute('hidden', !showRing);
+    if (showRing) {
+      const ringFill = timerRing.querySelector<SVGCircleElement>('.ring-fill')!;
+      const circumference = 2 * Math.PI * 15;
+      ringFill.style.strokeDashoffset = `${circumference * (1 - cinema.aimTimeLeft)}`;
+    }
     this.cinemaEl.querySelector<HTMLElement>('#cine-target')!.innerText = cinema.targetName;
     this.cinemaEl.querySelector<HTMLElement>('#cine-sub')!.innerText =
       `${cinema.ballName} · ${(cinema.chance * 100).toFixed(0)}% CATCH RATE`;

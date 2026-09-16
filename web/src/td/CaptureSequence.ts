@@ -63,6 +63,8 @@ export interface CaptureHud {
   totalWobbles: number;
   /** Rising 0..1 dread used for the vignette pulse and pip glow. */
   tension: number;
+  /** 1 at the start of the aim window, draining to 0 at the auto-release timeout. */
+  aimTimeLeft: number;
   /** 0..1 letterbox bar extension. */
   letterbox: number;
   verdict: 'caught' | 'broke' | null;
@@ -165,6 +167,7 @@ export class CaptureSequence {
       wobbles: 0,
       totalWobbles: this.profile.wobbles,
       tension: 0,
+      aimTimeLeft: 1,
       letterbox: 0,
       verdict: null,
       caption: 'TIME YOUR THROW',
@@ -317,6 +320,7 @@ export class CaptureSequence {
     const cycle = (t * this.profile.sweep) % 2;
     aim.marker = cycle <= 1 ? cycle : 2 - cycle;
     this.hud.tension = 0.3 + Math.min(0.25, t * 0.1);
+    this.hud.aimTimeLeft = THREE.MathUtils.clamp(1 - t / AIM_TIMEOUT, 0, 1);
     this.hud.caption = 'TIME YOUR THROW';
 
     // The target senses it coming and starts to brace.
