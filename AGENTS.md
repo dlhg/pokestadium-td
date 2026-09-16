@@ -83,6 +83,27 @@ And visually inspected using `view_file` to evaluate:
 - Colosseum lighting and contrast.
 - UI overlay legibility and command wheel positioning.
 
+### Browser tool selection (agents)
+
+`take_screenshot.py` and `npm run test:gameplay`/`test:maps` are headless and cost zero
+LLM tokens — they are the default for any verification that doesn't require reacting to
+unpredictable UI state. Reach for the `claude-in-chrome` MCP (interactive browser control)
+only when the task genuinely requires seeing and reacting to live UI — e.g. exploratory
+debugging of a flow whose next state you can't predict up front.
+
+When you do use `claude-in-chrome`: each `computer` screenshot costs ~1,300-1,600 tokens
+(full-viewport capture) and, unlike a one-off tool call, stays in context and gets resent
+on every subsequent turn for the rest of the session — a session with ~60 screenshots can
+cumulatively cost millions of tokens by the end. So minimize screenshot count: prefer
+`read_page`/`get_page_text` (structural/text inspection) over `computer` when you don't
+need pixels, batch what you're checking for before opening the browser, and close out the
+browser task once answered rather than leaving it open for iterative back-and-forth.
+
+If a UI flow needs *repeatable* multi-step regression coverage (not one-off debugging),
+that's a signal to add a proper scripted test rather than re-driving it interactively each
+time — ask before introducing new test infra (e.g. Playwright) for this, since it's a new
+dependency this repo doesn't currently have.
+
 ---
 
 ## 🛠️ Web Development Commands
