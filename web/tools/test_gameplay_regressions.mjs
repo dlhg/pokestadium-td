@@ -215,7 +215,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   };
   const context = {
     creeps: [target], particles: { emitImpact() {} }, audio: { playHit() {} },
-    announcer: { trigger() {} }, onFaint() {},
+    onFaint() {}, popup() {}, showTypeEffectiveness: false,
   };
   const random = Math.random;
   Math.random = () => 0;
@@ -236,6 +236,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
     isChoosingMap: false, lives: 1, matchActive: true,
     store: { recordMap() {}, commit() {} }, progress: { report: () => ['earned'] },
     camera: { camera: { position: new THREE.Vector3() }, handleInput() {}, shake() {}, setActionTarget() {}, update() {} },
+    jumbotronCamera: { setActionTarget() {}, update() {} },
     renderer: { scene: new THREE.Scene(), update() {}, floodlightDim: 0 },
     audio: { playHit() {} }, announcer: { trigger() {}, update() {} },
     waveManager: { update() {}, currentWaveIndex: 0, round: 1, winRound: 40, inWave: true,
@@ -520,7 +521,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   const creeps = [creepAt('a', 0), creepAt('b', 4), creepAt('c', 8), creepAt('far', 30)];
   const context = {
     creeps, particles: { emitImpact() {}, emitBeam() {}, emitAura() {} }, audio: { playHit() {} },
-    announcer: { trigger() {} }, onFaint() {},
+    onFaint() {}, popup() {}, showTypeEffectiveness: false,
   };
   resolveMoveHit({ ...MOVES.thunderbolt, statusEffect: 'none' }, creeps[0], context, null, null, { chain: 4 });
   assert.deepEqual(hits.map(([name]) => name), ['a', 'b', 'c'], 'chain hops creep to creep within reach');
@@ -574,7 +575,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   const context = creeps => ({
     creeps, towers: [tower], particles: noop, camera: { shake() {}, triggerActionCam() {} }, announcer: { trigger() {} },
     cinematicCuts: false, channel() {},
-    hit: { creeps, particles: noop, audio: { playHit() {} }, announcer: { trigger() {} }, onFaint() {} },
+    hit: { creeps, particles: noop, audio: { playHit() {} }, onFaint() {}, popup() {}, showTypeEffectiveness: false },
   });
 
   assert.equal(castSignature(SIGNATURES.blaze, tower, null, context([creep('dry', 50)])), false, 'blaze needs a burn');
@@ -651,7 +652,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
     position: new THREE.Vector3(), movementStatus: null, hasTrait: () => false, applyStatus: () => false,
     takeDamage(amount) { hits.push([name, amount]); return false; }, ...extra,
   });
-  const context = { creeps: [], particles: { emitAura() {} }, audio: { playHit() {} }, announcer: { trigger() {} }, onFaint() {} };
+  const context = { creeps: [], particles: { emitAura() {} }, audio: { playHit() {} }, onFaint() {}, popup() {}, showTypeEffectiveness: false };
   const move = { ...MOVES.quick_attack, basePower: 10 };
   const extras = { bonusVs: [{ target: 'boss', multiplier: 2 }], percentDamage: { share: 0.1, bossShare: 0.01 } };
   strikeCreeps(move, [victim('grunt'), victim('titan', { isBoss: true, threat: 'titan' })], context, null, extras);
