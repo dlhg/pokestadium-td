@@ -1341,6 +1341,7 @@ export class StadiumUI {
             <button class="stadium-btn active" id="btn-speed-1">1X</button>
             <button class="stadium-btn" id="btn-speed-2">2X</button>
             <button class="stadium-btn" id="btn-speed-3">3X</button>
+            <button class="stadium-btn" id="btn-speed-4">4X</button>
           </div>
         </div>
         <div class="control-group" aria-label="Camera">
@@ -1656,6 +1657,7 @@ export class StadiumUI {
       { id: 'btn-speed-1', spd: 1 },
       { id: 'btn-speed-2', spd: 2 },
       { id: 'btn-speed-3', spd: 3 },
+      { id: 'btn-speed-4', spd: 4 },
     ];
     speeds.forEach(s => {
       document.getElementById(s.id)!.addEventListener('click', () => {
@@ -2315,7 +2317,7 @@ export class StadiumUI {
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
     this.renderSignatureBar(state.signatures, !!state.captureCinema || !!state.evolutionCinema || !!state.summonCinema);
-    ([['half',0.5],['1',1],['2',2],['3',3]] as const).forEach(([key,speed]) => document.getElementById(`btn-speed-${key}`)!.classList.toggle('active',state.gameSpeed===speed));
+    ([['half',0.5],['1',1],['2',2],['3',3],['4',4]] as const).forEach(([key,speed]) => document.getElementById(`btn-speed-${key}`)!.classList.toggle('active',state.gameSpeed===speed));
     ['tactical','stadium','action'].forEach(mode => document.getElementById(`btn-cam-${mode}`)!.classList.toggle('active',state.cameraMode===mode));
 
     // Top Bar updates

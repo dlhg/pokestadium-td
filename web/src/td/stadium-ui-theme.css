@@ -164,7 +164,8 @@
 #btn-speed-half,
 #btn-speed-1,
 #btn-speed-2,
-#btn-speed-3 { width: 43px; }
+#btn-speed-3,
+#btn-speed-4 { width: 43px; }
 #btn-cam-tactical { width: 86px; }
 #btn-cam-stadium { width: 82px; }
 #btn-cam-action { width: 69px; }
