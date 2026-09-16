@@ -13,7 +13,15 @@ npm run dev     # http://localhost:3004
 npm run build   # typecheck + production bundle
 ```
 
-No ROM is required to run the web player — models, sounds, and gameplay are original/procedural. If you own a legitimate copy of the game, `npm run extract:stadium` can optionally pull in real announcer audio and other ROM-derived assets for local use (see `web/ROM_ASSETS.md` if present); these extracted/copyrighted assets are gitignored and never bundled or distributed with this repo.
+No ROM is required to run the web player — models, sounds, and gameplay are original/procedural.
+
+If you own a legitimate copy of the game and want real announcer audio and models instead of the procedural fallback, `npm run extract:stadium` (run from `web/`) can pull those in locally. This needs a **specific ROM dump**, placed at an **exact path**:
+
+```
+baseroms/us/Pokemon Stadium (USA) (Rev 2).z64
+```
+
+This is Pokémon Stadium **(USA) Revision 2** — a different, later cartridge printing than the US Revision 0 ROM the decomp section below uses for `make init`. The two are not interchangeable: dropping the decomp's `baserom.z64` in for this, or any other region/revision, will not work. If the file is missing or doesn't match, the script exits with a clear message rather than doing anything silently; see `web/ROM_ASSETS.md` for the exact size/hash and how validation works. Extracted/copyrighted assets are gitignored and never bundled or distributed with this repo.
 
 See `CLAUDE.md` in this repo's root for a full breakdown of the engine subsystems and how they map from the original decomp to the web reimplementation.
 

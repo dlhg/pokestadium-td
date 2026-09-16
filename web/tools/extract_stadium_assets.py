@@ -171,6 +171,16 @@ def main() -> int:
     parser.add_argument('--validate-only', action='store_true')
     args = parser.parse_args()
 
+    if not args.rom.exists():
+        print(
+            f'{args.rom}: no ROM found here.\n'
+            f'This tool needs Pokémon Stadium (USA) Rev 2 at that exact path '
+            f'(size {rom.ROM_SIZE:,} bytes, MD5 {rom.US_REV2_MD5}) -- a '
+            f'different revision or region will not work. See web/ROM_ASSETS.md.',
+            file=sys.stderr,
+        )
+        return 1
+
     source = rom.Rom(args.rom)
     report = validate(source)
     print(json.dumps(report, indent=2))
