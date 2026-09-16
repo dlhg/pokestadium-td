@@ -5,7 +5,7 @@ interview pass with Drew before any change is scoped or implemented. Status
 starts at `unreviewed` for all items.
 
 ## 1. Capture opportunity timer is invisible
-Status: interviewed — ready to scope
+Status: done (9671036)
 
 Player has no way to tell how much time is left in a capture opportunity.
 
@@ -173,7 +173,15 @@ Decisions:
   getting the smaller +0.12 bonus, not the assumed +0.22.
 
 ## 8. Catching Pokémon is too easy
-Status: interviewed — ready to scope
+Status: done (a39d5ae)
+
+Implementation note: turned up that the existing "captureLuck" streak
+counter was a pity timer making misses ADD to the next throw's odds —
+exactly backwards from what was wanted. Flipped it to a miss penalty
+(same counter, gentler step) rather than building a new mechanic from
+scratch. Also added a lightweight QTE-variant system (CaptureAim.variant:
+'sweep' | 'single') gated on target.threat, since this codebase's
+elite/titan tiers are the closest existing equivalent to "rare/legendary."
 
 Missing a throw in the QTE isn't punishing enough. Explore rare QTE variants
 tied to rare encounters (e.g. shrinking-circle timing check, WarioWare-style
