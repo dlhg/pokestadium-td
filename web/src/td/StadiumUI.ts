@@ -1207,14 +1207,8 @@ export class StadiumUI {
           transition: box-shadow 0.15s;
         }
 
-        .tp-evolve:hover:not(.poor):not(.final) { box-shadow: 0 0 14px rgba(0, 240, 255, 0.55); }
+        .tp-evolve:hover:not(.poor) { box-shadow: 0 0 14px rgba(0, 240, 255, 0.55); }
         .tp-evolve.poor { opacity: 0.55; cursor: not-allowed; }
-
-        .tp-evolve.final {
-          cursor: default;
-          border-color: #ffd700;
-          background: linear-gradient(180deg, #3a2f10 0%, #1c1707 100%);
-        }
 
         .tp-evolve-label {
           font-family: 'Impact', sans-serif;
@@ -1222,8 +1216,6 @@ export class StadiumUI {
           letter-spacing: 1px;
           color: #00f0ff;
         }
-
-        .tp-evolve.final .tp-evolve-label { color: #ffd700; }
 
         .tp-evolve-sub {
           display: block;
@@ -1411,7 +1403,7 @@ export class StadiumUI {
         .tp-line-move { font-family: 'Teko', 'Impact', sans-serif; font-size: 19px; line-height: .85; letter-spacing: .45px; }
         .tp-line-stats { line-height: 1.05; margin-top: 2px; }
         .tp-buy { border-radius: 0; border-color: #b9d1e2; background: linear-gradient(180deg, #3b75aa, #11345f); box-shadow: inset 0 1px rgba(255,255,255,.28); }
-        .tp-buy.maxed, .tp-evolve.final { border-color: #f1c43f; background: linear-gradient(180deg, #77541a, #38270e); }
+        .tp-buy.maxed { border-color: #f1c43f; background: linear-gradient(180deg, #77541a, #38270e); }
         .tp-evolve { border-radius: 0; border-color: #f4ca42; background: linear-gradient(180deg, #3e82a1, #0d4260 60%, #092d49); box-shadow: inset 0 1px rgba(255,255,255,.3); }
         .tp-evolve-label { font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .8; color: #fff0a3; }
         .tp-evolve-cost { font-family: 'Teko', sans-serif; font-size: 23px; line-height: .8; color: #ffe052; }
@@ -1990,6 +1982,7 @@ export class StadiumUI {
       .map(chip => `<span class="tp-chip ${chip.replace(/\s+/g, '-').toLowerCase()}">${chip}</span>`).join('');
 
     // Evolution is earned in battle now, so the track is a read-out, not a purchase.
+    // A fully-evolved tower simply has nothing to show here.
     const nextEvo = nextEvolution(tower.pokemon);
     const evoBlock = nextEvo
       ? `<div class="tp-evolve earned">
@@ -1999,12 +1992,7 @@ export class StadiumUI {
            </div>
            <span class="tp-evolve-cost">LV ${nextEvo.atLevel}</span>
          </div>`
-      : `<div class="tp-evolve final">
-           <div>
-             <span class="tp-evolve-label">FINAL FORM</span>
-             <span class="tp-evolve-sub">${tower.species.forms.length > 1 ? 'FULLY EVOLVED' : 'DOES NOT EVOLVE'}</span>
-           </div>
-         </div>`;
+      : '';
 
     this.panelEl.innerHTML = `
       <div class="tp-header">
