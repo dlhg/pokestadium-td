@@ -106,7 +106,6 @@ export class Tower {
   public readonly placementFootprint: number;
   public position: THREE.Vector3;
   public targetPriority: TargetPriority = 'first';
-  public totalInvested: number;
 
   /** Tiers bought on each path, in the species' path order. */
   public tiers: number[];
@@ -154,7 +153,6 @@ export class Tower {
     this.renderedStage = pokemon.stage;
     this.modifiers = towerModifiers(statsOf(pokemon), pokemon.level);
     this.position = pos.clone();
-    this.totalInvested = this.species.deployCost;
     this.tiers = this.species.paths.map(() => 0);
     this.attack = this.buildAttack();
 
@@ -399,7 +397,6 @@ export class Tower {
     if (!next || this.getUpgradeBlockReason(pathIdx)) return false;
 
     this.tiers[pathIdx]++;
-    this.totalInvested += next.cost;
     this.attack = this.buildAttack();
     // A freshly unlocked signature arrives ready to use.
     for (const id of this.attack.signatures) if (!(id in this.pp)) this.pp[id] = SIGNATURES[id].pp;
@@ -479,10 +476,6 @@ export class Tower {
     const range = this.getMaxRange();
     this.rangeRing.geometry.dispose();
     this.rangeRing.geometry = new THREE.RingGeometry(Math.max(0, range - 0.2), range, 48);
-  }
-
-  public getSellValue(): number {
-    return Math.floor(this.totalInvested * 0.7);
   }
 
   /** Releases resources owned by this placed tower. Shared extracted assets stay cached. */

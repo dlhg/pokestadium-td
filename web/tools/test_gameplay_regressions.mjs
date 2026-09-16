@@ -481,7 +481,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
 {
   const pathTower = (speciesId, level) => {
     const tower = Object.create(Tower.prototype);
-    Object.assign(tower, { species: getSpecies(speciesId), pokemon: { level }, totalInvested: 0, pp: {}, updateRangeRing() {} });
+    Object.assign(tower, { species: getSpecies(speciesId), pokemon: { level }, pp: {}, updateRangeRing() {} });
     tower.tiers = tower.species.paths.map(() => 0);
     tower.attack = tower.buildAttack();
     return tower;
@@ -617,7 +617,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
       for (let side = 0; side < 3; side++) {
         if (side === main) continue;
         const tower = Object.create(Tower.prototype);
-        Object.assign(tower, { species, pokemon: { level: 50, stage: species.forms.length - 1 }, totalInvested: 0, pp: {}, updateRangeRing() {} });
+        Object.assign(tower, { species, pokemon: { level: 50, stage: species.forms.length - 1 }, pp: {}, updateRangeRing() {} });
         tower.tiers = [0, 0, 0];
         tower.attack = tower.buildAttack();
         for (let i = 0; i < 3; i++) assert.ok(tower.buyUpgrade(main), `${species.id} main path ${main}`);

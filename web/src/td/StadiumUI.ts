@@ -4,7 +4,7 @@
  * Implements:
  * - Iconic metallic tournament top bar (Cup, Round, Prize Money, Poké Balls)
  * - Vertical tower roster for selecting and deploying Pokémon
- * - Tower detail panel: three buyable move lines, evolution track, sell
+ * - Tower detail panel: three buyable move lines, evolution track, recall
  * - Dynamic Stadium Announcer popup banners
  * - Speed & camera controls
  */
@@ -185,7 +185,7 @@ export class StadiumUI {
   public onSelectMember: (member: OwnedPokemon | null) => void = () => {};
   public onStoreMember: (member: OwnedPokemon) => void = () => {};
   public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
-  public onSellTower: (tower: Tower) => void = () => {};
+  public onRecallTower: (tower: Tower) => void = () => {};
   public onChangeTargetPriority: (tower: Tower, dir: number) => void = () => {};
   public onDeselectTower: () => void = () => {};
   public onStartWave: () => void = () => {};
@@ -1160,26 +1160,20 @@ export class StadiumUI {
           background: linear-gradient(180deg, #0d2140 0%, #071326 100%);
         }
 
-        .tp-sell-value {
+        .tp-recall-note {
           flex: 1;
           font-family: 'Rajdhani', sans-serif;
-          font-size: 16px;
-          font-weight: 800;
-          color: #48ff48;
-        }
-
-        .tp-sell-value span {
-          display: block;
-          font-size: 8px;
-          letter-spacing: 1.2px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: .3px;
           color: #8faecf;
         }
 
-        .tp-sell-btn {
+        .tp-recall-btn {
           padding: 7px 24px;
           border-radius: 4px;
-          border: 1.5px solid #ff6b6b;
-          background: linear-gradient(180deg, #a8121f 0%, #6d0b14 100%);
+          border: 1.5px solid #7fa6c9;
+          background: linear-gradient(180deg, #3b75aa 0%, #11345f 100%);
           color: #fff;
           font-family: 'Impact', sans-serif;
           font-size: 15px;
@@ -1187,7 +1181,7 @@ export class StadiumUI {
           cursor: pointer;
         }
 
-        .tp-sell-btn:hover { background: linear-gradient(180deg, #d90429 0%, #8c0c19 100%); box-shadow: 0 0 12px rgba(217,4,41,0.6); }
+        .tp-recall-btn:hover { background: linear-gradient(180deg, #4a8cc7 0%, #163f70 100%); box-shadow: 0 0 12px rgba(59,117,170,0.6); }
 
         @media (max-width: 1100px) {
           #tower-panel { right: 172px; width: 272px; }
@@ -1320,7 +1314,7 @@ export class StadiumUI {
         .tp-crest-mark { border-color: #fff0ad; box-shadow: 0 0 0 2px rgba(13,37,69,.75); }
         .tp-target { border-radius: 0; border-color: #739dc1; background: linear-gradient(180deg, #173e70, #0a2246); }
         .tp-target-label { font-family: 'Teko', 'Impact', sans-serif; font-size: 19px; line-height: .8; color: #ffe057; }
-        .tp-target-cap, .tp-line-label, .tp-line-stats, .tp-buy-note, .tp-evolve-sub, .tp-sell-value span { font-family: 'Teko', sans-serif; font-size: 11px; line-height: .85; letter-spacing: .85px; color: #bcd7ec; }
+        .tp-target-cap, .tp-line-label, .tp-line-stats, .tp-buy-note, .tp-evolve-sub, .tp-recall-note { font-family: 'Teko', sans-serif; font-size: 11px; line-height: .85; letter-spacing: .85px; color: #bcd7ec; }
         .tp-line { border-radius: 0; border-color: #4778a7; background: linear-gradient(135deg, rgba(255,255,255,.08), transparent 35%), #0a2348; }
         .tp-pip { border-radius: 0; border-color: #5f91bd; }
         .tp-pip.on { background: #f6c437; border-color: #fff4af; }
@@ -1332,8 +1326,7 @@ export class StadiumUI {
         .tp-evolve-label { font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .8; color: #fff0a3; }
         .tp-evolve-cost { font-family: 'Teko', sans-serif; font-size: 23px; line-height: .8; color: #ffe052; }
         .tp-footer { border-top-color: #d8b33a; background: linear-gradient(180deg, #14396b, #071a35); }
-        .tp-sell-value { font-family: 'Teko', sans-serif; font-size: 22px; line-height: .85; }
-        .tp-sell-btn { border-radius: 0; border-color: #ffd099; background: linear-gradient(180deg, #e34c50 0 10%, #b81e2a 13%, #7b101c 100%); font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .85; box-shadow: 2px 2px 0 rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.35); }
+        .tp-recall-btn { border-radius: 0; border-color: #b9d1e2; background: linear-gradient(180deg, #3b75aa, #11345f); font-family: 'Teko', 'Impact', sans-serif; font-size: 20px; line-height: .85; box-shadow: inset 0 1px rgba(255,255,255,.28); }
       </style>
       <link rel="stylesheet" href="${stadiumThemeUrl}">
 
@@ -1930,17 +1923,14 @@ export class StadiumUI {
       ${evoBlock}
 
       <div class="tp-footer">
-        <div class="tp-sell-value">
-          <span>SELL VALUE</span>
-          <span id="tp-sell-value">$0</span>
-        </div>
-        <button class="tp-sell-btn" id="tp-sell">SELL</button>
+        <span class="tp-recall-note">Frees this spot &mdash; ${displayName(tower.pokemon)} goes back to your roster</span>
+        <button class="tp-recall-btn" id="tp-recall">RECALL</button>
       </div>
     `;
 
     // Wire the freshly-built controls to the tower they were built for.
     document.getElementById('tp-close')!.addEventListener('click', () => this.onDeselectTower());
-    document.getElementById('tp-sell')!.addEventListener('click', () => this.onSellTower(tower));
+    document.getElementById('tp-recall')!.addEventListener('click', () => this.onRecallTower(tower));
     document.getElementById('tp-target-prev')!.addEventListener('click', () => this.onChangeTargetPriority(tower, -1));
     document.getElementById('tp-target-next')!.addEventListener('click', () => this.onChangeTargetPriority(tower, 1));
 
@@ -1951,13 +1941,10 @@ export class StadiumUI {
     });
   }
 
-  /** Per-frame refresh: affordability, targeting, live match-up, sell value. */
+  /** Per-frame refresh: affordability, targeting, live match-up. */
   private refreshPanel(tower: Tower, money: number): void {
     const targetLabel = document.getElementById('tp-target-label');
     if (targetLabel) targetLabel.innerText = tower.targetPriority.toUpperCase();
-
-    const sellEl = document.getElementById('tp-sell-value');
-    if (sellEl) sellEl.innerText = `$${tower.getSellValue()}`;
 
     const matchup = document.getElementById('tp-matchup');
     if (matchup) {
@@ -2532,7 +2519,7 @@ export class StadiumUI {
       el.classList.toggle('selected', state.selectedMember?.uid === member.uid);
       const storageButton = el.querySelector<HTMLButtonElement>('[data-store-member]')!;
       storageButton.disabled = deployed;
-      storageButton.title = deployed ? 'Sell the tower before sending this Pokémon to storage' : 'Send to storage';
+      storageButton.title = deployed ? 'Recall the tower before sending this Pokémon to storage' : 'Send to storage';
       const level = el.querySelector<HTMLElement>('.card-level')!;
       if (level.textContent !== String(member.level)) level.textContent = String(member.level);
       el.querySelector<HTMLElement>('.card-xp i')!.style.width = `${levelProgress(member.xp, member.level) * 100}%`;

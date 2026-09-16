@@ -475,7 +475,7 @@
 .tp-line-stats,
 .tp-buy-note,
 .tp-evolve-sub,
-.tp-sell-value span {
+.tp-recall-note {
   color: #c9d9ff;
   font-family: 'Trebuchet MS', 'Rajdhani', sans-serif;
   font-size: 9px;
@@ -546,11 +546,11 @@
   background: #07163f;
 }
 
-.tp-sell-btn {
-  border: 2px solid #fff1d1;
+.tp-recall-btn {
+  border: 2px solid #91abe7;
   border-radius: 6px;
-  background: linear-gradient(180deg, #f35b66 0 12%, var(--broadcast-red) 14%, #720d20 100%);
-  box-shadow: 0 0 0 2px #500816, inset 0 2px rgba(255, 255, 255, .38);
+  background: linear-gradient(180deg, #4a7ee0 0 12%, #2b5dd6 14%, #12296b 100%);
+  box-shadow: 0 0 0 2px #0a1a4a, inset 0 2px rgba(255, 255, 255, .38);
 }
 
 /* The one deliberately loud broadcast surface. */

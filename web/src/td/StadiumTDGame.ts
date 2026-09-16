@@ -295,9 +295,7 @@ export class StadiumTDGame {
       }
     };
 
-    this.ui.onSellTower = (tower) => {
-      const refund = tower.getSellValue();
-      this.money += refund;
+    this.ui.onRecallTower = (tower) => {
       this.removeTower(tower);
       this.audio.playSelect();
       if (this.selectedTower === tower) {
