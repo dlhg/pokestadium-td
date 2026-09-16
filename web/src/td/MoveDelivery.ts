@@ -11,11 +11,10 @@
 
 import * as THREE from 'three';
 import { isDamageStatus, isGroundOnly, isHeavy, MoveDefinition, StatusEffectType } from '../stadium/MoveDatabase';
-import { TYPE_COLORS, getCombinedEffectiveness } from '../stadium/TypeMatrix';
+import { TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
 import { ParticleSystem } from '../engine/ParticleSystem';
 import { StadiumAudio } from '../engine/StadiumAudio';
 import { StadiumCamera } from '../engine/StadiumCamera';
-import { StadiumAnnouncer } from '../stadium/Announcer';
 import { ARMOR_LIGHT_MULTIPLIER, Creep } from './Creep';
 import type { ShotInfo, Tower } from './Tower';
 import type { AttackProfile, BonusTarget } from './TowerAttack';
@@ -59,8 +58,11 @@ export interface HitContext {
   creeps: Creep[];
   particles: ParticleSystem;
   audio: StadiumAudio;
-  announcer: StadiumAnnouncer;
   onFaint: (creep: Creep) => void;
+  /** Floating combat text at a world point — crits and type effectiveness. */
+  popup: (worldPosition: THREE.Vector3, text: string, color: string) => void;
+  /** Player setting: show super/not-very-effective popups, not just immunity. */
+  showTypeEffectiveness: boolean;
 }
 
 /** Elemental colour a move's effects are tinted with. */
@@ -213,10 +215,11 @@ export function resolveMoveHit(
 
   ctx.audio.playHit(strikes.superEffective);
 
-  if (extras.crit && Math.random() < 0.3) {
-    ctx.announcer.trigger('critical_hit');
-  } else if (strikes.superEffective && Math.random() < 0.4) {
-    ctx.announcer.trigger('super_effective');
+  // A crit banner drowned out the far more frequent per-hit combat
+  // popups (see strikeCreeps) for the same information; a small floating
+  // callout is plenty for something this common.
+  if (extras.crit) {
+    ctx.popup(centerMass(target), 'CRITICAL HIT!', '#ffe766');
   }
 }
 
@@ -242,6 +245,17 @@ export function strikeCreeps(
     struck.add(victim);
     const { damage, multiplier } = hitDamage(move, victim);
     if (multiplier >= 2.0) superEffective = true;
+
+    // Immunity gets a popup unconditionally — it is the one matchup a hit
+    // gives zero other feedback for. Super/not-very-effective are the
+    // deeper type-chart breakdown, so they stay behind the opt-in setting.
+    if (multiplier <= 0) {
+      const { label, color: effColor } = getEffectivenessLabel(multiplier);
+      ctx.popup(centerMass(victim), label, effColor);
+    } else if (ctx.showTypeEffectiveness && multiplier !== 1) {
+      const { label, color: effColor } = getEffectivenessLabel(multiplier);
+      ctx.popup(centerMass(victim), label, effColor);
+    }
 
     let bonus = 1;
     for (const { target, multiplier: extra } of extras.bonusVs ?? []) {

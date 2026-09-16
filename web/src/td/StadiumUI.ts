@@ -12,7 +12,7 @@
 import { Tower } from './Tower';
 import { attackChips } from './TowerAttack';
 import type { SignatureDef } from './Signatures';
-import { TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
+import { PokemonType, TYPE_COLORS, getCombinedEffectiveness, getEffectivenessLabel } from '../stadium/TypeMatrix';
 import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
@@ -51,6 +51,21 @@ function readUiScalePreference(): UIScalePreference {
   } catch {
     return 'auto';
   }
+}
+
+/** Attacking types this defender shrugs off entirely, and (optionally) is weak to. */
+function defensiveNotes(types: PokemonType[], includeWeaknesses: boolean): string {
+  const immuneTo: PokemonType[] = [];
+  const weakTo: PokemonType[] = [];
+  for (const attackType of Object.keys(TYPE_COLORS) as PokemonType[]) {
+    const multiplier = getCombinedEffectiveness(attackType, types);
+    if (multiplier === 0) immuneTo.push(attackType);
+    else if (multiplier >= 2) weakTo.push(attackType);
+  }
+  const parts: string[] = [];
+  if (immuneTo.length) parts.push(`Immune to ${immuneTo.join('/')}`);
+  if (includeWeaknesses && weakTo.length) parts.push(`Weak to ${weakTo.join('/')}`);
+  return parts.join(' · ');
 }
 
 /** What the roster hint says about the spot the cursor is currently over. */
@@ -171,6 +186,8 @@ export class StadiumUI {
     try { return localStorage.getItem(PREMIUM_BALL_TIP_KEY) === '1'; } catch { return false; }
   })();
   private premiumBallTipEl!: HTMLElement;
+  private combatTextLayerEl!: HTMLElement;
+  private showTypeEffectiveness = false;
   private wasBallLocked: Partial<Record<BallType, boolean>> = {};
   private cardDeckToggleEl!: HTMLButtonElement;
   private rosterCollapsed = (() => {
@@ -204,6 +221,7 @@ export class StadiumUI {
   public onCastSignature: (tower: Tower, signatureId: string) => void = () => {};
   public onToggleSignatureCuts: () => void = () => {};
   public onToggleSummonCinematics: () => void = () => {};
+  public onToggleTypeEffectivenessInfo: () => void = () => {};
   public onMusicVolumeChange: (value: number) => void = () => {};
   public onSfxVolumeChange: (value: number) => void = () => {};
   public onQuitToMenu: () => void = () => {};
@@ -286,7 +304,7 @@ export class StadiumUI {
         }
 
         .stat-label {
-          font-size: 11px;
+          font-size: 13px;
           font-weight: 700;
           letter-spacing: 1.5px;
           color: #8faecf;
@@ -295,7 +313,7 @@ export class StadiumUI {
 
         .stat-value {
           font-family: 'Impact', sans-serif;
-          font-size: 24px;
+          font-size: 28px;
           letter-spacing: 1px;
         }
 
@@ -556,6 +574,23 @@ export class StadiumUI {
 
         /* ---- Catching: one-click tags over weakened Pokémon and the CATCH NOW tray ---- */
         #catch-layer { position:absolute; inset:0; z-index:29; pointer-events:none; overflow:hidden; }
+
+        #combat-text-layer { position:absolute; inset:0; z-index:34; pointer-events:none; overflow:hidden; }
+        .combat-text {
+          position:absolute; transform:translate(-50%,-50%);
+          font-family:'Teko','Impact',sans-serif; font-size:16px; font-weight:800; letter-spacing:.5px;
+          white-space:nowrap; text-shadow:1px 2px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.6);
+          animation: combat-text-float .9s ease-out forwards;
+        }
+        @keyframes combat-text-float {
+          0% { opacity:0; transform:translate(-50%,-50%) scale(.8); }
+          15% { opacity:1; transform:translate(-50%,-50%) scale(1.05); }
+          100% { opacity:0; transform:translate(-50%,-140%) scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .combat-text { animation: combat-text-fade .9s ease-out forwards; }
+          @keyframes combat-text-fade { 0% { opacity:0; } 15% { opacity:1; } 100% { opacity:0; } }
+        }
         .catch-tag {
           position:absolute; left:0; top:0; height:${CATCH_TAG_HEIGHT}px; display:flex; align-items:center; gap:5px;
           padding:0 8px 0 4px; border:2px solid #fff3a6; border-radius:12px; cursor:pointer; pointer-events:auto;
@@ -1298,8 +1333,8 @@ export class StadiumUI {
         }
 
         .stat-badge { position: relative; z-index: 2; min-width: 64px; }
-        .stat-label { color: #d9eafa; font-family: 'Teko', sans-serif; font-size: 12px; line-height: .9; letter-spacing: 1.15px; text-shadow: 1px 1px #102344; }
-        .stat-value { font-family: 'Teko', 'Impact', sans-serif; font-size: 29px; line-height: .92; letter-spacing: .65px; }
+        .stat-label { color: #d9eafa; font-family: 'Teko', sans-serif; font-size: 14px; line-height: .9; letter-spacing: 1.15px; text-shadow: 1px 1px #102344; }
+        .stat-value { font-family: 'Teko', 'Impact', sans-serif; font-size: 33px; line-height: .92; letter-spacing: .65px; }
 
         .pokeball-tray { padding: 3px 5px; background: #061126; border: 1px solid #476f99; box-shadow: inset 0 1px 2px #000; }
         .ui-pokeball { width: 17px; height: 17px; border: 1px solid #e3e7e8; box-shadow: 0 1px 0 #000, inset 0 1px 1px rgba(255,255,255,.5); }
@@ -1465,6 +1500,9 @@ export class StadiumUI {
         <div class="catch-tags"></div>
       </div>
 
+      <!-- Floating combat text: crits, immunities, and (opt-in) type effectiveness -->
+      <div id="combat-text-layer"></div>
+
       <div id="pause-screen" class="interactive" hidden>
         <section class="pause-card stadium-panel" aria-labelledby="pause-title">
           <div class="pause-kicker">MATCH PAUSED</div>
@@ -1476,6 +1514,7 @@ export class StadiumUI {
           </div>
           <button class="stadium-btn pause-setting" id="btn-signature-cuts">SIGNATURE CAMERA CUTS: ON</button>
           <button class="stadium-btn pause-setting" id="btn-summon-cinematics">POKÉ BALL ENTRANCES: ON</button>
+          <button class="stadium-btn pause-setting" id="btn-type-effectiveness" title="Shows a popup for super/not-very-effective hits, not just immunity">TYPE EFFECTIVENESS INFO: OFF</button>
           <div class="pause-ui-scale">
             <label for="pause-ui-scale">UI SCALE</label>
             <select id="pause-ui-scale">
@@ -1572,6 +1611,7 @@ export class StadiumUI {
     this.applyRosterCollapsed();
     this.premiumBallTipEl = document.getElementById('premium-ball-tip')!;
     this.premiumBallTipEl.addEventListener('click', () => this.dismissPremiumBallTip());
+    this.combatTextLayerEl = document.getElementById('combat-text-layer')!;
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
     this.cinemaEl = document.getElementById('capture-cinema')!;
@@ -1761,6 +1801,7 @@ export class StadiumUI {
     document.getElementById('btn-pause-quit')!.addEventListener('click', () => this.onQuitToMenu());
     document.getElementById('btn-signature-cuts')!.addEventListener('click', () => this.onToggleSignatureCuts());
     document.getElementById('btn-summon-cinematics')!.addEventListener('click', () => this.onToggleSummonCinematics());
+    document.getElementById('btn-type-effectiveness')!.addEventListener('click', () => this.onToggleTypeEffectivenessInfo());
     const uiScale = document.getElementById('pause-ui-scale') as HTMLSelectElement;
     uiScale.value = String(this.uiScalePreference);
     uiScale.addEventListener('change', () => {
@@ -2334,7 +2375,11 @@ export class StadiumUI {
         this.catchTags.set(id, tag);
       }
       tag.disabled = state.balls[state.selectedBall] <= 0;
-      tag.title = tag.disabled ? `No ${BALL_NAMES[state.selectedBall]} Balls left` : `Throw a ${BALL_NAMES[state.selectedBall]} Ball`;
+      const throwTitle = tag.disabled ? `No ${BALL_NAMES[state.selectedBall]} Balls left` : `Throw a ${BALL_NAMES[state.selectedBall]} Ball`;
+      const typeInfo = defensiveNotes(slot.creep.types, this.showTypeEffectiveness);
+      tag.title = typeInfo
+        ? `${slot.creep.types.join('/').toUpperCase()} TYPE · ${typeInfo}\n${throwTitle}`
+        : throwTitle;
       tag.querySelector<HTMLElement>('.ball-icon')!.className = `ball-icon ${state.selectedBall}`;
       tag.querySelector<HTMLElement>('.catch-label')!.textContent = `CATCH ${slot.creep.name.replace(/^Titan /, '').toUpperCase()}`;
       tag.querySelector<HTMLElement>('.catch-odds')!.textContent = `${Math.round(slot.odds[state.selectedBall] * 100)}%`;
@@ -2425,6 +2470,23 @@ export class StadiumUI {
 
   public setSummonCinematics(enabled: boolean): void {
     document.getElementById('btn-summon-cinematics')!.textContent = `POKÉ BALL ENTRANCES: ${enabled ? 'ON' : 'OFF'}`;
+  }
+
+  public setTypeEffectivenessInfo(enabled: boolean): void {
+    this.showTypeEffectiveness = enabled;
+    document.getElementById('btn-type-effectiveness')!.textContent = `TYPE EFFECTIVENESS INFO: ${enabled ? 'ON' : 'OFF'}`;
+  }
+
+  /** Drops a floating combat-text callout (crit, immunity, type effectiveness) at a screen point. */
+  public spawnCombatText(x: number, y: number, text: string, color: string): void {
+    const el = document.createElement('span');
+    el.className = 'combat-text';
+    el.textContent = text;
+    el.style.left = `${x / this.uiScale}px`;
+    el.style.top = `${y / this.uiScale}px`;
+    el.style.color = color;
+    el.addEventListener('animationend', () => el.remove());
+    this.combatTextLayerEl.appendChild(el);
   }
 
   public setAudioVolumes(music: number, sfx: number): void {

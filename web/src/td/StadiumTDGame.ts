@@ -121,6 +121,8 @@ export class StadiumTDGame {
   private signatureCuts = true;
   /** Poké Ball deployment entrances are on unless the player opts out. */
   private summonCinematics = true;
+  /** Super/not-very-effective popups are off by default; immunity always shows. */
+  private showTypeEffectiveness = false;
 
   /** The team this match was started with, plus anything caught during it. */
   public roster: OwnedPokemon[] = [];
@@ -192,6 +194,8 @@ export class StadiumTDGame {
     this.ui.setSignatureCuts(this.signatureCuts);
     this.summonCinematics = readSummonCinematicsSetting();
     this.ui.setSummonCinematics(this.summonCinematics);
+    this.showTypeEffectiveness = readTypeEffectivenessSetting();
+    this.ui.setTypeEffectivenessInfo(this.showTypeEffectiveness);
     this.ui.setAudioVolumes(this.audio.getMusicVolume(), this.audio.getSfxVolume());
 
   }
@@ -239,6 +243,12 @@ export class StadiumTDGame {
       this.summonCinematics = !this.summonCinematics;
       writeSummonCinematicsSetting(this.summonCinematics);
       this.ui.setSummonCinematics(this.summonCinematics);
+      this.audio.playSelect();
+    };
+    this.ui.onToggleTypeEffectivenessInfo = () => {
+      this.showTypeEffectiveness = !this.showTypeEffectiveness;
+      writeTypeEffectivenessSetting(this.showTypeEffectiveness);
+      this.ui.setTypeEffectivenessInfo(this.showTypeEffectiveness);
       this.audio.playSelect();
     };
     this.ui.onMusicVolumeChange = value => this.audio.setMusicVolume(value);
@@ -1332,9 +1342,16 @@ export class StadiumTDGame {
       creeps: this.creeps,
       particles: this.particles,
       audio: this.audio,
-      announcer: this.announcer,
       onFaint: (creep) => this.handleCreepDefeat(creep),
+      popup: (worldPosition, text, color) => this.spawnCombatPopup(worldPosition, text, color),
+      showTypeEffectiveness: this.showTypeEffectiveness,
     };
+  }
+
+  /** Projects a world point to screen space and drops a floating combat-text popup there. */
+  private spawnCombatPopup(worldPosition: THREE.Vector3, text: string, color: string): void {
+    const { x, y, visible } = this.renderer.toScreenXY(worldPosition, this.camera.camera);
+    if (visible) this.ui.spawnCombatText(x, y, text, color);
   }
 
   /** Milestone payouts, and the win itself — which never stops the run. */
@@ -1488,6 +1505,24 @@ function readSummonCinematicsSetting(): boolean {
 function writeSummonCinematicsSetting(enabled: boolean): void {
   try {
     localStorage.setItem(SUMMON_CINEMATICS_KEY, enabled ? 'on' : 'off');
+  } catch {
+    // Storage can be unavailable (private windows); the setting just won't stick.
+  }
+}
+
+const TYPE_EFFECTIVENESS_KEY = 'pokestadium.showTypeEffectiveness';
+
+function readTypeEffectivenessSetting(): boolean {
+  try {
+    return localStorage.getItem(TYPE_EFFECTIVENESS_KEY) === 'on';
+  } catch {
+    return false;
+  }
+}
+
+function writeTypeEffectivenessSetting(enabled: boolean): void {
+  try {
+    localStorage.setItem(TYPE_EFFECTIVENESS_KEY, enabled ? 'on' : 'off');
   } catch {
     // Storage can be unavailable (private windows); the setting just won't stick.
   }
