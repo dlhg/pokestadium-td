@@ -837,5 +837,6 @@
 
 @media (max-width: 1100px) {
   #card-deck { width: 184px; }
+  #card-deck-toggle { right: 198px; }
   #tower-panel { right: 206px; }
 }

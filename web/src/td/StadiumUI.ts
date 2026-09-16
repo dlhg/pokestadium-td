@@ -36,6 +36,7 @@ const BALL_NAMES: Record<BallType, string> = { poke: 'POKÉ', great: 'GREAT', ul
 
 const UI_SCALE_KEY = 'pokestadium.uiScale';
 const PREMIUM_BALL_TIP_KEY = 'pokestadium.premiumBallTipSeen';
+const ROSTER_COLLAPSED_KEY = 'pokestadium.rosterCollapsed';
 const UI_SCALE_BASE_WIDTH = 1440;
 const UI_SCALE_BASE_HEIGHT = 900;
 const UI_SCALE_AUTO_MAX = 1.5;
@@ -171,6 +172,10 @@ export class StadiumUI {
   })();
   private premiumBallTipEl!: HTMLElement;
   private wasBallLocked: Partial<Record<BallType, boolean>> = {};
+  private cardDeckToggleEl!: HTMLButtonElement;
+  private rosterCollapsed = (() => {
+    try { return localStorage.getItem(ROSTER_COLLAPSED_KEY) === '1'; } catch { return false; }
+  })();
 
   // Callbacks
   private cinemaEl!: HTMLElement;
@@ -647,6 +652,31 @@ export class StadiumUI {
           scrollbar-width: thin;
           scrollbar-color: #5280b8 #071326;
         }
+
+        #card-deck[hidden] { display: none; }
+
+        #card-deck-toggle {
+          position: absolute;
+          top: 50%;
+          right: 210px;
+          transform: translateY(-50%);
+          z-index: 31;
+          width: 18px;
+          height: 48px;
+          padding: 0;
+          border-radius: 6px 0 0 6px;
+          border: 2px solid #d7e0ff;
+          border-right: none;
+          background-image: linear-gradient(rgba(41,92,224,.62), rgba(7,28,102,.88)), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          color: #fff;
+          font-size: 11px;
+          line-height: 1;
+          cursor: pointer;
+          transition: right .22s ease;
+        }
+        #card-deck-toggle:hover { border-color: #fff; }
+        #card-deck-toggle.collapsed { right: 14px; }
 
         .tower-rail-header {
           flex: 0 0 auto;
@@ -1413,6 +1443,7 @@ export class StadiumUI {
       </div>
 
       <!-- Tower Purchase Roster -->
+      <button id="card-deck-toggle" class="interactive" aria-label="Collapse roster panel" aria-expanded="true" title="Collapse roster panel">▶</button>
       <div id="card-deck" class="stadium-panel interactive"></div>
 
       <div id="storage-confirm" class="interactive" hidden>
@@ -1536,6 +1567,9 @@ export class StadiumUI {
 
     this.cardDeckEl = document.getElementById('card-deck')!;
     this.storageConfirmEl = document.getElementById('storage-confirm')!;
+    this.cardDeckToggleEl = document.getElementById('card-deck-toggle') as HTMLButtonElement;
+    this.cardDeckToggleEl.addEventListener('click', () => this.setRosterCollapsed(!this.rosterCollapsed));
+    this.applyRosterCollapsed();
     this.premiumBallTipEl = document.getElementById('premium-ball-tip')!;
     this.premiumBallTipEl.addEventListener('click', () => this.dismissPremiumBallTip());
     this.panelEl = document.getElementById('tower-panel')!;
@@ -1703,6 +1737,20 @@ export class StadiumUI {
     this.premiumBallTipEl.hidden = true;
     this.premiumBallTipShown = true;
     try { localStorage.setItem(PREMIUM_BALL_TIP_KEY, '1'); } catch { /* storage blocked */ }
+  }
+
+  private setRosterCollapsed(collapsed: boolean): void {
+    this.rosterCollapsed = collapsed;
+    this.applyRosterCollapsed();
+    try { localStorage.setItem(ROSTER_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch { /* storage blocked */ }
+  }
+
+  private applyRosterCollapsed(): void {
+    this.cardDeckEl.hidden = this.rosterCollapsed;
+    this.cardDeckToggleEl.classList.toggle('collapsed', this.rosterCollapsed);
+    this.cardDeckToggleEl.textContent = this.rosterCollapsed ? '◀' : '▶';
+    this.cardDeckToggleEl.title = this.rosterCollapsed ? 'Expand roster panel' : 'Collapse roster panel';
+    this.cardDeckToggleEl.setAttribute('aria-expanded', String(!this.rosterCollapsed));
   }
 
   private bindEvents(): void {
