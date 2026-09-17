@@ -453,6 +453,8 @@ export class Tower {
       if (loaded && loaded.mesh !== this.animPokemon.mesh) {
         disposePokemonModel(this.animPokemon);
         this.group.remove(this.animPokemon.mesh);
+        // Keep the old form's heading so an evolved model doesn't pop in facing +Z.
+        loaded.mesh.rotation.y = this.animPokemon.mesh.rotation.y;
         this.animPokemon = loaded;
         this.group.add(this.animPokemon.mesh);
       }

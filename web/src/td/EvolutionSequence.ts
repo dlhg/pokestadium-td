@@ -54,6 +54,8 @@ export class EvolutionSequence {
   private readonly beats: { flash: number; reveal: number; end: number };
   private readonly focus: THREE.Vector3;
   private readonly tintTargets: TintTarget[];
+  /** Yaw that points the model at the cinematic camera (models face +Z, hence atan2(x, z)). */
+  private readonly facing: number;
 
   private beam: THREE.Mesh;
   private beamMat: THREE.MeshBasicMaterial;
@@ -109,8 +111,12 @@ export class EvolutionSequence {
     this.glowLight.position.copy(this.focus);
     this.group.add(this.glowLight);
 
+    // Shoot from the pitch side (clear of the grandstands) and hold the angle,
+    // so the Pokémon can turn to face the lens head-on for the whole set piece.
     const angle = Math.atan2(-tower.position.x, -tower.position.z);
-    stage.camera.beginCinematic(this.focus, 7.5, 2.6, 0.22, angle);
+    const shot = stage.camera.cinematicPositionAt(this.focus, 7.5, 2.6, angle);
+    this.facing = Math.atan2(shot.x - tower.position.x, shot.z - tower.position.z);
+    stage.camera.beginCinematic(this.focus, 7.5, 2.6, 0, angle);
     stage.arena.setCrowdMood(-1);
     stage.audio.duckCrowd(0.3, 0.5);
     stage.audio.playEvolutionCharge();
@@ -140,6 +146,7 @@ export class EvolutionSequence {
     const closing = THREE.MathUtils.clamp((t - this.beats.reveal - 0.5) / 0.4, 0, 1);
     this.hud.letterbox = THREE.MathUtils.clamp(t / 0.3, 0, 1) * (1 - closing);
     this.glowLight.position.copy(this.focus);
+    this.faceCamera(dt);
 
     if (t < this.beats.flash) this.updateCharge(t);
     else if (t < this.beats.reveal) this.updateFlash(t);
@@ -213,6 +220,17 @@ export class EvolutionSequence {
       this.stage.audio.duckCrowd(1.6, 0.3);
       this.stage.particles.emitAura(this.tower.position, 0xffe46b, 26, 1.4);
     }
+  }
+
+  /**
+   * Eases the tower's model round to face the camera as it swings in,
+   * overriding target tracking (this runs after the tower's own update each
+   * frame). The evolved model inherits this heading when it swaps in.
+   */
+  private faceCamera(dt: number): void {
+    const mesh = this.tower.animPokemon.mesh;
+    const turn = Math.atan2(Math.sin(this.facing - mesh.rotation.y), Math.cos(this.facing - mesh.rotation.y));
+    mesh.rotation.set(0, mesh.rotation.y + turn * (1 - Math.exp(-8 * dt)), 0);
   }
 
   /** Lerps every collected material toward a hot white, from its cached base color. */

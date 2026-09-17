@@ -257,28 +257,38 @@ export class StadiumUI {
         .gold-glow { text-shadow: 0 0 10px #ffd700, 0 0 20px #ff9e00; }
         .cyan-glow { text-shadow: 0 0 8px #00f0ff; }
 
-        /* Top Bar */
-        #top-bar {
+        /* Top row: one flex line so the three bars share the width instead of
+           independently-centered/positioned elements overlapping on narrow screens. */
+        #top-row {
           position: absolute;
           top: 14px;
           left: 18px;
+          right: 20px;
+          z-index: 30;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        /* Top Bar */
+        #top-bar {
+          flex: 0 0 auto;
           display: flex;
           align-items: center;
           gap: 24px;
           padding: 8px 24px;
-          z-index: 30;
         }
 
         .stat-badge { display: flex; flex-direction: column; align-items: center; }
 
         #start-match-bar {
-          position: absolute;
-          top: 14px;
-          left: 50%;
-          transform: translateX(-50%);
+          flex: 1 1 auto;
+          min-width: 0;
           display: flex;
+          align-items: center;
+          justify-content: center;
           padding: 8px 16px;
-          z-index: 30;
         }
 
         #storage-confirm {
@@ -299,8 +309,12 @@ export class StadiumUI {
         #storage-confirm .storage-confirm-actions .stadium-btn { padding: 7px 18px; }
 
         #start-match-bar #btn-wave {
+          max-width: 100%;
           font-size: 20px;
           padding: 10px 28px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .stat-label {
@@ -649,12 +663,9 @@ export class StadiumUI {
 
         /* Controls (Top Right) */
         #controls-bar {
-          position: absolute;
-          top: 14px;
-          right: 20px;
+          flex: 0 0 auto;
           display: flex;
           gap: 8px;
-          z-index: 30;
         }
 
         .stadium-btn {
@@ -1433,44 +1444,48 @@ export class StadiumUI {
         </section>
       </div>
 
-      <!-- Top Bar -->
-      <div id="top-bar" class="stadium-panel interactive">
-        <div class="stat-badge">
-          <span class="stat-label" id="cup-title">POKE CUP</span>
-          <span class="stat-value gold-glow" id="round-number">ROUND 1</span>
-        </div>
-        <div class="stat-badge" aria-label="Available funds">
-          <span class="stat-value" style="color: #48ff48;" id="prize-money">$400</span>
-        </div>
-        <div class="stat-badge">
-          <span class="stat-label">STADIUM HP</span>
-          <div class="pokeball-tray" id="stadium-hp"></div>
-        </div>
-      </div>
-
-      <!-- Start Match -->
-      <div id="start-match-bar" class="stadium-panel interactive">
-        <button class="stadium-btn active" id="btn-wave">START MATCH</button>
-      </div>
-
-      <!-- Controls -->
-      <div id="controls-bar" class="interactive">
-        <div class="control-group" aria-label="Game speed">
-          <span class="control-group-label">SPEED</span>
-          <div class="control-group-buttons">
-            <button class="stadium-btn" id="btn-speed-half">.5X</button>
-            <button class="stadium-btn active" id="btn-speed-1">1X</button>
-            <button class="stadium-btn" id="btn-speed-2">2X</button>
-            <button class="stadium-btn" id="btn-speed-3">3X</button>
-            <button class="stadium-btn" id="btn-speed-4">4X</button>
+      <!-- Top Row: stats, start-match, and controls share one flex line so they
+           can never overlap each other regardless of viewport width. -->
+      <div id="top-row" class="interactive">
+        <!-- Top Bar -->
+        <div id="top-bar" class="stadium-panel">
+          <div class="stat-badge">
+            <span class="stat-label" id="cup-title">POKE CUP</span>
+            <span class="stat-value gold-glow" id="round-number">ROUND 1</span>
+          </div>
+          <div class="stat-badge" aria-label="Available funds">
+            <span class="stat-value" style="color: #48ff48;" id="prize-money">$400</span>
+          </div>
+          <div class="stat-badge">
+            <span class="stat-label">STADIUM HP</span>
+            <div class="pokeball-tray" id="stadium-hp"></div>
           </div>
         </div>
-        <div class="control-group" aria-label="Camera">
-          <span class="control-group-label">CAMERA</span>
-          <div class="control-group-buttons">
-            <button class="stadium-btn active" id="btn-cam-tactical">TACTICAL</button>
-            <button class="stadium-btn" id="btn-cam-stadium">STADIUM</button>
-            <button class="stadium-btn" id="btn-cam-action">ACTION</button>
+
+        <!-- Start Match -->
+        <div id="start-match-bar" class="stadium-panel">
+          <button class="stadium-btn active" id="btn-wave">START MATCH</button>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls-bar">
+          <div class="control-group" aria-label="Game speed">
+            <span class="control-group-label">SPEED</span>
+            <div class="control-group-buttons">
+              <button class="stadium-btn" id="btn-speed-half">.5X</button>
+              <button class="stadium-btn active" id="btn-speed-1">1X</button>
+              <button class="stadium-btn" id="btn-speed-2">2X</button>
+              <button class="stadium-btn" id="btn-speed-3">3X</button>
+              <button class="stadium-btn" id="btn-speed-4">4X</button>
+            </div>
+          </div>
+          <div class="control-group" aria-label="Camera">
+            <span class="control-group-label">CAMERA</span>
+            <div class="control-group-buttons">
+              <button class="stadium-btn active" id="btn-cam-tactical">TACTICAL</button>
+              <button class="stadium-btn" id="btn-cam-stadium">STADIUM</button>
+              <button class="stadium-btn" id="btn-cam-action">ACTION</button>
+            </div>
           </div>
         </div>
       </div>
