@@ -299,6 +299,51 @@ export const STADIUM_MAPS: StadiumMap[] = [
     // Both ends already have their own gateway: a torii at the trailhead, the tower door at the top.
     showGates: false,
   },
+  {
+    id:'seafoam-islands', name:'Seafoam Islands', venue:'FROZEN STRAIT', difficulty:'hard',
+    description:"A chain of ice-crusted islets threads across a frigid strait toward Articuno's roost. Every gap between them is a cracked-ice crossing, and open water carries a shot just as well as any bank.",
+    strategy:"Bridges are the only chokepoints, but a tower posted on one islet's shore can also reach the lane on the next islet over open water — stack that reach instead of splitting forces across every islet.",
+    theme:'river',
+    palette:{ ground:'#7e97a8', patch:'#9db8c6', path:'#e6f1f5', edge:'#4c6472', accent:'#82e9ff' },
+    buildableRadius:31, laneWidth:3,
+    routes:[[
+      [-30,9],[-25,8],
+      [-22,6.5],[-19,6],[-16,6],
+      [-13,0],[-10,-8],
+      [-7,-13],
+      [-5,-13],[-1.5,-13],[2,-13],
+      [4,-8],[7,0],[10,8],
+      [13,10],[16,10],[19,10],
+      [22,5],[25,-1],[28,-6],[29.5,-9],
+    ]],
+    // Three wandering channels, hand-shaped rather than rectangular. Each stays
+    // straight-edged only near its bridge; everywhere else the coastline is free
+    // to bulge and narrow, so the islands read as natural icy landmasses.
+    water:[
+      { points:[[-22.3,-25],[-24.5,-18],[-22.5,-10],[-23.4,-3],[-22.3,1.5],[-22.3,10.5],[-24.2,16],[-21.8,22],[-23,25],[-15.7,25],[-17.5,21],[-14.6,15],[-15.7,10.5],[-15.7,1.5],[-16.9,-4],[-14.7,-11],[-16.5,-18],[-15.7,-25]] },
+      { points:[[-5.3,-25],[-7.1,-21],[-5.3,-17.5],[-5.3,-8.5],[-6.8,-3],[-4,3],[-6,9],[-3.5,15],[-5.3,21],[-4,25],[2.3,25],[1,21],[3.6,15],[1.2,9],[3.8,3],[1,-3],[2.3,-8.5],[2.3,-17.5],[1,-21],[2.3,-25]] },
+      { points:[[12.7,-25],[10.9,-19],[12.7,-13],[11.4,-7],[13.2,-1],[12.7,5.5],[12.7,14.5],[10.7,20],[13.5,25],[19.3,25],[17.2,20],[19.3,14.5],[19.3,5.5],[20.8,-1],[18.6,-7],[20.4,-13],[18.5,-19],[19.3,-25]] },
+    ],
+    bridges:[
+      { x:-19, z:6, width:10, depth:5 },
+      { x:-1.5, z:-13, width:10, depth:5 },
+      { x:16, z:10, width:10, depth:5 },
+    ],
+    obstacles:[
+      { x:-27, z:-8, radius:2.5, label:'Ice-slick boulders', style:'boulder' },
+      { x:-24, z:14, radius:2.5, label:'Ice-slick boulders', style:'boulder' },
+      { x:-11, z:10, radius:2.3, label:'Frozen rock spires', style:'rock' },
+      { x:-6.5, z:-19, radius:2, label:'Frozen rock spires', style:'rock' },
+      { x:4, z:9, radius:2, label:'Frozen rock spires', style:'rock' },
+      { x:11, z:-7, radius:2.3, label:'Frozen rock spires', style:'rock' },
+      { x:27, z:8, radius:1.8, label:'Ice-slick boulders', style:'boulder' },
+      { x:29, z:2, radius:1.8, label:'Ice-slick boulders', style:'boulder' },
+    ],
+    decor:[
+      { kind:'cave', x:30.5, z:-10.5, angle:-1.1 },
+      { kind:'torch', x:28.3, z:-12 }, { kind:'torch', x:28.3, z:-7.8 },
+    ],
+  },
 ];
 
 export const DEFAULT_STADIUM_MAP = STADIUM_MAPS[0];
