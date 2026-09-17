@@ -14,6 +14,7 @@ import { STADIUM_MAPS } from './td/MapCatalog';
 import { getMilestone } from './td/WaveManager';
 import { createPokemon, freshSave, TrainerStore } from './td/progression/TrainerStore';
 import { DevPanel } from './td/progression/DevPanel';
+import { applyRetroUiCss } from './engine/RetroFX';
 
 /** A fixed trainer for headless shots and `?save=dev`: the classic six, mid-journey. */
 function devSeed(): TrainerStore {
@@ -35,8 +36,9 @@ function shotPokemon(speciesId: string, level: number) {
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('stadium-canvas') as HTMLCanvasElement;
   const uiContainer = document.getElementById('ui-overlay') as HTMLElement;
+  const gameContainer = document.getElementById('game-container') as HTMLElement;
 
-  if (!canvas || !uiContainer) {
+  if (!canvas || !uiContainer || !gameContainer) {
     console.error('Missing canvas or UI overlay container!');
     return;
   }
@@ -49,8 +51,13 @@ window.addEventListener('DOMContentLoaded', () => {
   const store = shot || urlParams.get('save') === 'dev' ? devSeed() : new TrainerStore();
   const game = new StadiumTDGame();
   game.init(canvas, uiContainer, store);
+  // The dev panel lives outside #ui-overlay so RetroFX's HUD-side CSS pass
+  // (below) can cover the rest of the game UI without also tinting it.
+  const syncRetroUi = () => applyRetroUiCss(gameContainer, game.renderer.retro.settings);
+  game.renderer.retro.onChange = syncRetroUi;
+  syncRetroUi();
   if (!shot && (import.meta.env.DEV || urlParams.has('dev'))) {
-    new DevPanel(uiContainer, game, store);
+    new DevPanel(gameContainer, game, store);
     // Console handle for poking at a live match while developing.
     (window as unknown as { stadium: StadiumTDGame }).stadium = game;
   }

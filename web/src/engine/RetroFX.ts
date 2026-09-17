@@ -216,9 +216,33 @@ const fragmentShader = /* glsl */ `
   }
 `;
 
+/**
+ * Approximates the shader pass as CSS custom properties for the DOM HUD,
+ * which never passes through the WebGL post-process. Curvature, chroma and
+ * bit-depth dithering stay canvas-only — there's no cheap DOM equivalent —
+ * but scanlines, the phosphor mask, vignette, grain, flicker and saturation
+ * carry over so the HUD reads as the same display instead of a crisp window
+ * floating over a CRT.
+ */
+export function applyRetroUiCss(root: HTMLElement, settings: RetroSettings): void {
+  const s = settings;
+  const scanGapPx = s.scanlinesMatchRes && s.resolution > 0
+    ? Math.max(1, Math.round((root.clientHeight || window.innerHeight) / s.resolution))
+    : s.scanlineSpacing;
+  root.style.setProperty('--retro-scan', String(s.scanlines * 0.55));
+  root.style.setProperty('--retro-scan-gap', `${scanGapPx}px`);
+  root.style.setProperty('--retro-mask', String(s.mask * 0.5));
+  root.style.setProperty('--retro-vignette', String(s.vignette * 0.85));
+  root.style.setProperty('--retro-noise', String(Math.min(0.6, s.noise * 1.6)));
+  root.style.setProperty('--retro-flicker', String(s.flicker));
+  root.style.setProperty('--retro-sat', String(s.saturation));
+}
+
 export class RetroFX {
   public settings: RetroSettings;
   public preset: string;
+  /** Fired after any settings change, so the DOM HUD overlay can restyle itself. */
+  public onChange: () => void = () => {};
 
   private target: THREE.WebGLRenderTarget | null = null;
   private targetKey = '';
@@ -267,6 +291,7 @@ export class RetroFX {
     this.preset = 'custom';
     this.applyFog();
     this.save();
+    this.onChange();
   }
 
   public usePreset(name: string): void {
@@ -276,6 +301,7 @@ export class RetroFX {
     this.preset = name;
     this.applyFog();
     this.save();
+    this.onChange();
   }
 
   public render(camera: THREE.Camera): void {

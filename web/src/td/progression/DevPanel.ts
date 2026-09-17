@@ -97,7 +97,7 @@ export class DevPanel {
             </select>
           </div>
           ${RETRO_CONTROLS.map(retroControlHtml).join('')}
-          <div class="dev-summary">Curvature bends the picture but not the HUD or click picking.</div>
+          <div class="dev-summary">Scanlines, mask, vignette, grain, flicker and saturation tint the HUD too. Curvature, chroma and color bits stay canvas-only, and this panel is always exempt.</div>
         </fieldset>
 
         <fieldset><legend>SAVE</legend>
