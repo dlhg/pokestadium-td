@@ -75,6 +75,12 @@ export function centerMass(creep: Creep): THREE.Vector3 {
   return creep.position.clone().add(new THREE.Vector3(0, 1.0, 0));
 }
 
+/** A little above the tower itself, so a per-attacker popup reads as
+ *  "this tower" rather than floating over whatever it's aimed at. */
+function towerCallout(tower: Tower): THREE.Vector3 {
+  return tower.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+}
+
 /** Where a move fired from `source` at `target` is aimed, and how far it reaches. */
 export interface MoveGeometry {
   origin: THREE.Vector3;
@@ -251,7 +257,11 @@ export function strikeCreeps(
     // deeper type-chart breakdown, so they stay behind the opt-in setting.
     if (multiplier <= 0) {
       const { label, color: effColor } = getEffectivenessLabel(multiplier);
-      ctx.popup(centerMass(victim), label, effColor);
+      // Anchored at the attacking tower, not the victim: when several
+      // towers hit the same creep at once, a victim-anchored popup can't
+      // say which one whiffed (round 2 feedback #21). Falls back to the
+      // victim when a hit has no single source tower (e.g. some AOE effects).
+      ctx.popup(source ? towerCallout(source) : centerMass(victim), label, effColor);
     } else if (ctx.showTypeEffectiveness && multiplier !== 1) {
       const { label, color: effColor } = getEffectivenessLabel(multiplier);
       ctx.popup(centerMass(victim), label, effColor);

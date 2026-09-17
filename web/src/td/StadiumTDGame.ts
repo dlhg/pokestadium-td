@@ -966,13 +966,20 @@ export class StadiumTDGame {
         this.summon.sequence.skip();
       }
     } else if (this.capture) {
-      // Escape backs out before the throw commits and hands the ball back; once
-      // released, the meter's timing check owns Space/click and there's no undo.
-      if (input.isKeyJustPressed('Escape')) {
-        this.cancelCaptureAttempt();
-      } else if (this.capture.sequence.awaitingRelease && ((input.clicked && !input.clickedOnUI) || input.isKeyJustPressed('Space'))) {
-        // A UI click is the one that picked the ball; it must not also release the meter.
-        this.capture.sequence.release();
+      if (this.capture.sequence.awaitingRelease) {
+        // Escape backs out before the throw commits and hands the ball back; once
+        // released, the meter's timing check owns Space/click and there's no undo.
+        if (input.isKeyJustPressed('Escape')) {
+          this.cancelCaptureAttempt();
+        } else if ((input.clicked && !input.clickedOnUI) || input.isKeyJustPressed('Space')) {
+          // A UI click is the one that picked the ball; it must not also release the meter.
+          this.capture.sequence.release();
+        }
+      } else if ((input.clicked && !input.clickedOnUI) || input.isKeyJustPressed('Space') || input.isKeyJustPressed('Escape')) {
+        // The outcome is already rolled the instant the ball is released, so once
+        // the meter is gone there's nothing left to decide — skip straight to the
+        // verdict beat, same skip inputs as the deployment cinematic above.
+        this.capture.sequence.skip();
       }
     } else if (!this.evolution) {
       this.handleInput(input);

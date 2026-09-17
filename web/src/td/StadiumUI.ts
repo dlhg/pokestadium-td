@@ -408,6 +408,11 @@ export class StadiumUI {
           position:absolute; right:22px; bottom:calc(13vh + 18px); font-size:10px; font-weight:800;
           letter-spacing:1.6px; color:#b9d6e8; text-shadow:0 2px 3px #000;
         }
+        #cine-skip {
+          position:absolute; right:22px; bottom:calc(13vh + 18px); font-size:10px; font-weight:800;
+          letter-spacing:1.6px; color:#b9d6e8; text-shadow:0 2px 3px #000;
+        }
+        #cine-skip[hidden] { display:none; }
         .cine-bar { position:absolute; left:0; right:0; height:13vh; background:#04070d; box-shadow:0 0 40px rgba(0,0,0,.9); transform:translateY(0); }
         .cine-bar.top { top:0; }
         .cine-bar.bottom { bottom:0; }
@@ -1115,6 +1120,10 @@ export class StadiumUI {
           min-width: 0;
         }
 
+        .tp-line-meta[title] {
+          cursor: help;
+        }
+
         .tp-line-label {
           font-size: 8.5px;
           font-weight: 800;
@@ -1611,6 +1620,7 @@ export class StadiumUI {
         <div id="cine-grade"></div>
         <div id="cine-caption">CAPTURE ATTEMPT</div>
         <div id="cine-verdict"></div>
+        <div id="cine-skip" hidden>CLICK · SPACE · ESC TO SKIP</div>
       </div>
       <div id="capture-trophy"></div>
 
@@ -2017,10 +2027,17 @@ export class StadiumUI {
       }
 
       const closedRow = blocked === 'path_closed' ? ' closed' : '';
+      // shown/tp-line-stats only ever surfaces one tier's effect (the next
+      // one to buy, or the final one once maxed) — a hover tooltip lists
+      // every tier already bought so a player can see the full stack, not
+      // just the newest layer (round 2 feedback #19).
+      const purchasedSummary = bought > 0
+        ? path.tiers.slice(0, bought).map((tier, t) => `TIER ${t + 1} — ${tier.name}: ${tier.description}`).join('\n')
+        : '';
       return `
         <div class="tp-line${closedRow}">
           <div class="tp-pips">${pips}</div>
-          <div class="tp-line-meta">
+          <div class="tp-line-meta"${purchasedSummary ? ` title="${escapeHtml(purchasedSummary)}"` : ''}>
             <span class="tp-line-label">${path.label}${bought ? ` · TIER ${bought}` : ''}</span>
             <span class="tp-line-move">${shown.name}</span>
             <span class="tp-line-stats">${shown.description}</span>
@@ -2178,6 +2195,9 @@ export class StadiumUI {
     this.cinemaEl.querySelector<HTMLElement>('#cine-sub')!.innerText =
       `${cinema.ballName} · ${(cinema.chance * 100).toFixed(0)}% CATCH RATE`;
     this.cinemaEl.querySelector<HTMLElement>('#cine-caption')!.innerText = cinema.caption;
+    // The outcome is already rolled the instant the throw releases, so
+    // everything after that point is skippable straight to the verdict.
+    this.cinemaEl.querySelector<HTMLElement>('#cine-skip')!.toggleAttribute('hidden', cinema.phase === 'aim');
 
     this.renderReleaseMeter(cinema);
 

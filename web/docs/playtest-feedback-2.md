@@ -219,7 +219,7 @@ Decisions:
   path) and a mechanic change (e.g. lowering the floor further).
 
 ## 18. Speed up the catch animation / 20. Should be able to skip to the end of the catch sequence
-Status: interviewed — ready to implement
+Status: done
 
 Research findings:
 - `SummonSequence.ts` already has a `skip()` method wired to click/Space/
@@ -237,22 +237,74 @@ Decisions:
   click/Space once the outcome is essentially locked in, i.e. after the
   QTE release) to jump straight to the verdict.
 
+Implementation:
+- Trimmed the beat-timing constants in `CaptureSequence.ts` (impact,
+  absorb, drop, lock-pause, wobble period per rarity tier, and both
+  verdict-hold durations) roughly 20–30% — e.g. `VERDICT_HOLD_SUCCESS`
+  1.9s → 1.3s, `D_IMPACT` 0.55s → 0.45s. A normal-threat successful catch
+  now runs ~5.15s end-to-end instead of ~6.7s. `WOBBLE_CLICK` left
+  untouched since it's tied to a specific audio/visual sync moment.
+- Added `CaptureSequence.skip()`: since the catch's outcome is already
+  rolled the instant `release()` fires (before any of the throw/absorb/
+  drop/wobble animation plays), skip just fast-forwards `elapsed` to
+  `beats.end` — the existing per-frame phase logic in `update()` handles
+  the rest naturally, no separate "skipped" flag needed (unlike
+  `SummonSequence`, which has real finalization side effects to bypass).
+  Guarded to no-op while still `awaitingRelease`, since that's a real
+  decision, not an animation.
+- Wired click/Space/Escape to `skip()` once release has happened
+  (`StadiumTDGame.ts`), same input set as the summon cinematic's skip.
+  Added a matching "CLICK · SPACE · ESC TO SKIP" hint (`#cine-skip`) that
+  only shows once released.
+- Verified live: threw a ball, released, pressed Space once, and the
+  sequence jumped straight from "IT SAILS WIDE..." (mid-throw) to the
+  caught/broke trophy card in one step.
+
 ## 19. Should be able to see all purchased upgrades for a Pokémon
-Status: interviewed — ready to implement
+Status: done
 
 Decisions:
 - On-demand tooltip/expand on the tower's panel — keep the compact
   default view, add a hover/click-to-expand detail listing every tier
   bought across all upgrade paths (not just the next available one).
 
+Implementation:
+- The panel's `tp-line-stats` text only ever shows one tier's effect (the
+  next one to buy, or the final one once maxed) — there was nowhere to
+  see tier 1's effect once tier 2 was bought over it.
+- Added a native `title` tooltip on each path's `.tp-line-meta`, listing
+  every tier already purchased on that path ("TIER 1 — Flamethrower: The
+  attack becomes a cone of fire.", one per line) — same lightweight
+  tooltip mechanism the signature bar already uses elsewhere in this
+  file. Only attached when at least one tier is bought; `cursor: help`
+  hints it's there.
+- Verified via the live DOM: purchased Charmander's Inferno tier 1, and
+  `.tp-line-meta[title]` carried the expected summary while the two
+  untouched paths had no title attribute.
+
 ## 21. Hard to tell which attacker "has no effect" when a creep is hit by multiple towers at once
-Status: interviewed — ready to implement
+Status: done
 
 Decisions:
 - Per-attacker "NO EFFECT" popup anchored at the attacking tower (or its
   projectile's impact point), not just a generic banner — so it's
   visually obvious which specific attacker is being resisted. Builds on
   round 1's #6 immunity-popup work.
+
+Implementation:
+- Found the single shared choke point: `strikeCreeps()` in
+  `MoveDelivery.ts`, used by every attack and signature move. Its
+  immunity branch (`multiplier <= 0`) called `ctx.popup(centerMass(victim),
+  ...)` — always anchored at the creep, which is exactly the ambiguity
+  reported: with several towers hitting one creep, a victim-anchored
+  popup can't say which attacker whiffed.
+- Anchors the popup at the attacking tower instead (a new `towerCallout()`
+  helper, mirroring the existing `centerMass()` for creeps) when a
+  `source` tower is available, falling back to the creep's position for
+  the rare case of a hit with no single source (some AOE effects). Scoped
+  to the immunity case only — the opt-in super/not-very-effective popups
+  stay anchored at the creep, unchanged.
+- `npm run test:gameplay` passes.
 
 ## 22. Dragonair's move animation is weird
 Status: interviewed — parked (low value/effort ratio)

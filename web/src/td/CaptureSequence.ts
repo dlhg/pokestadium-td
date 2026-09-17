@@ -87,19 +87,22 @@ const BALL_GLOW: Record<BallType, number> = { poke: 0xff5566, great: 0x5fa8ff, u
  * slower holds between them, and a narrower release window.
  */
 const THREAT_PROFILE = {
-  normal: { wobbles: 3, period: 0.85, zone: 0.26, sweep: 1.15 },
-  elite: { wobbles: 3, period: 1.0, zone: 0.19, sweep: 1.4 },
-  titan: { wobbles: 4, period: 1.15, zone: 0.13, sweep: 1.75 },
+  normal: { wobbles: 3, period: 0.7, zone: 0.26, sweep: 1.15 },
+  elite: { wobbles: 3, period: 0.85, zone: 0.19, sweep: 1.4 },
+  titan: { wobbles: 4, period: 1.0, zone: 0.13, sweep: 1.75 },
 } as const;
 
-// Beat offsets measured from the moment the ball leaves the hand.
-const D_IMPACT = 0.55;
-const D_ABSORB = 0.7;
-const D_DROP = 0.7;
-const D_LOCK_PAUSE = 0.3;
+// Beat offsets measured from the moment the ball leaves the hand. Trimmed
+// down from the original pass (round 2 feedback #18) to cut real time off
+// a very frequent moment without gutting the set piece's shape — a skip
+// input covers players who want none of it at all (see `skip` below).
+const D_IMPACT = 0.45;
+const D_ABSORB = 0.55;
+const D_DROP = 0.55;
+const D_LOCK_PAUSE = 0.2;
 const WOBBLE_CLICK = 0.46;
-const VERDICT_HOLD_SUCCESS = 1.9;
-const VERDICT_HOLD_FAIL = 1.3;
+const VERDICT_HOLD_SUCCESS = 1.3;
+const VERDICT_HOLD_FAIL = 1.0;
 const AIM_TIMEOUT = 3.4;
 // Keep the ball's lowest point just above the pitch so terrain variation and
 // shadowing do not make it visibly clip during the drop and wobble beats.
@@ -296,6 +299,16 @@ export class CaptureSequence {
       ? 0
       : THREE.MathUtils.clamp((this.elapsed - this.beats.verdict) / 0.6, 0, 1);
     return 0.72 * fadeIn * (1 - fadeOut);
+  }
+
+  /** Jumps straight to the verdict beat. The outcome is already rolled the
+   *  instant the throw releases (see `release`), so everything after that is
+   *  presentation only — nothing left to decide, just to watch or not. Has
+   *  no effect while still awaiting release; that's a real decision, not an
+   *  animation to skip past. */
+  public skip(): void {
+    if (this.awaitingRelease) return;
+    this.elapsed = Math.max(this.elapsed, this.beats.end);
   }
 
   /** Returns the outcome once the whole set piece has played out. */
