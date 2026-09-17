@@ -9,6 +9,7 @@ data, so the export does not need `make init`, splat or crunch64.
 """
 import hashlib
 import struct
+from pathlib import Path
 
 # Pokemon Stadium (USA) Rev 2 layout. These values are intentionally keyed to
 # one verified image; accepting a nearby revision would silently mislabel
@@ -21,6 +22,45 @@ PTR_TABLE_VRAM = 0x80075D10     # per-species table offsets (ROM 0x76910)
 
 US_REV2_MD5 = '6dc6820cef755fc1253d06df45c9bd2a'
 ROM_SIZE = 33_554_432
+
+ROOT = Path(__file__).resolve().parents[3]
+# The recommended spot -- checked first because it's the common case and
+# needs no directory scan.
+DEFAULT_ROM = ROOT / 'baseroms/us/Pokemon Stadium (USA) (Rev 2).z64'
+N64_SUFFIXES = {'.z64', '.n64', '.v64'}
+
+
+def n64_images():
+    """Every N64 image near where people tend to drop a ROM, recommended
+    path first. Includes files that won't validate -- callers that want a
+    verified dump should go through `find_rom` instead."""
+    found = [DEFAULT_ROM] if DEFAULT_ROM.is_file() else []
+    for folder in (ROOT / 'baseroms', ROOT / 'web/baseroms', ROOT, ROOT / 'web'):
+        if not folder.is_dir():
+            continue
+        pattern = '**/*' if folder.name == 'baseroms' else '*'
+        found += [path for path in sorted(folder.glob(pattern))
+                  if path.is_file() and path.suffix.lower() in N64_SUFFIXES]
+    seen, unique = set(), []
+    for path in found:
+        if path not in seen:
+            seen.add(path)
+            unique.append(path)
+    return unique
+
+
+def find_rom():
+    """A valid Pokémon Stadium (USA) Rev 2 dump, wherever it is. Checks the
+    recommended path first, then any other N64 image nearby, validating each
+    by content -- the filename and exact location never matter, only the
+    bytes. Returns None if nothing nearby validates."""
+    for path in n64_images():
+        try:
+            Rom(path)
+        except ValueError:
+            continue
+        return path
+    return None
 
 
 class Rom:

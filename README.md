@@ -4,58 +4,44 @@ This repository is based on [pret/pokestadium](https://github.com/pret/pokestadi
 
 What this repository adds is a `web/` directory that takes the systems the decomp reveals — a 3D arena renderer, skeletal animation, an elemental combat resolver, a cinematic camera director, a reactive announcer, and a late-90s tournament UI — and reimplements them as reusable, data-driven building blocks in TypeScript/Three.js, decoupled from the original battle-simulator genre. The proof-of-concept built on top of those blocks is **PokéStadium TD**, a tower defense game staged in the Stadium colosseum.
 
-## PokéStadium TD (the web player)
+## Running the web game
 
-```bash
-cd web
-npm install
-npm run dev     # http://localhost:3004
-npm run build   # typecheck + production bundle
-```
+1. `cd web && npm install`
+2. `npm run dev` — starts the dev server at http://localhost:3004 (`npm run build` for a typechecked production bundle instead)
 
-No ROM is required to run the web player — models, sounds, and gameplay are original/procedural.
+That's it — no ROM is required. Models, sounds, and gameplay are original/procedural by default.
 
-If you own a legitimate copy of the game and want real announcer audio and models instead of the procedural fallback, `npm run extract:stadium` (run from `web/`) can pull those in locally. This needs a **specific ROM dump**, placed at an **exact path**:
+### Optional: real models and announcer audio
 
-```
-baseroms/us/Pokemon Stadium (USA) (Rev 2).z64
-```
+If you own a legitimate copy of the game, drop a **Pokémon Stadium (USA) Revision 2** ROM dump anywhere under `baseroms/` — any filename works, only the file's contents are checked. The next `npm run dev` or `npm run build` finds it, verifies it, and extracts the models and announcer clips automatically (one time, about a minute; needs Python 3, plus `git` and `g++` the first time for the announcer decoder). To trigger it manually: `npm run extract:stadium` from `web/`.
 
-This is Pokémon Stadium **(USA) Revision 2** — a different, later cartridge printing than the US Revision 0 ROM the decomp section below uses for `make init`. The two are not interchangeable: dropping the decomp's `baserom.z64` in for this, or any other region/revision, will not work. If the file is missing or doesn't match, the script exits with a clear message rather than doing anything silently; see `web/ROM_ASSETS.md` for the exact size/hash and how validation works. Extracted/copyrighted assets are gitignored and never bundled or distributed with this repo.
+Note this is **Revision 2**, not the Revision 0 ROM the decomp section below uses — they're different dumps for two unrelated things in this repo (see below). If extraction doesn't kick in, the `[stadium assets]` line printed at startup says why (no ROM found, wrong revision, or failed extraction) — the browser console logs the same reason. Full details, hashes, and validation behavior: `web/ROM_ASSETS.md`. Extracted/copyrighted assets are gitignored and never bundled or distributed with this repo.
 
 See `CLAUDE.md` in this repo's root for a full breakdown of the engine subsystems and how they map from the original decomp to the web reimplementation.
 
 ## The decomp (`src/`, `include/`, `yamls/`, `tools/`)
 
-The rest of this repository is the underlying pret decomp: a WIP disassembly/decompilation of Pokémon Stadium (US) that reconstructs the original N64 source from the ROM.
+Unrelated to running the web game above — skip this unless you want to rebuild the original N64 ROM from source.
 
-It builds the following ROMs:
-
-* pokestadium.z64: `md5: ed1378bc12115f71209a77844965ba50`
-
-Note: To use this part of the repository, you must already have a rom for the game.
+The rest of this repository is the underlying pret decomp: a WIP disassembly/decompilation of Pokémon Stadium (US) that reconstructs the original N64 source from the ROM. It builds `pokestadium.z64` (`md5: ed1378bc12115f71209a77844965ba50`), and needs its own ROM dump to do it — a different one from the web game's, see above.
 
 ### Prerequisites
 
-Under Debian / Ubuntu (which we recommend using), you can install them with the following commands:
+Python 3.7+, plus `make`, `git`, a C build toolchain, and `binutils-mips-linux-gnu`. Example install on Debian/Ubuntu:
 
 ```bash
 sudo apt update
 sudo apt install make git build-essential binutils-mips-linux-gnu python3 python3-pip python3-venv
 ```
 
-**Please also ensure that the Python version installed is >3.7.**
-
-The build process has a few python packages required that are located in `requirements.txt`.
-
-To install them simply run in a terminal:
+Then install the required Python packages:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
 ### To use
-1. Place the US Pokemon Stadium 1.0 rom into the repository's "/baseroms/us/" folder as "baserom.z64".
+1. Place a US Pokémon Stadium **Revision 0** ROM into `baseroms/us/` as `baserom.z64`.
 2. Set up tools and extract the rom: `make init`
 3. Re-assemble the rom: `make`
 

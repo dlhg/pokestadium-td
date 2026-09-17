@@ -22,7 +22,6 @@ import fragment  # noqa: E402
 import rom  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_ROM = ROOT / 'baseroms/us/Pokemon Stadium (USA) (Rev 2).z64'
 DEFAULT_OUTPUT = ROOT / 'web/public/generated/stadium'
 ARCHIVES = {
     'battle_portraits': (0x535260, 54),
@@ -163,7 +162,8 @@ def validate(source: rom.Rom) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--rom', type=Path, default=DEFAULT_ROM)
+    parser.add_argument('--rom', type=Path, default=None,
+                         help='Defaults to whatever validates near baseroms/ -- filename does not matter.')
     parser.add_argument('--out', type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument('--venue', choices=sorted(arena.VENUE_MEMBERS), default='brock')
     parser.add_argument('--all-pokemon', action='store_true', help=argparse.SUPPRESS)
@@ -171,17 +171,23 @@ def main() -> int:
     parser.add_argument('--validate-only', action='store_true')
     args = parser.parse_args()
 
-    if not args.rom.exists():
+    rom_path = args.rom or rom.find_rom()
+    if rom_path is None:
         print(
-            f'{args.rom}: no ROM found here.\n'
-            f'This tool needs Pokémon Stadium (USA) Rev 2 at that exact path '
+            f'No Pokémon Stadium (USA) Rev 2 ROM found under {ROOT / "baseroms"} '
             f'(size {rom.ROM_SIZE:,} bytes, MD5 {rom.US_REV2_MD5}) -- a '
-            f'different revision or region will not work. See web/ROM_ASSETS.md.',
+            f'different revision or region will not work, but any filename does. '
+            f'See web/ROM_ASSETS.md.',
             file=sys.stderr,
         )
         return 1
 
-    source = rom.Rom(args.rom)
+    try:
+        source = rom.Rom(rom_path)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    args.rom = rom_path
     report = validate(source)
     print(json.dumps(report, indent=2))
     if args.validate_only:

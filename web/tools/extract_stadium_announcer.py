@@ -18,9 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'web/tools/stadium_pipeline'))
-from rom import Rom  # noqa: E402
+from rom import Rom, find_rom  # noqa: E402
 
-ROM_PATH = ROOT / 'baseroms/us/Pokemon Stadium (USA) (Rev 2).z64'
 OUTPUT = ROOT / 'web/public/generated/stadium/audio/announcer'
 CACHE = ROOT / 'web/.cache/stadium-audio'
 DECODER = CACHE / 'mort_decoder'
@@ -85,8 +84,8 @@ def ensure_decoder() -> Path:
     return DECODER
 
 
-def extract() -> None:
-    rom = Rom(ROM_PATH)
+def extract(rom_path: Path) -> None:
+    rom = Rom(rom_path)
     clips = collect_mort(rom.data)
     decoder = ensure_decoder()
     with tempfile.TemporaryDirectory(prefix='stadium-mort-clips-') as temporary:
@@ -114,11 +113,12 @@ def main() -> int:
     args = parser.parse_args()
     if (OUTPUT / 'manifest.json').is_file() and args.if_missing:
         return 0
-    if not ROM_PATH.is_file():
-        print('Stadium announcer: local ROM not found; using browser-speech fallback.')
+    rom_path = find_rom()
+    if rom_path is None:
+        print('Stadium announcer: no local ROM found; using browser-speech fallback.')
         return 0
     try:
-        extract()
+        extract(rom_path)
         print(f'Stadium announcer: extracted {CLIP_COUNT} original clips locally.')
     except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as error:
         print(f'Stadium announcer: {error}; using browser-speech fallback.', file=sys.stderr)

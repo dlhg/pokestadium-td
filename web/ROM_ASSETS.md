@@ -11,7 +11,9 @@ Only Pokémon Stadium (USA) Revision 2 is accepted:
 - Size: `33,554,432` bytes
 - MD5: `6dc6820cef755fc1253d06df45c9bd2a`
 - SHA-1: `0d3b1d740c6ee6da6923550bf24ad827262fd8c0`
-- Default local path: `baseroms/us/Pokemon Stadium (USA) (Rev 2).z64`
+- Recommended local path: `baseroms/us/Pokemon Stadium (USA) (Rev 2).z64` —
+  but the filename doesn't matter (see below); any `.z64`/`.n64`/`.v64`
+  dropped anywhere under `baseroms/` is found and checked automatically.
 
 "Rev 2" is a dump-preservation label (No-Intro/Redump style) for a later
 cartridge printing of the same US release. The game never displays this
@@ -21,8 +23,9 @@ image), which is Nintendo's internal cartridge revision field. Different
 revisions can differ byte-for-byte, and this pipeline's extraction offsets
 (`tools/stadium_pipeline/rom.py`) are hardcoded to this one printing, so any
 other revision — including the pret decomp's own default target, USA
-Revision 0 (see `AGENTS.md`) — is rejected rather than guessed at. Do not
-rename this image to `baserom.z64` or run its fixed-offset extraction.
+Revision 0 (see `AGENTS.md`) — is rejected rather than guessed at. Don't run
+the decomp's `make init` against this image (it expects Revision 0's
+different layout, at its own `baseroms/us/baserom.z64` convention).
 
 Watch out for one unrelated naming collision if you go looking for a copy:
 some ROM sites also list a `Pokemon Stadium (USA) (Rev A) (Kiosk Demo)`. That
@@ -31,11 +34,14 @@ revisions above — it's a different product entirely (a store kiosk demo
 cart) with its own, separate version history. Only a numbered `Rev 2` dump
 matching the hashes above will work here.
 
-### How the file is checked
+### How the file is found and checked
 
-`Rom.__init__` in `tools/stadium_pipeline/rom.py` validates the file's
-*contents*, not its name — a ROM dropped in with any filename or extension
-passes or fails the same way. In order:
+`find_rom()` in `tools/stadium_pipeline/rom.py` looks in the recommended
+spot first, then scans `baseroms/`, `web/baseroms/`, the repo root, and
+`web/` for any `.z64`/`.n64`/`.v64` file. Every image it finds is validated
+by *contents*, not name or location — a ROM dropped in with any filename
+passes or fails the same way, and the first one that validates is used. In
+order, validation is:
 
 1. **Header magic bytes** at offset 0 identify the on-disk byte order and
    normalize `.v64` (byte-swapped) and `.n64` (word-reversed) dumps to
@@ -45,10 +51,16 @@ passes or fails the same way. In order:
    `6dc6820cef755fc1253d06df45c9bd2a`.
 
 Any mismatch raises a `ValueError` naming the size/MD5 it found and the
-size/MD5 it expected. File extension only matters for auto-discovery: if no
-ROM is found at the default path, the pipeline scans `baseroms/` for any
-file ending in `.z64`, `.n64`, or `.v64` — that scan is just a convenience
-for locating a candidate file, not part of validating it.
+size/MD5 it expected. Pass `--rom` to any of the pipeline scripts to point
+at a specific file instead of auto-detecting.
+
+`npm run dev` and `npm run build` run
+`tools/check_stadium_assets.py --extract-if-missing` first. With a valid ROM
+and no extracted models (or models from a different ROM), it runs the full
+extraction below automatically, once, in about a minute. Otherwise it prints
+why the game will fall back to procedural models: no ROM found anywhere
+nearby, a ROM whose contents aren't Rev 2, or a failed extraction. In the
+browser, the model loader logs the fallback reason to the console.
 
 ## Vertical slice
 
