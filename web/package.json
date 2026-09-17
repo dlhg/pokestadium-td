@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "python3 tools/extract_stadium_announcer.py --if-missing && vite",
-    "build": "python3 tools/extract_stadium_announcer.py --if-missing && tsc && vite build",
+    "dev": "python3 tools/check_stadium_assets.py --extract-if-missing && python3 tools/extract_stadium_announcer.py --if-missing && vite",
+    "build": "python3 tools/check_stadium_assets.py --extract-if-missing && python3 tools/extract_stadium_announcer.py --if-missing && tsc && vite build",
     "preview": "vite preview",
     "test:gameplay": "node tools/test_gameplay_regressions.mjs",
     "test:maps": "node tools/test_map_layouts.mjs",

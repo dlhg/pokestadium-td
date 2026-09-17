@@ -48,7 +48,7 @@ The full, current file list always wins over any summary here — see the source
 
 ### Copyrighted assets
 
-Nintendo's original models, audio, and other ROM-derived assets are never bundled or committed. `web/public/music/*.mp3` and `public/generated/stadium/` are gitignored; the game runs fine without them and falls back to procedural audio/models. `npm run extract:stadium` can optionally regenerate local-only ROM-derived assets for players who own a legitimate copy — see `ROM_ASSETS.md`.
+Nintendo's original models, audio, and other ROM-derived assets are never bundled or committed. `web/public/music/*.mp3` and `public/generated/stadium/` are gitignored; the game runs fine without them and falls back to procedural audio/models. `npm run dev`/`build` auto-extract them once when a valid Rev 2 ROM is present and they're missing (`tools/check_stadium_assets.py`, which also prints why it fell back otherwise); `npm run extract:stadium` regenerates them manually — see `ROM_ASSETS.md`.
 
 ---
 

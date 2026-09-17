@@ -36,9 +36,23 @@ export class GLTFModelLoader {
 
   private static loadManifest(): Promise<StadiumManifest | null> {
     if (!this.manifestPromise) {
-      this.manifestPromise = fetch(`${this.baseUrl}manifest.json`)
-        .then((response) => response.ok ? response.json() : null)
-        .catch(() => null);
+      const url = `${this.baseUrl}manifest.json`;
+      const fallback = (reason: string) => {
+        console.warn(`[GLTFModelLoader] Using procedural models: ${reason}. `
+          + 'Put the Pokemon Stadium (USA) Rev 2 ROM in baseroms/us/ and run `npm run extract:stadium` from web/ (see web/ROM_ASSETS.md).');
+        return null;
+      };
+      // Vite answers a missing file with index.html and a 200, so a bad parse means "not extracted" too.
+      this.manifestPromise = fetch(url)
+        .then(async (response) => {
+          if (!response.ok) return fallback(`${url} returned HTTP ${response.status}`);
+          try {
+            return JSON.parse(await response.text()) as StadiumManifest;
+          } catch {
+            return fallback(`${url} is missing (the server returned something other than JSON)`);
+          }
+        })
+        .catch((error) => fallback(`${url} could not be fetched (${error})`));
     }
     return this.manifestPromise;
   }
