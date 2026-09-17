@@ -78,9 +78,7 @@ from the common menu UI bank, and converts member 7 of `stadium_models`
 
 Output lives under `web/public/generated/stadium/` and is gitignored. The game
 loads it lazily. If the manifest, a species, or the arena cache is absent, the
-existing procedural art remains the explicit fallback. The older files under
-`web/public/models/` came from a third-party model service; they are not
-Pokémon Stadium assets and the authentic loader no longer reads them.
+existing procedural art remains the explicit fallback.
 
 For a quick Pikachu-only extraction smoke test:
 
