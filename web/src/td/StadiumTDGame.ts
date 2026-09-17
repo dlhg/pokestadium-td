@@ -13,7 +13,7 @@ import { ParticleSystem } from '../engine/ParticleSystem';
 import { Input } from '../engine/Input';
 import { StadiumArena, type BuildBlockReason } from '../stadium/StadiumArena';
 import { StadiumAnnouncer } from '../stadium/Announcer';
-import { StadiumUI, type CatchSlot, type PlacementStatus, type SignatureSlot } from './StadiumUI';
+import { StadiumUI, type CatchSlot, type CatchSlowMoMode, type PlacementStatus, type SignatureSlot } from './StadiumUI';
 import {
   Tower,
   TARGET_PRIORITIES,
@@ -39,7 +39,7 @@ import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
 import { speciesForCreepName } from './progression/Species';
-import { createPokemon, displayName, MATCH_GUEST_SLOTS, OwnedPokemon, speciesOf, TrainerStore } from './progression/TrainerStore';
+import { createPokemon, displayName, MATCH_GUEST_SLOTS, OwnedPokemon, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { MatchProgress, XpAward } from './progression/MatchProgress';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
@@ -123,6 +123,8 @@ export class StadiumTDGame {
   private summonCinematics = true;
   /** Super/not-very-effective popups are off by default; immunity always shows. */
   private showTypeEffectiveness = false;
+  /** Whether a catchable creep cancels the game-speed setting back to 1x. */
+  private catchSlowMoMode: CatchSlowMoMode = 'new';
 
   /** The team this match was started with, plus anything caught during it. */
   public roster: OwnedPokemon[] = [];
@@ -196,7 +198,10 @@ export class StadiumTDGame {
     this.ui.setSummonCinematics(this.summonCinematics);
     this.showTypeEffectiveness = readTypeEffectivenessSetting();
     this.ui.setTypeEffectivenessInfo(this.showTypeEffectiveness);
-    this.ui.setAudioVolumes(this.audio.getMusicVolume(), this.audio.getSfxVolume());
+    this.catchSlowMoMode = readCatchSlowMoSetting();
+    this.ui.setCatchSlowMoMode(this.catchSlowMoMode);
+    this.ui.setAudioVolumes(this.audio.getMusicVolume(), this.audio.getSfxVolume(), this.audio.getAnnouncerVolume());
+    this.announcer.setVoiceVolume(this.audio.getAnnouncerVolume());
 
   }
 
@@ -251,8 +256,19 @@ export class StadiumTDGame {
       this.ui.setTypeEffectivenessInfo(this.showTypeEffectiveness);
       this.audio.playSelect();
     };
+    this.ui.onToggleCatchSlowMo = () => {
+      const next: Record<CatchSlowMoMode, CatchSlowMoMode> = { off: 'new', new: 'always', always: 'off' };
+      this.catchSlowMoMode = next[this.catchSlowMoMode];
+      writeCatchSlowMoSetting(this.catchSlowMoMode);
+      this.ui.setCatchSlowMoMode(this.catchSlowMoMode);
+      this.audio.playSelect();
+    };
     this.ui.onMusicVolumeChange = value => this.audio.setMusicVolume(value);
     this.ui.onSfxVolumeChange = value => this.audio.setSfxVolume(value);
+    this.ui.onAnnouncerVolumeChange = value => {
+      this.audio.setAnnouncerVolume(value);
+      this.announcer.setVoiceVolume(value);
+    };
     this.ui.onCastSignature = (tower, signatureId) => this.requestSignature(tower, signatureId);
     this.ui.onSelectMember = (member) => {
       if (this.selectedTower) {
@@ -615,6 +631,15 @@ export class StadiumTDGame {
     return this.creeps.filter(creep => creep.catchable).sort((a, b) => b.pathProgress - a.pathProgress);
   }
 
+  /** Whether this creep's species isn't in the collection yet — used by
+   *  CATCH SLOW-MO's "new only" mode. An unrecognized creep name (should not
+   *  happen for anything actually catchable) counts as uncaught, erring
+   *  toward giving the player the reaction window rather than not. */
+  private isUncaughtSpecies(creep: Creep): boolean {
+    const match = speciesForCreepName(creep.name);
+    return !match || !this.store.hasSpecies(match.speciesId);
+  }
+
   /** Odds a ball would catch this Pokémon right now, before the release meter. */
   private captureChance(target: Creep, ball: BallType): number {
     const ballBonus: Record<BallType, number> = { poke: 0, great: 0.20, ultra: 0.42 };
@@ -693,12 +718,16 @@ export class StadiumTDGame {
       this.namingHold = true;
     }
     const duplicate = this.store.hasSpecies(pokemon.speciesId);
+    // An open team slot takes a mid-match catch straight onto the permanent
+    // team; the guest-slot system only kicks in once the team is full, so a
+    // full team never gets mistaken for "no roster space" (round 2 feedback #23).
+    const openTeamSlot = this.store.team.length < TEAM_SIZE;
     const guestSlotsLeft = Math.max(0, MATCH_GUEST_SLOTS - this.guestSlotsUsed);
-    this.ui.showCaptureTrophy(pokemon, duplicate, guestSlotsLeft, (name, destination) => {
+    this.ui.showCaptureTrophy(pokemon, duplicate, openTeamSlot, guestSlotsLeft, (name, destination) => {
       if (destination === 'match' || destination === 'storage') {
-        this.store.add(pokemon, false);
+        this.store.add(pokemon, destination === 'match' && openTeamSlot);
         if (destination === 'match') {
-          this.guestSlotsUsed++;
+          if (!openTeamSlot) this.guestSlotsUsed++;
           this.roster.push(pokemon);
         }
         this.progress.track(pokemon, true);
@@ -962,7 +991,19 @@ export class StadiumTDGame {
     const captureScale = this.capture ? this.capture.sequence.worldTimeScale : 1;
     const evolutionScale = this.evolution ? this.evolution.sequence.worldTimeScale : 1;
     const summonScale = this.summon ? this.summon.sequence.worldTimeScale : 1;
-    const dt = this.isPaused ? 0 : realDt * this.gameSpeed * captureScale * evolutionScale * summonScale;
+    // A catchable creep can faint to ordinary tower damage before the player
+    // manages to throw a ball at it, and at high game speeds that reaction
+    // window shrinks along with everything else. Canceling gameSpeed back to
+    // 1x while anything is catchable (and no throw is already underway, at
+    // which point captureScale takes over) keeps the window's real-time
+    // length constant no matter the speed setting (round 2 feedback #13).
+    // Player-tunable via CATCH SLOW-MO: off, new species only, or always.
+    const catchableScale = this.catchSlowMoMode !== 'off' && !this.capture && this.gameSpeed > 1
+      && this.creeps.some(creep => creep.catchable
+        && (this.catchSlowMoMode === 'always' || this.isUncaughtSpecies(creep)))
+      ? 1 / this.gameSpeed
+      : 1;
+    const dt = this.isPaused ? 0 : realDt * this.gameSpeed * catchableScale * captureScale * evolutionScale * summonScale;
 
     // Update Wave Manager
     if (dt > 0) this.waveManager.update(
@@ -1523,6 +1564,25 @@ function readTypeEffectivenessSetting(): boolean {
 function writeTypeEffectivenessSetting(enabled: boolean): void {
   try {
     localStorage.setItem(TYPE_EFFECTIVENESS_KEY, enabled ? 'on' : 'off');
+  } catch {
+    // Storage can be unavailable (private windows); the setting just won't stick.
+  }
+}
+
+const CATCH_SLOWMO_KEY = 'pokestadium.catchSlowMo';
+
+function readCatchSlowMoSetting(): CatchSlowMoMode {
+  try {
+    const value = localStorage.getItem(CATCH_SLOWMO_KEY);
+    return value === 'off' || value === 'new' || value === 'always' ? value : 'new';
+  } catch {
+    return 'new';
+  }
+}
+
+function writeCatchSlowMoSetting(mode: CatchSlowMoMode): void {
+  try {
+    localStorage.setItem(CATCH_SLOWMO_KEY, mode);
   } catch {
     // Storage can be unavailable (private windows); the setting just won't stick.
   }

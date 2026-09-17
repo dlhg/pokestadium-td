@@ -5,8 +5,39 @@ numbering from `playtest-feedback.md` (round 1, items 1–11). Each item gets
 an interview pass with Drew before any change is scoped or implemented.
 Status starts at `unreviewed` for all items.
 
+## Implementation order
+
+Decided 2026-09-17, once every item above had been interviewed. Grouped by
+risk/scope rather than item number — front-load items where the interview
+already pinned down the exact fix, save the two open-ended systems for
+last.
+
+1. **Batch 1 — quick, surgical, independent.** #30 pause text, #15
+   "creep"→"enemy" sweep, #12 audio defaults + announcer slider, #23
+   roster/guest-slot fill, #13 catch-speed exemption, #36 bench→storage
+   mid-match. Exact code locations already pinned down during the
+   interview; single-file changes, low regression risk.
+2. **Batch 2 — self-contained UI features, moderate scope.** #19
+   upgrade-visibility tooltip, #21 per-attacker "no effect" popup (extends
+   round 1's #6 immunity-popup system), #18/20 catch-anim shorten + skip
+   control.
+3. **Batch 3 — needs a little design work before coding.** #24/27
+   special-move discoverability (tutorial callout + tooltip), #25 floating
+   damage numbers, #14 pokeball-vs-Pokémon visual tuning (needs eyeballing
+   in the browser, not just code).
+4. **Batch 4 — balance pass, bundled since these compound on each other.**
+   #16 catch-rate tightening (check the escape-chance formula first), #35
+   XP curve slowdown, #31 upgrade costs, #32/37 stun-lock stacking.
+5. **Batch 5 — big standalone systems, do last.** #28/33 special-move
+   VFX/anim/SFX baseline (own research pass first), #34 Titan specialness
+   (own scoping pass across stats/moves/model).
+
+Left parked, not scheduled: #17 (ghost visibility — needs pacing
+research), #22 (Dragonair anim — explicitly low value), #38 (PvP
+inspiration — backlog).
+
 ## 12. Audio bug — still plays at 0%, and 0% was the player's default
-Status: interviewed — ready to implement
+Status: done
 
 Research findings:
 - `StadiumAudio.ts` `readAudioVolume()`: `Number(localStorage.getItem(...))`
@@ -28,8 +59,23 @@ Decisions:
   toggle. This also resolves item 26 (see below) — the slider reaching 0
   serves as "off," no separate toggle needed.
 
+Implementation:
+- `readAudioVolume()` now checks `localStorage.getItem(...) === null`
+  explicitly before falling back, instead of letting `Number(null)` (which
+  is `0`) slip past `Number.isFinite`.
+- Added `StadiumAudio.setAnnouncerVolume`/`getAnnouncerVolume`, persisted
+  under `pokestadium.announcerVolume` alongside music/sfx.
+- `StadiumAnnouncer` gained a `voiceVolume` field and `setVoiceVolume()`;
+  `speak()` now uses `this.voiceVolume * 0.9` (keeping the original 0.9
+  headroom at full volume) instead of a hardcoded `0.9`, and short-circuits
+  entirely when volume is 0. The existing `voiceEnabled` flag (used for
+  headless/screenshot capture, unrelated to player settings) is untouched.
+- Added a third "ANNOUNCER" slider to the pause screen, wired the same way
+  as MUSIC/SFX (`StadiumUI.onAnnouncerVolumeChange` → `StadiumTDGame`),
+  and synced it at startup so a saved value takes effect immediately.
+
 ## 13. Difficult to catch Rattata before it dies; not obvious that lowering game speed helps
-Status: interviewed — ready to implement
+Status: done
 
 Player was on 3x speed.
 
@@ -48,6 +94,50 @@ Decisions:
   close to real-time regardless of the player's speed setting, so
   cranking game speed doesn't quietly shrink the catch window.
 
+Implementation:
+- The QTE case was already covered by existing code once its own bug was
+  fixed: the `worldTimeScale` comment claimed the capture sequence "runs
+  in real time," but `gameSpeed` was still being multiplied into `dt`
+  alongside it, contradicting that. No separate fix needed there beyond
+  the pre-throw case below — `captureScale` already dominates once a
+  throw starts.
+- Added a `catchableScale` factor to `StadiumTDGame`'s per-frame `dt`
+  calculation: while any creep is catchable and no capture/evolution/
+  summon sequence is already running, it cancels `gameSpeed` back out to
+  1x (`1 / gameSpeed`), so the real-time length of the catchable-to-death
+  window no longer depends on the speed setting. At 1x it's a no-op.
+- Verified with `npm run test:gameplay` and `npm run test:maps` (both
+  pass) — no existing regression covers this specific case, so this is a
+  code-review-level check, not a new automated test.
+
+Follow-up from Drew after playtesting the fix: it's a *global* slowdown
+(the whole board dips to 1x, not just the catchable creep), and while he
+liked it, he didn't want it forced on every player by default. Added a
+player-facing three-state toggle rather than shipping it as fixed
+behavior:
+
+- **`CATCH SLOW-MO: OFF / NEW ONLY / ALWAYS`** — a small tab attached to
+  the bottom edge of the existing `SPEED` control-group in the live HUD
+  (not the pause menu — the pause menu was rejected because a player
+  changing their speed setting would have no reason to open Escape and
+  discover a compensating toggle exists; living right next to `SPEED`
+  means they see it exactly when it's relevant). No spare width next to
+  `SPEED`/`CAMERA` in that row, so it hangs underneath instead of
+  crowding sideways — a new `.control-group-tab` style, not a third
+  `control-group`.
+- **OFF** — today's pre-fix behavior, gameSpeed always applies as-is.
+- **NEW ONLY** (default) — only triggers for a catchable creep whose
+  species isn't in the collection yet (`store.hasSpecies()`, matched via
+  the same `speciesForCreepName` lookup the catch flow already uses).
+  Chosen as the default over ALWAYS so veteran players speed-running past
+  a fifth Rattata don't get slowed down for a catch they don't need.
+- **ALWAYS** — the originally-shipped behavior, any catchable creep
+  triggers it.
+- Persisted to `localStorage` (`pokestadium.catchSlowMo`), same pattern as
+  the other pause-menu toggles (signature cuts, summon cinematics, type
+  effectiveness). Verified all three states cycle correctly and the tab's
+  gold "active" styling drops on OFF, via a live browser check.
+
 ## 14. Pokéball prop on the platform stands out more than the small Pokémon (e.g. Rattata)
 Status: interviewed — ready to implement
 
@@ -60,7 +150,7 @@ Decisions:
   hierarchy problem.
 
 ## 15. "Drain the creep" is unclear; "creep" as a term is unclear
-Status: interviewed — ready to implement
+Status: done
 
 Research findings:
 - Source is `Species.ts`'s Bulbasaur/Oddish "Leech Seed" tooltip:
@@ -80,6 +170,18 @@ Decisions:
   effect with no actual lifesteal) is noted but **not actioned this
   round** — flagged for a future pass, either reword to plain DoT
   language or give Leech Seed real lifesteal.
+
+Implementation:
+- Swept `Species.ts` and `Signatures.ts` (the only files with player-facing
+  "creep" text — confirmed by grepping the rest of `src/td`) for every
+  `tier(...)`/`def(...)`/`description:` line containing "creep(s)", 93
+  lines total, replacing with "enemy"/"enemies" (and "Creeps"→"Enemies" at
+  sentence starts). Left untouched: the `Creep` class/type itself, and
+  internal variable/parameter names and comments in both files (e.g.
+  `creeps: Creep[]`, `function targetable(creep: Creep, ...)`) — those
+  aren't player-facing and renaming them risked breaking code for no
+  player-visible benefit.
+- `npx tsc --noEmit` clean after the sweep.
 
 ## 16. Catching is still too easy — catch rate too high
 Status: interviewed — confirmed, needs implementation pass
@@ -163,7 +265,7 @@ Decisions:
   fix effort relative to other items in this round. Revisit later.
 
 ## 23. Player had 5/6 team slots but a mid-match catch only offered "send to storage"
-Status: interviewed — ready to implement
+Status: done
 
 Research findings:
 - Two unrelated caps exist: the persistent `TEAM_SIZE = 6` roster, and a
@@ -180,6 +282,20 @@ Decisions:
   straight into it directly, instead of being gated by the separate
   match-guest-slot system at all. This removes the confusing case
   entirely rather than just relabeling it.
+
+Implementation:
+- `StadiumTDGame.promptCaughtPokemon` now computes `openTeamSlot =
+  this.store.team.length < TEAM_SIZE` and passes it into
+  `showCaptureTrophy`. When true, `store.add(pokemon, true)` (auto-fills
+  the first open team slot, permanent) runs instead of `store.add(pokemon,
+  false)` + a guest-slot spend — the catch still joins `this.roster` for
+  immediate use this match either way.
+- `StadiumUI.showCaptureTrophy` shows a plain "ADD TO TEAM" button and a
+  "TEAM: OPEN SLOT" note when a team slot is open, instead of the
+  guest-slot language — so a full team is the only time "MATCH GUESTS"
+  wording appears at all.
+- Verified with `npm run test:gameplay` (passes, including the existing
+  roster regression) and `npx tsc --noEmit` (clean).
 
 ## 24. Special move trigger row isn't obvious / 27. Don't know what specials do, tooltip should be bigger
 Status: interviewed — ready to implement
@@ -276,7 +392,7 @@ Decisions:
   layout, not just a code change. Parked as a future, separate effort.
 
 ## 30. Pause screen should just say "PAUSED"
-Status: interviewed — ready to implement
+Status: done
 
 Research findings:
 - Current pause overlay (`StadiumUI.ts` ~1528–1531) shows a kicker
@@ -285,6 +401,11 @@ Research findings:
 Decisions:
 - Simplify to plainly read "PAUSED" — drop the "TAKE A BREATHER" flavor
   text; the kicker/headline should just state the state, not add copy.
+
+Implementation:
+- Collapsed the kicker + headline + "The stadium will wait for you." line
+  down to a single `<h2 id="pause-title">PAUSED</h2>`. No CSS changes
+  needed — neither element had bespoke styling to begin with.
 
 ## 31. Make upgrades more expensive (game too easy)
 Status: interviewed — not actioned this round
@@ -331,12 +452,26 @@ Decisions:
   the committed starting move.
 
 ## 36. Want to send a Pokémon from the bench back to storage mid-match
-Status: interviewed — ready to implement
+Status: done — already implemented, no code change needed
 
 Decisions:
 - Allow it with no restrictions. Bench Pokémon aren't deployed/committed
   to the board, so sending one to storage mid-match is low-risk — just
   add the action.
+
+Implementation:
+- Traced the full call chain and found this already works exactly as
+  decided: every roster card in the live in-match bench panel
+  (`StadiumUI.renderCardDeck`) renders a "STORE" button, gated only on
+  `!storageButton.disabled` (which tracks whether that specific Pokémon is
+  currently placed as a tower — `StadiumUI.update`, synced every frame).
+  `StadiumTDGame.onStoreMember` requires `this.matchActive` to be true and
+  the member not `isDeployed`, i.e. it's mid-match-only by construction —
+  there was no separate pre/post-match gate to remove. No discoverability
+  issue found in the code either (unconditional button, not hidden behind
+  a menu). Left as-is; flag to Drew if a live playtest still can't find
+  it, since this may be a case of the feedback predating this button's
+  addition rather than a real current gap.
 
 ## 38. Look into "Devil's Chess" for PvP inspiration
 Status: interviewed — parked as backlog

@@ -13,6 +13,7 @@ export interface AnnouncerQuote {
 export class StadiumAnnouncer {
   private currentBanner: { text: string; timer: number; intensity: string } | null = null;
   private voiceEnabled: boolean = true;
+  private voiceVolume: number = 1;
   private lastSpeakTime: number = 0;
   private static readonly speechPolicy: Partial<Record<string, { cooldown: number; chance: number }>> = {
     battle_start: { cooldown: 0, chance: 1 },
@@ -162,7 +163,7 @@ export class StadiumAnnouncer {
   }
 
   private speak(event: string, cooldown: number): void {
-    if (!this.voiceEnabled) return;
+    if (!this.voiceEnabled || this.voiceVolume <= 0) return;
 
     // Throttle speech so it doesn't overlap excessively
     const now = performance.now();
@@ -174,7 +175,9 @@ export class StadiumAnnouncer {
     this.lastSpeakTime = now;
     const clip = clips[Math.floor(Math.random() * clips.length)];
     const nativeVoice = new Audio(`/generated/stadium/audio/announcer/stadium_mort_${String(clip).padStart(3, '0')}.wav`);
-    nativeVoice.volume = 0.9;
+    // 0.9 headroom at full volume keeps clips from ever hitting a hard 1.0
+    // ceiling; the player's announcer-volume setting scales down from there.
+    nativeVoice.volume = this.voiceVolume * 0.9;
     nativeVoice.play().catch(() => {
       // Audio blocked by browser autoplay policy until user gesture
     });
@@ -205,5 +208,11 @@ export class StadiumAnnouncer {
 
   public setVoiceEnabled(val: boolean): void {
     this.voiceEnabled = val;
+  }
+
+  /** Player-facing announcer-voice volume (0–1), independent of the internal
+   *  voiceEnabled flag used for headless/screenshot capture. */
+  public setVoiceVolume(value: number): void {
+    this.voiceVolume = Math.max(0, Math.min(1, value));
   }
 }

@@ -68,6 +68,10 @@ function defensiveNotes(types: PokemonType[], includeWeaknesses: boolean): strin
   return parts.join(' · ');
 }
 
+/** Whether a catchable creep briefly cancels the player's game-speed setting
+ *  back to 1x: never, only for species not yet in the collection, or always. */
+export type CatchSlowMoMode = 'off' | 'new' | 'always';
+
 /** What the roster hint says about the spot the cursor is currently over. */
 export interface PlacementStatus {
   valid: boolean;
@@ -222,8 +226,10 @@ export class StadiumUI {
   public onToggleSignatureCuts: () => void = () => {};
   public onToggleSummonCinematics: () => void = () => {};
   public onToggleTypeEffectivenessInfo: () => void = () => {};
+  public onToggleCatchSlowMo: () => void = () => {};
   public onMusicVolumeChange: (value: number) => void = () => {};
   public onSfxVolumeChange: (value: number) => void = () => {};
+  public onAnnouncerVolumeChange: (value: number) => void = () => {};
   public onQuitToMenu: () => void = () => {};
   public onRetryMap: () => void = () => {};
   public onCatch: (creep: Creep) => void = () => {};
@@ -559,7 +565,7 @@ export class StadiumUI {
         .sig-pp i.on { background:#f6c437; }
         .sig-key { position:absolute; top:-8px; right:-6px; min-width:16px; padding:1px 3px; background:#f6c437; color:#07162f; font-size:13px; line-height:1; text-align:center; border:1px solid #07162f; }
         .pause-setting { margin-top:10px; font-size:12px; }
-        .pause-audio { display:grid; grid-template-columns:64px 1fr 34px; align-items:center; gap:8px; margin-top:10px; font-size:11px; letter-spacing:1px; color:#bcd7ec; }
+        .pause-audio { display:grid; grid-template-columns:82px 1fr 34px; align-items:center; gap:8px; margin-top:10px; font-size:11px; letter-spacing:1px; color:#bcd7ec; }
         .pause-audio input { width:100%; accent-color:#f6c437; }
         .pause-audio output { color:#f6c437; text-align:right; }
         #capture-kit { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:grid; gap:5px; }
@@ -666,6 +672,37 @@ export class StadiumUI {
           flex: 0 0 auto;
           display: flex;
           gap: 8px;
+        }
+
+        /* A small flap under the SPEED group rather than a third control-group
+           of its own — there's no spare width in this row, but there's height. */
+        .control-group-tab {
+          display: block;
+          width: 100%;
+          margin-top: 4px;
+          padding: 3px 6px;
+          background: linear-gradient(180deg, #1c3554 0%, #0f2138 100%);
+          color: #9fc4e8;
+          border: 1px solid #3a5d84;
+          border-radius: 3px;
+          font-family: 'Rajdhani', sans-serif;
+          font-weight: 700;
+          font-size: 9px;
+          letter-spacing: 0.5px;
+          text-align: center;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .control-group-tab:hover {
+          border-color: #00f0ff;
+          color: #fff;
+        }
+
+        .control-group-tab.active {
+          background: linear-gradient(180deg, #ffd700 0%, #e08b00 100%);
+          color: #051329;
+          border-color: #fff;
         }
 
         .stadium-btn {
@@ -1478,6 +1515,7 @@ export class StadiumUI {
               <button class="stadium-btn" id="btn-speed-3">3X</button>
               <button class="stadium-btn" id="btn-speed-4">4X</button>
             </div>
+            <button class="control-group-tab" id="btn-catch-slowmo" title="When a Pokémon becomes catchable, briefly cancel your speed setting back to 1x so it doesn't faint before you can react">CATCH SLOW-MO: NEW ONLY</button>
           </div>
           <div class="control-group" aria-label="Camera">
             <span class="control-group-label">CAMERA</span>
@@ -1527,9 +1565,7 @@ export class StadiumUI {
 
       <div id="pause-screen" class="interactive" hidden>
         <section class="pause-card stadium-panel" aria-labelledby="pause-title">
-          <div class="pause-kicker">MATCH PAUSED</div>
-          <h2 id="pause-title">TAKE A BREATHER</h2>
-          <p>The stadium will wait for you.</p>
+          <h2 id="pause-title">PAUSED</h2>
           <div class="pause-actions">
             <button class="stadium-btn active" id="btn-pause-resume">RESUME</button>
             <button class="stadium-btn" id="btn-pause-quit">QUIT TO COURSE SELECT</button>
@@ -1550,6 +1586,7 @@ export class StadiumUI {
           </div>
           <div class="pause-audio"><label for="pause-music-volume">MUSIC</label><input id="pause-music-volume" type="range" min="0" max="100" value="100"><output id="pause-music-volume-value">100%</output></div>
           <div class="pause-audio"><label for="pause-sfx-volume">SFX</label><input id="pause-sfx-volume" type="range" min="0" max="100" value="100"><output id="pause-sfx-volume-value">100%</output></div>
+          <div class="pause-audio"><label for="pause-announcer-volume">ANNOUNCER</label><input id="pause-announcer-volume" type="range" min="0" max="100" value="100"><output id="pause-announcer-volume-value">100%</output></div>
         </section>
       </div>
 
@@ -1830,6 +1867,7 @@ export class StadiumUI {
     document.getElementById('btn-signature-cuts')!.addEventListener('click', () => this.onToggleSignatureCuts());
     document.getElementById('btn-summon-cinematics')!.addEventListener('click', () => this.onToggleSummonCinematics());
     document.getElementById('btn-type-effectiveness')!.addEventListener('click', () => this.onToggleTypeEffectivenessInfo());
+    document.getElementById('btn-catch-slowmo')!.addEventListener('click', () => this.onToggleCatchSlowMo());
     const uiScale = document.getElementById('pause-ui-scale') as HTMLSelectElement;
     uiScale.value = String(this.uiScalePreference);
     uiScale.addEventListener('change', () => {
@@ -1848,6 +1886,7 @@ export class StadiumUI {
     };
     bindVolume('pause-music-volume', 'pause-music-volume-value', value => this.onMusicVolumeChange(value));
     bindVolume('pause-sfx-volume', 'pause-sfx-volume-value', value => this.onSfxVolumeChange(value));
+    bindVolume('pause-announcer-volume', 'pause-announcer-volume-value', value => this.onAnnouncerVolumeChange(value));
     this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(button=>{
       button.addEventListener('click',()=>{
         const filter=button.dataset.difficulty;
@@ -2273,6 +2312,7 @@ export class StadiumUI {
   public showCaptureTrophy(
     pokemon: OwnedPokemon,
     duplicate: boolean,
+    openTeamSlot: boolean,
     guestSlotsLeft: number,
     onNamed: (name: string | null, destination: 'match' | 'storage' | 'research') => void,
   ): void {
@@ -2283,6 +2323,14 @@ export class StadiumUI {
     const moves = species.paths.map(path =>
       `<div class="trophy-move"><span>${path.tiers[0].name.toUpperCase()}</span><em>${path.label}</em></div>`
     ).join('');
+    // An open team slot is a permanent add, not a temporary match guest, so
+    // it gets its own label rather than borrowing the guest-slot language.
+    const noteTail = openTeamSlot
+      ? 'TEAM: OPEN SLOT'
+      : guestSlotsLeft ? `MATCH GUESTS: ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT` : 'MATCH GUESTS FULL';
+    const addButton = openTeamSlot
+      ? '<button class="stadium-btn active" type="submit">ADD TO TEAM</button>'
+      : guestSlotsLeft ? `<button class="stadium-btn active" type="submit">ADD TO MATCH · ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT</button>` : '';
     card.innerHTML = `
       <div class="trophy-stage"></div>
       <div class="trophy-copy">
@@ -2290,12 +2338,12 @@ export class StadiumUI {
         <div class="trophy-name">${form.name.toUpperCase()} <small>LV ${pokemon.level}</small></div>
         <div class="trophy-type" style="background:${typeColor}">${form.type.toUpperCase()}</div>
         <div class="trophy-moves">${moves}</div>
-        <div class="trophy-duplicate-note">${duplicate ? 'You already own this species.' : 'Choose where this Pokémon goes.'} ${guestSlotsLeft ? `MATCH GUESTS: ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT` : 'MATCH GUESTS FULL'}</div>
+        <div class="trophy-duplicate-note">${duplicate ? 'You already own this species.' : 'Choose where this Pokémon goes.'} ${noteTail}</div>
         <form class="trophy-nickname">
           <label for="trophy-nickname-input">GIVE A NICKNAME TO ${form.name.toUpperCase()}?</label>
           <div class="trophy-nickname-row">
             <input id="trophy-nickname-input" maxlength="10" autocomplete="off" placeholder="${form.name}">
-            ${guestSlotsLeft ? `<button class="stadium-btn active" type="submit">ADD TO MATCH · ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT</button>` : ''}
+            ${addButton}
             <button class="stadium-btn" type="button" data-storage>SEND TO STORAGE</button>
             ${duplicate ? '<button class="stadium-btn" type="button" data-research>SEND TO RESEARCH</button>' : ''}
           </div>
@@ -2319,7 +2367,7 @@ export class StadiumUI {
     };
     card.querySelector('form')!.addEventListener('submit', (event) => {
       event.preventDefault();
-      if (guestSlotsLeft) finish(input.value.trim() || null, 'match');
+      if (openTeamSlot || guestSlotsLeft) finish(input.value.trim() || null, 'match');
     });
     card.querySelector('[data-storage]')!.addEventListener('click', () => finish(input.value.trim() || null, 'storage'));
     card.querySelector('[data-research]')?.addEventListener('click', () => finish(null, 'research'));
@@ -2510,6 +2558,13 @@ export class StadiumUI {
     document.getElementById('btn-type-effectiveness')!.textContent = `TYPE EFFECTIVENESS INFO: ${enabled ? 'ON' : 'OFF'}`;
   }
 
+  public setCatchSlowMoMode(mode: CatchSlowMoMode): void {
+    const label = mode === 'off' ? 'OFF' : mode === 'new' ? 'NEW ONLY' : 'ALWAYS';
+    const button = document.getElementById('btn-catch-slowmo')!;
+    button.textContent = `CATCH SLOW-MO: ${label}`;
+    button.classList.toggle('active', mode !== 'off');
+  }
+
   /** Drops a floating combat-text callout (crit, immunity, type effectiveness) at a screen point. */
   public spawnCombatText(x: number, y: number, text: string, color: string): void {
     const el = document.createElement('span');
@@ -2522,10 +2577,11 @@ export class StadiumUI {
     this.combatTextLayerEl.appendChild(el);
   }
 
-  public setAudioVolumes(music: number, sfx: number): void {
+  public setAudioVolumes(music: number, sfx: number, announcer: number): void {
     for (const [id, outputId, value] of [
       ['pause-music-volume', 'pause-music-volume-value', music],
       ['pause-sfx-volume', 'pause-sfx-volume-value', sfx],
+      ['pause-announcer-volume', 'pause-announcer-volume-value', announcer],
     ] as [string, string, number][]) {
       const input = document.getElementById(id) as HTMLInputElement | null;
       const output = document.getElementById(outputId);

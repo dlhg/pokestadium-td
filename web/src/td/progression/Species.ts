@@ -79,7 +79,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'spores', label: 'SPORES', tiers: [
         tier('Stun Spore', 100, undefined, 'Every 4th attack drops a patch of spores that paralyzes.',
           { kind: 'hazard', hazard: 'stun_spore', everyNth: 4 }),
-        tier('Sleep Powder', 220, 8, 'Patches become bigger, last longer, and put creeps to sleep.',
+        tier('Sleep Powder', 220, 8, 'Patches become bigger, last longer, and put enemies to sleep.',
           { kind: 'hazard', hazard: 'sleep_powder', everyNth: 3 }),
         tier('Spore Carpet', 400, 16, 'Patches drop every other attack. Unlocks Spore Carpet.',
           { kind: 'hazard', hazard: 'sleep_powder', everyNth: 2 }, { kind: 'signature', signatureId: 'spore_carpet' }),
@@ -94,9 +94,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'scale', damage: 1.4 }, { kind: 'signature', signatureId: 'solar_beam' }),
       ] },
       { id: 'growth', label: 'GROWTH', tiers: [
-        tier('Leech Seed', 110, undefined, 'Hits may plant a seed that drains the creep for 8 s.',
+        tier('Leech Seed', 110, undefined, 'Hits may plant a seed that drains the enemy for 8 s.',
           { kind: 'onHitStatus', status: 'poison', chance: 0.35, duration: 8 }),
-        tier('Spreading Roots', 200, 8, 'When a seeded creep faints, the seed jumps to the nearest creep.',
+        tier('Spreading Roots', 200, 8, 'When a seeded enemy faints, the seed jumps to the nearest enemy.',
           { kind: 'seedJump', radius: 7 }),
         tier('Growth', 380, 16, 'Towers in range attack 15% faster. Unlocks Growth.',
           { kind: 'rateAura', bonus: 0.15 }, { kind: 'signature', signatureId: 'growth' }),
@@ -121,7 +121,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'wildfire', label: 'WILDFIRE', tiers: [
         tier('Ember Trail', 120, undefined, 'Every 3rd attack leaves burning embers on the lane.',
           { kind: 'hazard', hazard: 'ember_patch', everyNth: 3 }),
-        tier('Fire Spin', 230, 8, 'The embers become a vortex that briefly traps creeps.',
+        tier('Fire Spin', 230, 8, 'The embers become a vortex that briefly traps enemies.',
           { kind: 'hazard', hazard: 'fire_spin_patch', everyNth: 3 }),
         tier('Blaze', 400, 16, 'Fire Spin drops every other attack. Unlocks Blaze.',
           { kind: 'hazard', hazard: 'fire_spin_patch', everyNth: 2 }, { kind: 'signature', signatureId: 'blaze' }),
@@ -144,32 +144,32 @@ export const SPECIES: Record<string, SpeciesDef> = {
     basicAttack: 'water_gun',
     paths: [
       { id: 'pressure', label: 'PRESSURE', tiers: [
-        tier('BubbleBeam', 120, undefined, 'The attack becomes a beam that pierces 3 creeps.',
+        tier('BubbleBeam', 120, undefined, 'The attack becomes a beam that pierces 3 enemies.',
           { kind: 'replaceAttack', moveId: 'bubblebeam' }),
-        tier('Full Pressure', 230, 8, 'The beam pierces every creep in its line.',
+        tier('Full Pressure', 230, 8, 'The beam pierces every enemy in its line.',
           { kind: 'modifyAttack', patch: { pierce: undefined } }, { kind: 'scale', range: 1.15 }),
         tier('Hydro Pump', 420, 16, 'The beam hits 35% harder. Unlocks Hydro Pump.',
           { kind: 'scale', damage: 1.35 }, { kind: 'signature', signatureId: 'hydro_pump' }),
       ] },
       { id: 'chill', label: 'CHILL', tiers: [
-        tier('Chilling Water', 110, undefined, 'Every hit slows the creep.',
+        tier('Chilling Water', 110, undefined, 'Every hit slows the enemy.',
           { kind: 'onHitStatus', status: 'freeze', chance: 1, duration: 1.5 }),
-        tier('Cold Front', 220, 8, 'Creeps in range move 25% slower.',
+        tier('Cold Front', 220, 8, 'Enemies in range move 25% slower.',
           { kind: 'slowAura', slow: 0.25 }),
-        tier('Blizzard', 400, 16, 'Creeps in range move 40% slower. Unlocks Blizzard.',
+        tier('Blizzard', 400, 16, 'Enemies in range move 40% slower. Unlocks Blizzard.',
           { kind: 'slowAura', slow: 0.4 }, { kind: 'signature', signatureId: 'blizzard' }),
       ] },
       { id: 'surf', label: 'SURF', tiers: [
         tier('Ripple', 120, undefined, 'The attack becomes a small ring of water around the tower.',
           { kind: 'replaceAttack', moveId: 'surf_ring' }),
-        tier('Undertow', 230, 8, 'Hits knock non-Titan creeps back along the lane.',
+        tier('Undertow', 230, 8, 'Hits knock non-Titan enemies back along the lane.',
           { kind: 'knockback', distance: 1.2 }),
         tier('Surf', 400, 16, 'A wider ring. Unlocks Surf.',
           { kind: 'scale', range: 1.3 }, { kind: 'signature', signatureId: 'surf' }),
       ] },
     ],
     createModel: () => M.createBlastoise(),
-    description: 'Holds creeps back. Belongs at the end of a straightaway.',
+    description: 'Holds enemies back. Belongs at the end of a straightaway.',
   },
   pikachu: {
     id: 'pikachu', deployCost: 100, expYield: 82, role: 'THE STRIKER',
@@ -177,9 +177,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
     basicAttack: 'thundershock',
     paths: [
       { id: 'storm', label: 'STORM', tiers: [
-        tier('Thunderbolt', 100, undefined, 'The attack becomes Thunderbolt, which chains to 2 more creeps.',
+        tier('Thunderbolt', 100, undefined, 'The attack becomes Thunderbolt, which chains to 2 more enemies.',
           { kind: 'replaceAttack', moveId: 'thunderbolt' }, { kind: 'chain', count: 2 }),
-        tier('Chain Lightning', 210, 8, 'Bolts chain to 4 more creeps.',
+        tier('Chain Lightning', 210, 8, 'Bolts chain to 4 more enemies.',
           { kind: 'chain', count: 4 }),
         tier('Thunder', 380, 18, 'Bolts hit 30% harder. Unlocks Thunder.',
           { kind: 'scale', damage: 1.3 }, { kind: 'signature', signatureId: 'thunder' }),
@@ -187,7 +187,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'static', label: 'STATIC', tiers: [
         tier('Static', 100, undefined, 'Hits may paralyze.',
           { kind: 'onHitStatus', status: 'paralyze', chance: 0.35, duration: 2 }),
-        tier('Static Field', 210, 8, 'Paralysis spreads to creeps next to the target.',
+        tier('Static Field', 210, 8, 'Paralysis spreads to enemies next to the target.',
           { kind: 'spreadStatus', radius: 3.5 }),
         tier('Thunder Wave', 380, 18, 'Paralysis lands more often and lasts longer. Unlocks Thunder Wave.',
           { kind: 'onHitStatus', status: 'paralyze', chance: 0.6, duration: 3 }, { kind: 'signature', signatureId: 'thunder_wave' }),
@@ -212,9 +212,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
     basicAttack: 'lick',
     paths: [
       { id: 'haunt', label: 'HAUNT', tiers: [
-        tier('Confuse Ray', 110, undefined, 'Hits may confuse, sending creeps stumbling backwards.',
+        tier('Confuse Ray', 110, undefined, 'Hits may confuse, sending enemies stumbling backwards.',
           { kind: 'onHitStatus', status: 'confuse', chance: 0.35, duration: 2 }),
-        tier('Spread Fear', 220, 8, 'Confusion spreads to creeps next to the target.',
+        tier('Spread Fear', 220, 8, 'Confusion spreads to enemies next to the target.',
           { kind: 'spreadStatus', radius: 3.5 }),
         tier('Mass Confusion', 400, 25, 'Confusion lands more often. Unlocks Confuse Ray.',
           { kind: 'onHitStatus', status: 'confuse', chance: 0.5, duration: 2.5 }, { kind: 'signature', signatureId: 'mass_confuse' }),
@@ -230,14 +230,14 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'curse', label: 'CURSE', tiers: [
         tier('Sludge', 110, undefined, 'Hits may poison.',
           { kind: 'onHitStatus', status: 'poison', chance: 0.4, duration: 6 }),
-        tier('Dream Eater', 230, 8, 'Deals 60% more to creeps held by sleep, stuns or confusion.',
+        tier('Dream Eater', 230, 8, 'Deals 60% more to enemies held by sleep, stuns or confusion.',
           { kind: 'bonusVs', target: 'held', multiplier: 1.6 }),
         tier('Nightmare', 400, 25, 'Attacks 15% faster. Unlocks Nightmare.',
           { kind: 'scale', rate: 1.15 }, { kind: 'signature', signatureId: 'nightmare' }),
       ] },
     ],
     createModel: () => M.createGengar(),
-    description: 'Sends creeps stumbling backwards and sees what others cannot.',
+    description: 'Sends enemies stumbling backwards and sees what others cannot.',
   },
   abra: {
     id: 'abra', deployCost: 150, expYield: 75, role: 'THE SNIPER',
@@ -253,7 +253,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'scale', damage: 1.3 }, { kind: 'signature', signatureId: 'psychic_storm' }),
       ] },
       { id: 'mind', label: 'MIND', tiers: [
-        tier('Confusion', 110, undefined, 'Hits confuse, sending creeps stumbling backwards.',
+        tier('Confusion', 110, undefined, 'Hits confuse, sending enemies stumbling backwards.',
           { kind: 'onHitStatus', status: 'confuse', chance: 0.5, duration: 2 }),
         tier('Disable', 220, 8, 'Hits always confuse, for longer.',
           { kind: 'onHitStatus', status: 'confuse', chance: 1, duration: 3 }),
@@ -280,7 +280,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'fang', label: 'FANG', tiers: [
         tier('Hyper Fang', 90, undefined, 'Bites hit 35% harder and can crit.',
           { kind: 'scale', damage: 1.35 }, { kind: 'crit', chance: 0.15, multiplier: 2 }),
-        tier('Super Fang', 200, 8, 'Every bite also takes 15% of the creep’s remaining HP. Bosses lose 2%.',
+        tier('Super Fang', 200, 8, 'Every bite also takes 15% of the enemy’s remaining HP. Bosses lose 2%.',
           { kind: 'percentDamage', share: 0.15, bossShare: 0.02 }),
         tier('Super Fang+', 360, 20, 'Bites hit 20% harder. Unlocks Super Fang.',
           { kind: 'scale', damage: 1.2 }, { kind: 'signature', signatureId: 'super_fang' }),
@@ -319,9 +319,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'scale', range: 1.15 }, { kind: 'signature', signatureId: 'foresight' }),
       ] },
       { id: 'gale', label: 'GALE', tiers: [
-        tier('Whirlwind', 110, undefined, 'Gusts blow creeps a short way back up the lane.',
+        tier('Whirlwind', 110, undefined, 'Gusts blow enemies a short way back up the lane.',
           { kind: 'knockback', distance: 1 }),
-        tier('Twister', 230, 8, 'Gusts blow creeps further back and hit harder.',
+        tier('Twister', 230, 8, 'Gusts blow enemies further back and hit harder.',
           { kind: 'knockback', distance: 1.8 }, { kind: 'scale', damage: 1.2 }),
         tier('Hurricane', 400, 18, 'Gusts hit 20% harder. Unlocks Whirlwind.',
           { kind: 'scale', damage: 1.2 }, { kind: 'signature', signatureId: 'whirlwind' }),
@@ -354,7 +354,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'sonic', label: 'SONIC', tiers: [
         tier('Supersonic', 100, undefined, 'Hits may confuse.',
           { kind: 'onHitStatus', status: 'confuse', chance: 0.3, duration: 1.5 }),
-        tier('Echo Wave', 210, 8, 'Confusion spreads to creeps next to the target.',
+        tier('Echo Wave', 210, 8, 'Confusion spreads to enemies next to the target.',
           { kind: 'spreadStatus', radius: 3 }),
         tier('Screech', 380, 22, 'Confusion lands more often. Unlocks Screech.',
           { kind: 'onHitStatus', status: 'confuse', chance: 0.45, duration: 2 }, { kind: 'signature', signatureId: 'screech' }),
@@ -387,7 +387,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'leech', label: 'LEECH', tiers: [
         tier('Absorb', 100, undefined, 'Hits may poison.',
           { kind: 'onHitStatus', status: 'poison', chance: 0.35, duration: 6 }),
-        tier('Spreading Spores', 210, 8, 'When a poisoned creep faints, the poison jumps to the nearest creep.',
+        tier('Spreading Spores', 210, 8, 'When a poisoned enemy faints, the poison jumps to the nearest enemy.',
           { kind: 'seedJump', radius: 6 }),
         tier('Mega Drain', 380, 24, 'Poison lands more often. Unlocks Mega Drain.',
           { kind: 'onHitStatus', status: 'poison', chance: 0.55, duration: 7 }, { kind: 'signature', signatureId: 'mega_drain' }),
@@ -461,7 +461,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'throw', label: 'THROW', tiers: [
         tier('Seismic Toss', 120, undefined, 'The attack becomes Seismic Toss: fixed damage that ignores type.',
           { kind: 'replaceAttack', moveId: 'seismic_toss' }),
-        tier('Vital Throw', 230, 8, 'Throws knock non-Titan creeps back up the lane.',
+        tier('Vital Throw', 230, 8, 'Throws knock non-Titan enemies back up the lane.',
           { kind: 'knockback', distance: 2 }),
         tier('Submission', 400, 25, 'Throws reach 20% further. Unlocks Submission.',
           { kind: 'scale', range: 1.2 }, { kind: 'signature', signatureId: 'submission' }),
@@ -494,7 +494,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'stomp', label: 'STOMP', tiers: [
         tier('Stomp', 110, undefined, 'Hits may stun.',
           { kind: 'onHitStatus', status: 'stun', chance: 0.2, duration: 0.8 }),
-        tier('Trample', 230, 8, 'Hits knock non-Titan creeps back up the lane.',
+        tier('Trample', 230, 8, 'Hits knock non-Titan enemies back up the lane.',
           { kind: 'knockback', distance: 1 }),
         tier('Stomp+', 400, 25, 'Stuns land more often. Unlocks Stomp.',
           { kind: 'onHitStatus', status: 'stun', chance: 0.35, duration: 1 }, { kind: 'signature', signatureId: 'stomp' }),
@@ -525,11 +525,11 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'scale', rate: 1.15 }, { kind: 'signature', signatureId: 'venoshock' }),
       ] },
       { id: 'bloom', label: 'BLOOM', tiers: [
-        tier('Sweet Scent', 110, undefined, 'Creeps in range move 15% slower.',
+        tier('Sweet Scent', 110, undefined, 'Enemies in range move 15% slower.',
           { kind: 'slowAura', slow: 0.15 }),
         tier('Stun Spore', 220, 8, 'Hits may paralyze.',
           { kind: 'onHitStatus', status: 'paralyze', chance: 0.3, duration: 2 }),
-        tier('Sleep Powder', 380, 21, 'Creeps in range move 25% slower. Unlocks Sleep Powder.',
+        tier('Sleep Powder', 380, 21, 'Enemies in range move 25% slower. Unlocks Sleep Powder.',
           { kind: 'slowAura', slow: 0.25 }, { kind: 'signature', signatureId: 'sleep_powder_sig' }),
       ] },
     ],
@@ -542,7 +542,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     basicAttack: 'confusion',
     paths: [
       { id: 'headache', label: 'HEADACHE', tiers: [
-        tier('Headache', 120, undefined, 'Hits 8% harder for every creep in range, up to 80%.',
+        tier('Headache', 120, undefined, 'Hits 8% harder for every enemy in range, up to 80%.',
           { kind: 'crowdPower', perCreep: 0.08, max: 0.8 }),
         tier('Psy Burst', 240, 8, 'The attack becomes a psychic burst around the tower.',
           { kind: 'replaceAttack', moveId: 'psy_ring' }),
@@ -550,9 +550,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'crowdPower', perCreep: 0.1, max: 1.2 }, { kind: 'signature', signatureId: 'migraine' }),
       ] },
       { id: 'water', label: 'WATER', tiers: [
-        tier('Water Pulse', 110, undefined, 'Hits may confuse, sending creeps stumbling backwards.',
+        tier('Water Pulse', 110, undefined, 'Hits may confuse, sending enemies stumbling backwards.',
           { kind: 'onHitStatus', status: 'confuse', chance: 0.3, duration: 1.5 }),
-        tier('Swirling Pulse', 220, 8, 'Confusion spreads to creeps next to the target.',
+        tier('Swirling Pulse', 220, 8, 'Confusion spreads to enemies next to the target.',
           { kind: 'spreadStatus', radius: 3 }),
         tier('Confusion', 400, 25, 'Confusion lands more often. Unlocks Confusion.',
           { kind: 'onHitStatus', status: 'confuse', chance: 0.45, duration: 2 }, { kind: 'signature', signatureId: 'mass_confusion' }),
@@ -567,7 +567,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       ] },
     ],
     createModel: () => M.createRattata(),
-    description: 'Its headache grows with every creep that crowds it.',
+    description: 'Its headache grows with every enemy that crowds it.',
   },
   dratini: {
     id: 'dratini', deployCost: 150, expYield: 67, role: 'THE CARRY',
@@ -583,9 +583,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'levelPower', perLevel: 0.06 }, { kind: 'signature', signatureId: 'draco_meteor' }),
       ] },
       { id: 'wrap', label: 'WRAP', tiers: [
-        tier('Wrap', 110, undefined, 'Hits may pin creeps in place.',
+        tier('Wrap', 110, undefined, 'Hits may pin enemies in place.',
           { kind: 'onHitStatus', status: 'stun', chance: 0.25, duration: 1 }),
-        tier('Slam', 230, 8, 'Hits knock non-Titan creeps back up the lane.',
+        tier('Slam', 230, 8, 'Hits knock non-Titan enemies back up the lane.',
           { kind: 'knockback', distance: 1 }),
         tier('Glare', 400, 25, 'Pins land more often. Unlocks Glare.',
           { kind: 'onHitStatus', status: 'stun', chance: 0.4, duration: 1.2 }, { kind: 'signature', signatureId: 'glare' }),
@@ -608,17 +608,17 @@ export const SPECIES: Record<string, SpeciesDef> = {
     basicAttack: 'ice_shard',
     paths: [
       { id: 'frost', label: 'FROST', tiers: [
-        tier('Mist', 130, undefined, 'Creeps in range move 20% slower.',
+        tier('Mist', 130, undefined, 'Enemies in range move 20% slower.',
           { kind: 'slowAura', slow: 0.2 }),
-        tier('Haze', 250, 8, 'Creeps in range move 35% slower.',
+        tier('Haze', 250, 8, 'Enemies in range move 35% slower.',
           { kind: 'slowAura', slow: 0.35 }),
-        tier('Sheer Cold', 420, 20, 'Creeps in range move 45% slower. Unlocks Sheer Cold.',
+        tier('Sheer Cold', 420, 20, 'Enemies in range move 45% slower. Unlocks Sheer Cold.',
           { kind: 'slowAura', slow: 0.45 }, { kind: 'signature', signatureId: 'sheer_cold' }),
       ] },
       { id: 'song', label: 'SONG', tiers: [
-        tier('Sing', 120, undefined, 'Hits may put creeps to sleep.',
+        tier('Sing', 120, undefined, 'Hits may put enemies to sleep.',
           { kind: 'onHitStatus', status: 'sleep', chance: 0.2, duration: 2 }),
-        tier('Lullaby', 240, 8, 'Sleep spreads to creeps next to the target.',
+        tier('Lullaby', 240, 8, 'Sleep spreads to enemies next to the target.',
           { kind: 'spreadStatus', radius: 3 }),
         tier('Sing', 400, 20, 'Sleep lands more often. Unlocks Sing.',
           { kind: 'onHitStatus', status: 'sleep', chance: 0.35, duration: 2.5 }, { kind: 'signature', signatureId: 'lullaby' }),
@@ -641,9 +641,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
     basicAttack: 'egg_bomb',
     paths: [
       { id: 'scatter', label: 'SCATTER', tiers: [
-        tier('Barrage', 120, undefined, 'Lobs eggs at 2 creeps at once.',
+        tier('Barrage', 120, undefined, 'Lobs eggs at 2 enemies at once.',
           { kind: 'multishot', count: 2 }),
-        tier('Egg Storm', 250, 8, 'Lobs eggs at 4 creeps at once.',
+        tier('Egg Storm', 250, 8, 'Lobs eggs at 4 enemies at once.',
           { kind: 'multishot', count: 4 }),
         tier('Egg Barrage', 420, 25, 'Eggs hit 15% harder. Unlocks Egg Barrage.',
           { kind: 'scale', damage: 1.15 }, { kind: 'signature', signatureId: 'egg_barrage' }),
@@ -659,14 +659,14 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'seed', label: 'SEED', tiers: [
         tier('Leech Seed', 110, undefined, 'Hits may plant a draining seed.',
           { kind: 'onHitStatus', status: 'poison', chance: 0.35, duration: 8 }),
-        tier('Seed Burst', 220, 8, 'When a seeded creep faints, the seed jumps to the nearest creep.',
+        tier('Seed Burst', 220, 8, 'When a seeded enemy faints, the seed jumps to the nearest enemy.',
           { kind: 'seedJump', radius: 7 }),
         tier('Stun Spore', 380, 25, 'Seeds plant more often. Unlocks Stun Spore.',
           { kind: 'onHitStatus', status: 'poison', chance: 0.55, duration: 8 }, { kind: 'signature', signatureId: 'stun_grove' }),
       ] },
     ],
     createModel: () => M.createGeodude(),
-    description: 'Lobs eggs at several creeps at once.',
+    description: 'Lobs eggs at several enemies at once.',
   },
   rhyhorn: {
     id: 'rhyhorn', deployCost: 140, expYield: 135, role: 'THE MORTAR',
@@ -692,7 +692,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'horn', label: 'HORN', tiers: [
         tier('Horn Attack', 120, undefined, 'Deals 40% more to elites and Titans.',
           { kind: 'bonusVs', target: 'boss', multiplier: 1.4 }),
-        tier('Drill Horn', 240, 8, 'Each hit also takes 8% of the creep’s remaining HP. Bosses lose 1%.',
+        tier('Drill Horn', 240, 8, 'Each hit also takes 8% of the enemy’s remaining HP. Bosses lose 1%.',
           { kind: 'percentDamage', share: 0.08, bossShare: 0.01 }),
         tier('Horn Drill', 440, 25, 'Hits 20% harder. Unlocks Horn Drill.',
           { kind: 'scale', damage: 1.2 }, { kind: 'signature', signatureId: 'horn_drill' }),
@@ -725,7 +725,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'wing', label: 'WING', tiers: [
         tier('Wing Attack', 120, undefined, 'Deals 60% more to flyers.',
           { kind: 'bonusVs', target: 'airborne', multiplier: 1.6 }),
-        tier('Double Team', 250, 8, 'Slashes 2 creeps at once.',
+        tier('Double Team', 250, 8, 'Slashes 2 enemies at once.',
           { kind: 'multishot', count: 2 }),
         tier('Razor Wind', 420, 20, 'Blades reach 20% further. Unlocks Razor Wind.',
           { kind: 'scale', range: 1.2 }, { kind: 'signature', signatureId: 'razor_wind' }),
@@ -750,7 +750,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
       { id: 'static', label: 'STATIC', tiers: [
         tier('Static', 100, undefined, 'Bursts paralyze more often.',
           { kind: 'onHitStatus', status: 'paralyze', chance: 0.35, duration: 2 }),
-        tier('Static Field', 210, 8, 'Paralysis spreads to creeps next to each target.',
+        tier('Static Field', 210, 8, 'Paralysis spreads to enemies next to each target.',
           { kind: 'spreadStatus', radius: 3 }),
         tier('Thunder Wave', 380, 25, 'The burst reaches 15% further. Unlocks Thunder Wave.',
           { kind: 'scale', range: 1.15 }, { kind: 'signature', signatureId: 'volt_wave' }),
@@ -773,7 +773,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
     basicAttack: 'bind',
     paths: [
       { id: 'wall', label: 'WALL', tiers: [
-        tier('Rock Tomb', 130, undefined, 'Every 5th attack drops stone on the lane that pins creeps in place.',
+        tier('Rock Tomb', 130, undefined, 'Every 5th attack drops stone on the lane that pins enemies in place.',
           { kind: 'hazard', hazard: 'rock_tomb', everyNth: 5 }),
         tier('Stone Wall', 250, 8, 'The stone is bigger and stands longer.',
           { kind: 'hazard', hazard: 'stone_wall', everyNth: 5 }),
@@ -781,9 +781,9 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'hazard', hazard: 'stone_wall', everyNth: 4 }, { kind: 'signature', signatureId: 'rock_wall' }),
       ] },
       { id: 'bind', label: 'BIND', tiers: [
-        tier('Wrap', 110, undefined, 'Pins creeps in place more often.',
+        tier('Wrap', 110, undefined, 'Pins enemies in place more often.',
           { kind: 'onHitStatus', status: 'stun', chance: 0.35, duration: 1.2 }),
-        tier('Constrict', 230, 8, 'A pin spreads to creeps next to the target.',
+        tier('Constrict', 230, 8, 'A pin spreads to enemies next to the target.',
           { kind: 'spreadStatus', radius: 3 }),
         tier('Bind', 400, 20, 'Pins land more often. Unlocks Bind.',
           { kind: 'onHitStatus', status: 'stun', chance: 0.5, duration: 1.4 }, { kind: 'signature', signatureId: 'mass_bind' }),
@@ -815,7 +815,7 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'scale', damage: 1.2 }, { kind: 'signature', signatureId: 'gyarados_beam' }),
       ] },
       { id: 'tide', label: 'TIDE', tiers: [
-        tier('Aqua Tail', 140, 20, 'Hits knock non-Titan creeps back up the lane.',
+        tier('Aqua Tail', 140, 20, 'Hits knock non-Titan enemies back up the lane.',
           { kind: 'knockback', distance: 1.2 }),
         tier('Waterfall', 260, 20, 'Hits may stun.',
           { kind: 'onHitStatus', status: 'stun', chance: 0.3, duration: 1 }),
@@ -823,11 +823,11 @@ export const SPECIES: Record<string, SpeciesDef> = {
           { kind: 'scale', range: 1.2 }, { kind: 'signature', signatureId: 'tidal_wave' }),
       ] },
       { id: 'intimidate', label: 'INTIMIDATE', tiers: [
-        tier('Intimidate', 130, 20, 'Creeps in range move 20% slower.',
+        tier('Intimidate', 130, 20, 'Enemies in range move 20% slower.',
           { kind: 'slowAura', slow: 0.2 }),
-        tier('Scary Face', 250, 20, 'Creeps in range move 35% slower.',
+        tier('Scary Face', 250, 20, 'Enemies in range move 35% slower.',
           { kind: 'slowAura', slow: 0.35 }),
-        tier('Roar', 420, 20, 'Creeps in range move 40% slower. Unlocks Roar.',
+        tier('Roar', 420, 20, 'Enemies in range move 40% slower. Unlocks Roar.',
           { kind: 'slowAura', slow: 0.4 }, { kind: 'signature', signatureId: 'roar' }),
       ] },
     ],

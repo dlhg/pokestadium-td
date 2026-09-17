@@ -46,9 +46,14 @@ function clampVolume(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 1));
 }
 
-function readAudioVolume(kind: 'music' | 'sfx', fallback: number): number {
+function readAudioVolume(kind: 'music' | 'sfx' | 'announcer', fallback: number): number {
   if (typeof localStorage === 'undefined') return fallback;
-  const value = Number(localStorage.getItem(`pokestadium.${kind}Volume`));
+  // getItem returns null, not undefined, for a key that was never set — and
+  // Number(null) is 0, not NaN, so a naive Number(getItem(...)) silently
+  // defaults a first-time player to 0% volume instead of the fallback below.
+  const raw = localStorage.getItem(`pokestadium.${kind}Volume`);
+  if (raw === null) return fallback;
+  const value = Number(raw);
   return Number.isFinite(value) ? clampVolume(value) : fallback;
 }
 
@@ -63,6 +68,11 @@ export class StadiumAudio {
   private musicBus: GainNode | null = null;
   private musicVolume = readAudioVolume('music', 1);
   private sfxVolume = readAudioVolume('sfx', 1);
+  // The announcer's recorded voice clips play through plain <audio> elements
+  // (Announcer.ts), not this class's Web Audio buses, but the volume is
+  // stored and persisted here alongside music/sfx for one consistent
+  // settings surface.
+  private announcerVolume = readAudioVolume('announcer', 1);
   private nativeLoadStarted = false;
   private nativeBuffers = new Map<string, AudioBuffer>();
   private musicNode: AudioBufferSourceNode | null = null;
@@ -243,6 +253,13 @@ export class StadiumAudio {
   }
 
   public getSfxVolume(): number { return this.sfxVolume; }
+
+  public setAnnouncerVolume(value: number): void {
+    this.announcerVolume = clampVolume(value);
+    localStorage.setItem('pokestadium.announcerVolume', String(this.announcerVolume));
+  }
+
+  public getAnnouncerVolume(): number { return this.announcerVolume; }
 
   private initCrowdAmbiance(): void {
     if (!this.ctx) return;
