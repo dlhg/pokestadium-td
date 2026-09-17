@@ -355,8 +355,8 @@ export class StadiumUI {
 
         /* ---- Capture cinematic overlay ---- */
         /* Gameplay chrome recedes so the ball owns the screen. */
-        #top-bar, #start-match-bar, #controls-bar, #card-deck, #tower-panel, #capture-kit, #capture-hint, #catch-layer { transition:opacity .28s ease, filter .28s ease; }
-        .cinema-live #top-bar, .cinema-live #start-match-bar, .cinema-live #controls-bar, .cinema-live #card-deck,
+        #top-bar, #start-match-bar, #controls-bar, #card-deck, #card-deck-toggle, #tower-panel, #capture-kit, #capture-hint, #catch-layer { transition:opacity .28s ease, filter .28s ease; }
+        .cinema-live #top-bar, .cinema-live #start-match-bar, .cinema-live #controls-bar, .cinema-live #card-deck, .cinema-live #card-deck-toggle,
         .cinema-live #tower-panel, .cinema-live #capture-kit, .cinema-live #catch-layer,
         .cinema-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
         .cinema-live #announcer-banner { display:none !important; }
@@ -364,7 +364,7 @@ export class StadiumUI {
         #capture-cinema.live { opacity:1; }
 
         /* ---- Evolution cinematic overlay ---- */
-        .evo-live #top-bar, .evo-live #start-match-bar, .evo-live #controls-bar, .evo-live #card-deck,
+        .evo-live #top-bar, .evo-live #start-match-bar, .evo-live #controls-bar, .evo-live #card-deck, .evo-live #card-deck-toggle,
         .evo-live #tower-panel, .evo-live #capture-kit, .evo-live #catch-layer,
         .evo-live #capture-hint { opacity:.1; filter:blur(2px) saturate(.35); pointer-events:none; }
         .evo-live #announcer-banner { display:none !important; }
@@ -384,7 +384,7 @@ export class StadiumUI {
         }
 
         /* ---- Poké Ball deployment cinematic ---- */
-        .summon-live #top-bar, .summon-live #start-match-bar, .summon-live #controls-bar, .summon-live #card-deck,
+        .summon-live #top-bar, .summon-live #start-match-bar, .summon-live #controls-bar, .summon-live #card-deck, .summon-live #card-deck-toggle,
         .summon-live #tower-panel, .summon-live #capture-kit, .summon-live #signature-bar, .summon-live #catch-layer,
         .summon-live #capture-hint { opacity:.08; filter:blur(2px) saturate(.3); pointer-events:none; }
         .summon-live #announcer-banner { display:none !important; }
