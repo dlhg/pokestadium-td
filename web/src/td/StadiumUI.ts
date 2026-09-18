@@ -36,6 +36,7 @@ const BALL_NAMES: Record<BallType, string> = { poke: 'POKÉ', great: 'GREAT', ul
 
 const UI_SCALE_KEY = 'pokestadium.uiScale';
 const PREMIUM_BALL_TIP_KEY = 'pokestadium.premiumBallTipSeen';
+const SIGNATURE_TIP_KEY = 'pokestadium.signatureTipSeen';
 const ROSTER_COLLAPSED_KEY = 'pokestadium.rosterCollapsed';
 const UI_SCALE_BASE_WIDTH = 1440;
 const UI_SCALE_BASE_HEIGHT = 900;
@@ -190,6 +191,11 @@ export class StadiumUI {
     try { return localStorage.getItem(PREMIUM_BALL_TIP_KEY) === '1'; } catch { return false; }
   })();
   private premiumBallTipEl!: HTMLElement;
+  private signatureTipShown = (() => {
+    try { return localStorage.getItem(SIGNATURE_TIP_KEY) === '1'; } catch { return false; }
+  })();
+  private signatureTipEl!: HTMLElement;
+  private sigTooltipEl!: HTMLElement;
   private combatTextLayerEl!: HTMLElement;
   private showTypeEffectiveness = false;
   private wasBallLocked: Partial<Record<BallType, boolean>> = {};
@@ -569,6 +575,29 @@ export class StadiumUI {
         .sig-pp i { width:7px; height:7px; border:1px solid #fff4af; background:#07182f; }
         .sig-pp i.on { background:#f6c437; }
         .sig-key { position:absolute; top:-8px; right:-6px; min-width:16px; padding:1px 3px; background:#f6c437; color:#07162f; font-size:13px; line-height:1; text-align:center; border:1px solid #07162f; }
+        #signature-tip {
+          position:fixed; z-index:32; max-width:230px;
+          background:rgba(9,25,51,.94); border:2px solid #f6c437; border-radius:8px;
+          padding:8px 10px; color:#fff2a7; font-size:12px; line-height:1.35; letter-spacing:.3px;
+          box-shadow:0 4px 12px rgba(0,0,0,.5); cursor:pointer;
+        }
+        #signature-tip[hidden] { display:none; }
+        #signature-tip::after {
+          content:''; position:absolute; right:100%; bottom:16px;
+          border:6px solid transparent; border-right-color:#f6c437;
+        }
+        /* A native title tooltip can't be resized, so a richer, larger
+           readout on hover/focus needs its own positioned element instead. */
+        #sig-tooltip {
+          position:fixed; z-index:70; max-width:260px; pointer-events:none;
+          background:rgba(6,16,33,.97); border:2px solid #ffd700; border-radius:8px;
+          padding:10px 12px; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,.6);
+        }
+        #sig-tooltip[hidden] { display:none; }
+        #sig-tooltip .sigt-name { display:flex; align-items:center; gap:8px; font-family:'Teko','Impact',sans-serif; font-size:22px; letter-spacing:.5px; color:#ffd700; }
+        #sig-tooltip .sigt-type { padding:1px 7px; border-radius:3px; font-size:11px; font-weight:800; letter-spacing:.8px; color:#07162f; }
+        #sig-tooltip .sigt-desc { margin-top:5px; font-size:14px; line-height:1.4; color:#e7f1fb; }
+        #sig-tooltip .sigt-pp { margin-top:6px; font-size:11px; letter-spacing:.6px; color:#9fc4e8; }
         .pause-setting { margin-top:10px; font-size:12px; }
         .pause-audio { display:grid; grid-template-columns:82px 1fr 34px; align-items:center; gap:8px; margin-top:10px; font-size:11px; letter-spacing:1px; color:#bcd7ec; }
         .pause-audio input { width:100%; accent-color:#f6c437; }
@@ -1674,7 +1703,9 @@ export class StadiumUI {
           </div>`).join('')}
       </div>
       <div id="premium-ball-tip" class="interactive" hidden>Great &amp; Ultra Balls only restock between rounds &mdash; stock up before you start the next one!</div>
+      <div id="signature-tip" class="interactive" hidden>This is a SIGNATURE MOVE &mdash; a tower's strongest attack, worth aiming by hand. Click it or press its number key. Limited uses (PP) refill each round.</div>
       <div id="signature-bar" class="interactive" aria-label="Signature moves"></div>
+      <div id="sig-tooltip" hidden></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
     `;
@@ -1686,6 +1717,9 @@ export class StadiumUI {
     this.applyRosterCollapsed();
     this.premiumBallTipEl = document.getElementById('premium-ball-tip')!;
     this.premiumBallTipEl.addEventListener('click', () => this.dismissPremiumBallTip());
+    this.signatureTipEl = document.getElementById('signature-tip')!;
+    this.signatureTipEl.addEventListener('click', () => this.dismissSignatureTip());
+    this.sigTooltipEl = document.getElementById('sig-tooltip')!;
     this.combatTextLayerEl = document.getElementById('combat-text-layer')!;
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
@@ -1852,6 +1886,12 @@ export class StadiumUI {
     this.premiumBallTipEl.hidden = true;
     this.premiumBallTipShown = true;
     try { localStorage.setItem(PREMIUM_BALL_TIP_KEY, '1'); } catch { /* storage blocked */ }
+  }
+
+  private dismissSignatureTip(): void {
+    this.signatureTipEl.hidden = true;
+    this.signatureTipShown = true;
+    try { localStorage.setItem(SIGNATURE_TIP_KEY, '1'); } catch { /* storage blocked */ }
   }
 
   private setRosterCollapsed(collapsed: boolean): void {
@@ -2543,7 +2583,7 @@ export class StadiumUI {
       bar.innerHTML = slots.map((slot, i) => {
         const color = TYPE_COLORS[slot.def.type]?.hex ?? '#fff';
         return `
-          <button class="sig-btn" data-sig="${i}" title="${escapeHtml(slot.def.description)}">
+          <button class="sig-btn" data-sig="${i}">
             <span class="sig-mark" style="background:${color}55">${glyph(SIGNATURE_GLYPHS[slot.def.type] ?? 'impact', color, 22)}</span>
             <span class="sig-name">${slot.def.name.toUpperCase()}</span>
             <span class="sig-meta">${escapeHtml(slot.tower.name.toUpperCase())}<span class="sig-pp"></span></span>
@@ -2553,6 +2593,12 @@ export class StadiumUI {
       bar.querySelectorAll<HTMLButtonElement>('.sig-btn').forEach(button => {
         const slot = slots[Number(button.dataset.sig)];
         button.addEventListener('click', () => this.onCastSignature(slot.tower, slot.def.id));
+        // A native title tooltip can't be made bigger, so a richer readout
+        // (round 2 feedback #27) needs its own hover/focus-driven element.
+        button.addEventListener('mouseenter', () => this.showSigTooltip(button, slot));
+        button.addEventListener('focus', () => this.showSigTooltip(button, slot));
+        button.addEventListener('mouseleave', () => this.hideSigTooltip());
+        button.addEventListener('blur', () => this.hideSigTooltip());
       });
     }
     bar.querySelectorAll<HTMLButtonElement>('.sig-btn').forEach((button, i) => {
@@ -2562,7 +2608,52 @@ export class StadiumUI {
       const pips = Array.from({ length: slot.def.pp }, (_, p) => `<i class="${p < slot.pp ? 'on' : ''}"></i>`).join('');
       const ppEl = button.querySelector<HTMLElement>('.sig-pp')!;
       if (ppEl.innerHTML !== pips) ppEl.innerHTML = pips;
+      // Live-update the tooltip's PP line if it's open on this exact button
+      // (aiming/casting can drain PP while the pointer never left it).
+      if (this.sigTooltipTarget === button) this.showSigTooltip(button, slot);
     });
+    // Teach what a signature move is the first time one ever exists, same
+    // one-time pattern as the premium-ball tip. Positioned off the bar's own
+    // rect, to its right rather than above it — the signature bar shares its
+    // left-edge column with the capture-kit panel just above it, so stacking
+    // the tip upward risked covering the ball-buying UI.
+    if (slots.length > 0 && !this.signatureTipShown) {
+      this.signatureTipEl.hidden = false;
+      const rect = bar.getBoundingClientRect();
+      // Anchored to the bar's bottom edge, not its top: with just one
+      // signature the bar sits right at the screen edge, and a box growing
+      // down from a top anchor there would run off the viewport.
+      this.signatureTipEl.style.left = `${rect.right + 14}px`;
+      this.signatureTipEl.style.top = `${Math.max(8, rect.bottom - this.signatureTipEl.offsetHeight)}px`;
+      this.signatureTipShown = true;
+      try { localStorage.setItem(SIGNATURE_TIP_KEY, '1'); } catch { /* storage blocked */ }
+    }
+  }
+
+  private sigTooltipTarget: HTMLElement | null = null;
+
+  private showSigTooltip(button: HTMLElement, slot: SignatureSlot): void {
+    this.sigTooltipTarget = button;
+    const color = TYPE_COLORS[slot.def.type]?.hex ?? '#fff';
+    this.sigTooltipEl.innerHTML = `
+      <div class="sigt-name">
+        ${slot.def.name.toUpperCase()}
+        <span class="sigt-type" style="background:${color}">${slot.def.type.toUpperCase()}</span>
+      </div>
+      <div class="sigt-desc">${escapeHtml(slot.def.description)}</div>
+      <div class="sigt-pp">${escapeHtml(slot.tower.name.toUpperCase())} &middot; PP ${slot.pp}/${slot.def.pp}</div>
+    `;
+    this.sigTooltipEl.hidden = false;
+    const rect = button.getBoundingClientRect();
+    const tipRect = this.sigTooltipEl.getBoundingClientRect();
+    const left = Math.min(Math.max(8, rect.left), window.innerWidth - tipRect.width - 8);
+    this.sigTooltipEl.style.left = `${left}px`;
+    this.sigTooltipEl.style.top = `${Math.max(8, rect.top - tipRect.height - 10)}px`;
+  }
+
+  private hideSigTooltip(): void {
+    this.sigTooltipTarget = null;
+    this.sigTooltipEl.hidden = true;
   }
 
   public setSignatureCuts(enabled: boolean): void {
@@ -2585,14 +2676,17 @@ export class StadiumUI {
     button.classList.toggle('active', mode !== 'off');
   }
 
-  /** Drops a floating combat-text callout (crit, immunity, type effectiveness) at a screen point. */
-  public spawnCombatText(x: number, y: number, text: string, color: string): void {
+  /** Drops a floating combat-text callout (crit, immunity, type effectiveness,
+   *  signature damage numbers) at a screen point. `size` (px) scales a
+   *  signature hit's damage number to its value; omitted for everything else. */
+  public spawnCombatText(x: number, y: number, text: string, color: string, size?: number): void {
     const el = document.createElement('span');
     el.className = 'combat-text';
     el.textContent = text;
     el.style.left = `${x / this.uiScale}px`;
     el.style.top = `${y / this.uiScale}px`;
     el.style.color = color;
+    if (size) el.style.fontSize = `${size}px`;
     el.addEventListener('animationend', () => el.remove());
     this.combatTextLayerEl.appendChild(el);
   }

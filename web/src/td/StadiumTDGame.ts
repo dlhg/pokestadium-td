@@ -1391,15 +1391,15 @@ export class StadiumTDGame {
       particles: this.particles,
       audio: this.audio,
       onFaint: (creep) => this.handleCreepDefeat(creep),
-      popup: (worldPosition, text, color) => this.spawnCombatPopup(worldPosition, text, color),
+      popup: (worldPosition, text, color, size) => this.spawnCombatPopup(worldPosition, text, color, size),
       showTypeEffectiveness: this.showTypeEffectiveness,
     };
   }
 
   /** Projects a world point to screen space and drops a floating combat-text popup there. */
-  private spawnCombatPopup(worldPosition: THREE.Vector3, text: string, color: string): void {
+  private spawnCombatPopup(worldPosition: THREE.Vector3, text: string, color: string, size?: number): void {
     const { x, y, visible } = this.renderer.toScreenXY(worldPosition, this.camera.camera);
-    if (visible) this.ui.spawnCombatText(x, y, text, color);
+    if (visible) this.ui.spawnCombatText(x, y, text, color, size);
   }
 
   /** Milestone payouts, and the win itself — which never stops the run. */

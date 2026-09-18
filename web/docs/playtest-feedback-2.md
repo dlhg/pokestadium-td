@@ -139,7 +139,7 @@ behavior:
   gold "active" styling drops on OFF, via a live browser check.
 
 ## 14. Pokéball prop on the platform stands out more than the small Pokémon (e.g. Rattata)
-Status: interviewed — ready to implement
+Status: done
 
 Decisions:
 - Tone down the platform's pokéball decoration (smaller, duller
@@ -148,6 +148,21 @@ Decisions:
   next to towers/props at normal camera distance.
 - Both changes ship together — one alone might not fully fix the
   hierarchy problem.
+
+Implementation:
+- `Tower.createBasePad()`: the recessed pokéball seal decal shrunk from
+  `radius * 0.56` to `radius * 0.4`, and its red/cream materials switched
+  from flat, saturated `MeshBasicMaterial` (self-illuminated, so it always
+  reads brighter than its lit surroundings) to desaturated, lit
+  `MeshStandardMaterial` that shades like the rest of the pad.
+- `PokemonScale.ts`: `SIZE_EXPONENT` (the existing, already-documented
+  dial for "how much to soften literal Pokédex-height ratios so small
+  species stay legible") lowered from 0.75 to 0.62 — no new mechanism,
+  just turning an existing one further in the direction its own comment
+  already described.
+- Verified live: deployed Rattata, toggled the retro CRT filter off for a
+  clean look, and confirmed the seal is now a subtle mark rather than the
+  focal point, with Rattata reading clearly on the pad.
 
 ## 15. "Drain the creep" is unclear; "creep" as a term is unclear
 Status: done
@@ -350,7 +365,7 @@ Implementation:
   roster regression) and `npx tsc --noEmit` (clean).
 
 ## 24. Special move trigger row isn't obvious / 27. Don't know what specials do, tooltip should be bigger
-Status: interviewed — ready to implement
+Status: done
 
 Decisions:
 - One-time tutorial callout the first time a tower earns a
@@ -359,8 +374,34 @@ Decisions:
 - Expand the existing hover tooltip on the trigger row — bigger text,
   clearer effect description.
 
+Interview follow-up: the only tooltip mechanism anywhere in the codebase
+was the native HTML `title` attribute, which can't be resized via CSS at
+all — a genuinely bigger tooltip needed a real custom on-hover component,
+not a style tweak. Confirmed as worth building.
+
+Implementation:
+- Tutorial callout: reused the existing one-time-tip pattern (same as
+  round 1's premium-ball tip) — a new `#signature-tip` element, gated on
+  a `pokestadium.signatureTipSeen` localStorage flag, shown the first
+  time `slots.length > 0`. Positioned dynamically off the signature bar's
+  own `getBoundingClientRect()` rather than a fixed offset: the bar
+  shares its left-edge column with the capture-kit panel above it, and a
+  fixed spot (both above the bar, and later a naive bottom-up placement)
+  twice landed on top of it or ran off the viewport bottom before
+  settling on "anchored to the bar's right edge, bottom-aligned."
+- Custom hover tooltip: a new `#sig-tooltip` element built from scratch
+  (position:fixed, repositioned via the hovered button's rect on
+  mouseenter/focus), showing the move name, a type badge, the full
+  description at 14px (vs. the old title's browser-default size), and
+  the caster's name + live PP count. Removed the old `title` attribute
+  from the signature buttons so the two tooltip mechanisms don't stack.
+- Verified live end-to-end: unlocked a tier-3 signature (Charmeleon's
+  Fire Blast), confirmed the tutorial tip fires once and sits clear of
+  the capture-kit panel and the viewport edge, and confirmed the hover
+  tooltip renders the richer readout correctly.
+
 ## 25. Damage numbers from specials — size by value, color by type, communicate effectiveness
-Status: interviewed — ready to implement (scoped down)
+Status: done (scoped down)
 
 Decisions:
 - Add floating damage numbers for special hits, with font size
@@ -368,6 +409,26 @@ Decisions:
 - Color-by-type and distinct effectiveness styling (super-effective/no-
   effect treatment) were **not** selected this round — scoped out for
   now; numbers-sized-by-value is the committed piece.
+- One number per creep hit (not consolidated), even for wide-AOE
+  signatures that hit many creeps in one cast.
+
+Implementation:
+- `HitContext.popup` gained an optional `size` (px) parameter, threaded
+  through `StadiumTDGame.spawnCombatPopup` to `StadiumUI.spawnCombatText`,
+  which applies it as an inline `font-size` when present.
+- `HitExtras` gained a `signature?: boolean` flag; all 5 of
+  `Signatures.ts`'s `strikeCreeps(...)` call sites now pass
+  `signature: true` (ordinary attacks, which go through
+  `resolveMoveHit()` → `strikeCreeps()` without that flag, are
+  unaffected — this stays scoped to specials as asked).
+- In `strikeCreeps`, a signature hit that deals damage (and isn't an
+  immunity, which already has its own "NO EFFECT" popup) spawns a plain
+  white floating number at the victim, sized
+  `clamp(14 + sqrt(damage) * 1.3, 14, 34)` — a square-root curve so a big
+  hit reads as clearly bigger without one huge hit blowing the number off
+  the screen.
+- Verified live: cast Charmeleon's Fire Blast on a creep and saw a "222"
+  floating number appear at the impact point.
 
 ## 26. Announcer gets annoying — add option to toggle off
 Status: interviewed — folded into item 12

@@ -331,7 +331,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
         ctx.particles.emitRing(centre, color, effect.radius, 0.7);
         ctx.particles.emitGroundBurst(centre.clone().add(up(0.5)), color, effect.radius * 0.8, 50);
         ctx.particles.emitImpact(centre.clone().add(up(1)), color, 40, 10);
-        strikeCreeps(effect.move, victims, ctx.hit, tower);
+        strikeCreeps(effect.move, victims, ctx.hit, tower, { signature: true });
       };
       if (effect.bombs) {
         let next = 0;
@@ -353,7 +353,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       const fire = () => {
         const victims = creepsOnBeam({ origin: tower.position, direction, reach }, ctx.creeps);
         ctx.particles.emitBeam(casterTop, casterTop.clone().addScaledVector(direction, reach), color, effect.duration ? 0.8 : 1.3, 0.35);
-        strikeCreeps(effect.move, victims, ctx.hit, tower);
+        strikeCreeps(effect.move, victims, ctx.hit, tower, { signature: true });
       };
       if (effect.duration) {
         ctx.channel(effect.duration, 0.3, fire);
@@ -371,7 +371,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       ctx.particles.emitRing(tower.position, color, ringRadius(effect.reach), 0.9);
       ctx.particles.emitGroundBurst(tower.position.clone().add(up(0.5)), color, ringRadius(effect.reach) * 0.6, 80);
       victims.forEach(creep => ctx.particles.emitImpact(centerMass(creep), color, 10, 6));
-      strikeCreeps(effect.move, victims, ctx.hit, tower);
+      strikeCreeps(effect.move, victims, ctx.hit, tower, { signature: true });
       if (effect.disableSeconds) tower.disable(effect.disableSeconds);
       cut(ctx, tower.position);
       return true;
@@ -394,7 +394,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
     case 'pushWave': {
       const victims = ctx.creeps.filter(creep => targetable(creep, effect.grounded) && inReach(tower, creep, effect.reach));
       ctx.particles.emitRing(tower.position, color, ringRadius(effect.reach), 1.1);
-      strikeCreeps(effect.move, victims, ctx.hit, tower);
+      strikeCreeps(effect.move, victims, ctx.hit, tower, { signature: true });
       for (const creep of victims) if (!creep.isBoss) creep.pushBack(effect.distance);
       ctx.camera.shake(0.35);
       return true;
@@ -428,7 +428,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       ctx.particles.emitBeam(centerMass(prey).add(up(14)), centerMass(prey), color, 0.7, 0.3);
       ctx.particles.emitImpact(centerMass(prey), color, 40, 9);
       cut(ctx, prey.position);
-      strikeCreeps(effect.move, [prey], ctx.hit, tower, { percentDamage: effect.percent ?? null });
+      strikeCreeps(effect.move, [prey], ctx.hit, tower, { percentDamage: effect.percent ?? null, signature: true });
       return true;
     }
 

@@ -249,11 +249,15 @@ export class Tower {
 
     // A recessed Poké Ball seal makes the plinth clearly player-authored while
     // leaving most of the natural stone visible around the Pokémon's feet.
-    const sealRadius = radius * 0.56;
+    // Kept small and lit (not self-illuminated) rather than bold and flat, so
+    // it doesn't outcompete a small Pokémon standing on it for attention
+    // (round 2 feedback #14).
+    const sealRadius = radius * 0.4;
     const sealY = TOWER_BASE_HEIGHT / 2 + 0.012;
-    const red = new THREE.MeshBasicMaterial({ color: 0xb93a3f });
-    const cream = new THREE.MeshBasicMaterial({ color: 0xe8dfc4 });
-    const charcoal = new THREE.MeshBasicMaterial({ color: 0x27323a });
+    const sealMaterial = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05 });
+    const red = sealMaterial(0x8a4a4d);
+    const cream = sealMaterial(0xc9c2ab);
+    const charcoal = sealMaterial(0x27323a);
     for (const [material, start] of [[red, 0], [cream, Math.PI]] as const) {
       const half = new THREE.Mesh(new THREE.CircleGeometry(sealRadius, 16, start, Math.PI), material);
       half.rotation.x = -Math.PI / 2;

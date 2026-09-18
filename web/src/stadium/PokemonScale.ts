@@ -16,8 +16,10 @@
 const REFERENCE_HEIGHT_INCHES = 67;
 const REFERENCE_WORLD_HEIGHT = 3.32;
 
-/** 1 keeps literal Pokédex-height ratios; lower values keep small Pokémon legible. */
-export const SIZE_EXPONENT = 0.75;
+/** 1 keeps literal Pokédex-height ratios; lower values keep small Pokémon
+ *  legible. Lowered from 0.75 (round 2 feedback #14: a small species like
+ *  Rattata read as smaller than the pokéball prop on its own platform). */
+export const SIZE_EXPONENT = 0.62;
 
 /** Gen-I National Pokédex heights, in inches, indexed by species number - 1. */
 const POKEDEX_HEIGHTS_INCHES = [

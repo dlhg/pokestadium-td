@@ -38,6 +38,10 @@ export interface HitExtras {
   spreadStatusRadius?: number;
   bonusVs?: { target: BonusTarget; multiplier: number }[];
   percentDamage?: { share: number; bossShare: number } | null;
+  /** Signature casts get a floating damage number per creep hit, sized to
+   *  the damage dealt (round 2 feedback #25); ordinary attacks don't, to
+   *  keep the common case's screen calm. */
+  signature?: boolean;
 }
 
 export function hitExtrasFor(attack: AttackProfile, shot: ShotInfo): HitExtras {
@@ -59,8 +63,9 @@ export interface HitContext {
   particles: ParticleSystem;
   audio: StadiumAudio;
   onFaint: (creep: Creep) => void;
-  /** Floating combat text at a world point — crits and type effectiveness. */
-  popup: (worldPosition: THREE.Vector3, text: string, color: string) => void;
+  /** Floating combat text at a world point — crits, type effectiveness, and
+   *  (with `size`, in px) per-hit signature damage numbers. */
+  popup: (worldPosition: THREE.Vector3, text: string, color: string, size?: number) => void;
   /** Player setting: show super/not-very-effective popups, not just immunity. */
   showTypeEffectiveness: boolean;
 }
@@ -278,7 +283,14 @@ export function strikeCreeps(
     const percent = extras.percentDamage && multiplier > 0
       ? victim.hp * (victim.isBoss ? extras.percentDamage.bossShare : extras.percentDamage.share) * share
       : 0;
-    const died = victim.takeDamage(Math.floor(damage * share * mods.damage * (extras.damageMultiplier ?? 1) * bonus + percent), source);
+    const finalDamage = Math.floor(damage * share * mods.damage * (extras.damageMultiplier ?? 1) * bonus + percent);
+    if (extras.signature && multiplier > 0 && finalDamage > 0) {
+      // Square-root scale so a big hit reads as clearly bigger without a
+      // huge one blowing the number off the screen.
+      const size = THREE.MathUtils.clamp(14 + Math.sqrt(finalDamage) * 1.3, 14, 34);
+      ctx.popup(centerMass(victim), String(finalDamage), '#ffffff', size);
+    }
+    const died = victim.takeDamage(finalDamage, source);
     if (died) {
       ctx.onFaint(victim);
       continue;
