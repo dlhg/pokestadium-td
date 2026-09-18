@@ -48,10 +48,18 @@ evolutions happen at 16–30, and final ones at 32–50.
 
 | Cup | Maps | Entry | Cap | Creep levels | Win round |
 | --- | --- | --- | --- | --- | --- |
-| Little | Viridian Gardens | ≤ 10 | 20 | 3 → 20 | 40 |
-| Poké | Mt. Moon Pass, Cerulean Crossing | ≤ 22 | 32 | 12 → 32 | 60 |
-| Great | Power Plant, Indigo Plateau | ≤ 34 | 42 | 22 → 42 | 80 |
-| Prime | Mt. Silver Crown, Bell Tower, Seafoam Islands | ≤ 50 | 50 | 32 → 50 | 80 |
+| Little | Viridian Gardens, Mt. Moon Pass | ≤ 10 | 20 | 3 → 20 | 40 |
+| Poké | Cerulean Crossing, Power Plant | ≤ 22 | 32 | 12 → 32 | 60 |
+| Great | Indigo Plateau, Bell Tower | ≤ 34 | 42 | 22 → 42 | 80 |
+| Prime | Mt. Silver Crown, Seafoam Islands | ≤ 50 | 50 | 32 → 50 | 80 |
+
+Each cup has two maps. Mt. Moon's long, forgiving route moves down to the Little Cup,
+and Power Plant and Bell Tower each move down one cup from their old "hard" label.
+
+**Cups unlock in order.** The Little Cup is always open. Each later cup opens once
+any map in the cup below it has been cleared. Unlocks are worked out from
+`TrainerSave.maps`, so existing saves unlock whatever their past clears have earned.
+There's no new save field.
 
 Elites get +3 levels and titans +8 on top of the creep range, and nothing goes
 above `MAX_LEVEL`. At the moment easy creeps reach about Lv 39 by round 40, so
@@ -99,7 +107,7 @@ export interface StadiumMap {
 ```ts
 // progression/Rentals.ts
 export interface RentalDef { speciesId: string; level: number }
-export const RENTALS: Record<CupId, RentalDef[]>;   // ~10–14 per cup, level = entryMax
+export const RENTALS: Record<CupId, RentalDef[]>;   // ~10–14 per cup, level = entryMax − 2
 
 export function createRental(def: RentalDef): OwnedPokemon;
 // createPokemon(...) with origin.kind 'rental', fixed DVs of 8, uid prefix 'rental_'
@@ -145,6 +153,10 @@ their meaning.
 1. **Map select** (`StadiumUI.ts:1506`)
    - The EASY/MEDIUM/HARD filter becomes LITTLE/POKÉ/GREAT/PRIME tabs.
    - Each card shows "LV ≤ 10 · CAP 20" in place of the difficulty badge.
+   - Locked cups show their maps with a padlock and "Clear a LITTLE CUP map to
+     unlock." They can't be selected.
+   - A newly unlocked cup gets a "NEW CUP" callout in the match report and a pulse
+     on its tab.
 2. **Team select** (`TrainerScreens.ts`)
    - A cup rules banner at the top: "LITTLE CUP — Pokémon LV 10 and under. Your
      team can grow to LV 20 this match."
@@ -157,6 +169,10 @@ their meaning.
    - **Outgrow warning**: when a Pokémon is within 2 levels of `entryMax`, its
      card shows "Last runs in LITTLE CUP."
    - Starting with empty slots is allowed. A "Fill with rentals" button fills them.
+   - **Veteran notice**: the first time a player opens a cup where nothing they own
+     qualifies, a short one-time popup explains the entry rule and points to the
+     Rentals tab. Whether it's been shown is remembered in a localStorage key, as
+     with the other one-time tips in `StadiumUI.ts`, not in the save.
 3. **Match report**
    - "SPARKY outgrew LITTLE CUP" when a Pokémon passes `entryMax`, together with
      the level-up line.
@@ -192,9 +208,11 @@ Each phase leaves the game playable.
 2. **Entry rules.**
    - Eligibility in team select, ineligible slots opened for the match.
    - Outgrow warning and cup-rules banner.
+   - Cup locks by clears in map select, and the "NEW CUP" callout.
 3. **Rentals.**
    - `Rentals.ts` pools, Rentals tab, "Fill with rentals".
    - Rentals in the match report, dev panel button.
+   - The one-time veteran notice.
 4. **Presentation.**
    - Match-report "outgrew" and "now eligible" lines, tower panel "CUP CAP".
    - Update `trainer-progression.md` (core rules table, creep levels) and `AGENTS.md`.
@@ -203,16 +221,13 @@ Each phase leaves the game playable.
      curve so each cup reaches its cap on schedule.
    - Adjust brackets once playtests have happened.
 
-## Open questions
+## Decisions
 
-- **Locking cups.** Should the Poké Cup stay locked until a Little Cup map is
-  cleared? Rentals make every cup playable, so without locks a new player could
-  start in the Prime Cup. *Recommendation:* lock each cup until one map in the
-  cup below it is cleared.
-- **Little Cup has one map.** Should Mt. Moon Pass move down so both starting cups
-  have two maps? Its route is the longest and most forgiving.
-- **Rental strength.** Should rentals always enter at `entryMax`, or a few levels
-  below so owned Pokémon feel better? *Recommendation:* 2 levels below `entryMax`.
-- **Existing saves.** Veterans with only high-level Pokémon will play the lower
-  cups with rentals. That's acceptable, but it's worth a one-time notice the first
-  time they open a cup where none of their Pokémon qualify.
+- **Cups unlock in order.** A cup opens once any map in the cup below it has been
+  cleared. The Little Cup is always open.
+- **Two maps per cup.** Mt. Moon Pass moves down to the Little Cup, and Power Plant
+  and Bell Tower each move down one cup (see the Cups table).
+- **Rentals enter 2 levels below `entryMax`.** They're viable, but a well-raised
+  Pokémon of your own is a bit better.
+- **Veterans get a one-time notice** the first time they open a cup where nothing
+  they own qualifies. It points them to the Rentals tab.
