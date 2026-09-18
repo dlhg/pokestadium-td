@@ -12,7 +12,7 @@
 import type { Creep } from '../Creep';
 import type { Tower } from '../Tower';
 import { getSpecies, speciesForCreepName } from './Species';
-import { knockoutPool, levelScale, WAVE_CLEAR_SHARE } from './Stats';
+import { knockoutPool, levelScale, MAX_LEVEL, WAVE_CLEAR_SHARE } from './Stats';
 import { formOf, OwnedPokemon, TrainerStore, XpResult } from './TrainerStore';
 
 /** XP yield for creeps with no species entry (new roster names added later). */
@@ -45,12 +45,15 @@ export class MatchProgress {
   private baselines = new Map<string, Baseline>();
   private wavePool = 0;
   private waveLevel = 1;
+  private levelCap = MAX_LEVEL;
 
   constructor(private store: TrainerStore) {}
 
-  public start(team: OwnedPokemon[]): void {
+  /** `levelCap` is the cup's: no one levels past it this match. */
+  public start(team: OwnedPokemon[], levelCap = MAX_LEVEL): void {
     this.baselines.clear();
     this.wavePool = 0;
+    this.levelCap = levelCap;
     team.forEach(pokemon => this.track(pokemon, false));
   }
 
@@ -95,7 +98,7 @@ export class MatchProgress {
 
   private give(tower: Tower, raw: number): XpAward {
     const amount = Math.max(1, Math.round(raw));
-    return { tower, amount, result: this.store.gainXp(tower.pokemon, amount) };
+    return { tower, amount, result: this.store.gainXp(tower.pokemon, amount, this.levelCap) };
   }
 
   public report(): MatchReportEntry[] {

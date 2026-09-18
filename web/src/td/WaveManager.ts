@@ -1,14 +1,14 @@
 /**
  * WaveManager.ts — Tournament Cup & Wave Progression System
  *
- * Defines authentic Pokémon Stadium cups (Poke Cup, Prime Cup, Gym Leader Castle)
+ * Defines the tournament stages each match runs through (Qualifiers, Main Draw, Gym Leader Castle...)
  * and controls wave spawning, boss arrivals, and intermissions.
  */
 
 import * as THREE from 'three';
 import { Creep, CreepConfig } from './Creep';
 import { StadiumAnnouncer } from '../stadium/Announcer';
-import type { MapDifficulty } from './MapCatalog';
+import { CUPS, type CupRules } from './Cups';
 import type { PokemonType } from '../stadium/TypeMatrix';
 import type { BallType } from './CaptureSequence';
 import { creepLevel } from './progression/Stats';
@@ -26,10 +26,10 @@ const TRASH_HP_MULTIPLIER = 2;
 
 /** The opening cups, hand-authored. Later rounds are generated. */
 const AUTHORED_WAVES: WaveDefinition[] = [
-  // POKE CUP (Waves 1 - 5)
+  // QUALIFIERS (Waves 1 - 5)
   {
     round: 1,
-    cupName: 'POKE CUP',
+    cupName: 'QUALIFIERS',
     name: 'Round 1: Route 1 Runners',
     spawns: [
       {
@@ -57,7 +57,7 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 2,
-    cupName: 'POKE CUP',
+    cupName: 'QUALIFIERS',
     name: 'Round 2: Mt. Moon Swarm',
     spawns: [
       {
@@ -86,7 +86,7 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 3,
-    cupName: 'POKE CUP',
+    cupName: 'QUALIFIERS',
     name: 'Round 3: Granite Guard',
     spawns: [
       {
@@ -123,7 +123,7 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 4,
-    cupName: 'POKE CUP',
+    cupName: 'QUALIFIERS',
     name: 'Round 4: Stadium Qualifier',
     spawns: [
       {
@@ -165,8 +165,8 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 5,
-    cupName: 'POKE CUP',
-    name: 'Poke Cup Final: TITAN ONIX',
+    cupName: 'QUALIFIERS',
+    name: 'Qualifiers Final: TITAN ONIX',
     spawns: [
       {
         config: {
@@ -188,11 +188,11 @@ const AUTHORED_WAVES: WaveDefinition[] = [
     ]
   },
 
-  // PRIME CUP (Waves 6 - 10)
+  // MAIN DRAW (Waves 6 - 10)
   {
     round: 6,
-    cupName: 'PRIME CUP',
-    name: 'Prime Cup: Spectral Apparitions',
+    cupName: 'MAIN DRAW',
+    name: 'Main Draw: Spectral Apparitions',
     spawns: [
       // Phantoms can't be aimed at by most towers, so targetable Zubat
       // escorts are threaded through the ghosts to keep a starter team busy.
@@ -218,8 +218,8 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 7,
-    cupName: 'PRIME CUP',
-    name: 'Prime Cup: Boulder Battalion',
+    cupName: 'MAIN DRAW',
+    name: 'Main Draw: Boulder Battalion',
     spawns: [
       {
         config: {
@@ -247,8 +247,8 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 8,
-    cupName: 'PRIME CUP',
-    name: 'Prime Cup: Dragonair Sprint',
+    cupName: 'MAIN DRAW',
+    name: 'Main Draw: Dragonair Sprint',
     spawns: [
       {
         config: {
@@ -283,8 +283,8 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 9,
-    cupName: 'PRIME CUP',
-    name: 'Prime Cup: Semifinal Rush',
+    cupName: 'MAIN DRAW',
+    name: 'Main Draw: Semifinal Rush',
     spawns: [
       {
         config: {
@@ -334,8 +334,8 @@ const AUTHORED_WAVES: WaveDefinition[] = [
   },
   {
     round: 10,
-    cupName: 'PRIME CUP',
-    name: 'Prime Cup Final: TITAN GYARADOS',
+    cupName: 'MAIN DRAW',
+    name: 'Main Draw Final: TITAN GYARADOS',
     spawns: [
       {
         config: {
@@ -370,7 +370,7 @@ export class WaveManager {
   private lifts?: number[][];
   private nextRoute = 0;
   private announcer: StadiumAnnouncer;
-  private difficulty: MapDifficulty;
+  private cup: CupRules;
 
   private waves = AUTHORED_WAVES;
 
@@ -378,13 +378,13 @@ export class WaveManager {
   private generated = new Map<number, WaveDefinition>();
   public readonly winRound: number;
 
-  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer, difficulty: MapDifficulty, lifts?: number[][]) {
+  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer, cup: CupRules, lifts?: number[][]) {
     if (!routes.length || routes.some(route => route.length < 2)) throw new Error('A course needs a traversable route');
     this.routes = routes;
     this.lifts = lifts;
     this.announcer = announcer;
-    this.difficulty = difficulty;
-    this.winRound = WIN_ROUNDS[difficulty];
+    this.cup = cup;
+    this.winRound = cup.winRound;
   }
 
   /** Round number of the wave in play, or the one queued next during an intermission. */
@@ -433,7 +433,7 @@ export class WaveManager {
             ...group.config,
             maxHp: Math.round(group.config.maxHp * hpMultiplier),
             reward: Math.round(group.config.reward * hpMultiplier),
-            level: creepLevel(wave.round, this.difficulty, group.config.threat ?? (group.config.isBoss ? 'titan' : 'normal')),
+            level: creepLevel(wave.round, this.cup, group.config.threat ?? (group.config.isBoss ? 'titan' : 'normal')),
           },
           delay: interval
         });
@@ -490,9 +490,6 @@ export class WaveManager {
   }
 }
 
-/** The round whose clear wins the map. Play continues afterwards as freeplay. */
-export const WIN_ROUNDS: Record<MapDifficulty, number> = { easy: 40, medium: 60, hard: 80 };
-
 export interface MilestoneReward {
   round: number;
   label: string;
@@ -528,7 +525,7 @@ export function getMilestone(round: number, winRound: number): MilestoneReward |
 
 type RosterEntry = Omit<CreepConfig, 'id'>;
 
-/** Rank-and-file lineup for generated rounds, tuned at the Prime Cup baseline. */
+/** Rank-and-file lineup for generated rounds, tuned at the round-10 baseline. */
 const ROSTER: RosterEntry[] = [
   { name: 'Raticate', type: 'Normal', maxHp: 300, speed: 5.2, reward: 30, modelType: 'rattata' },
   { name: 'Golbat', type: 'Poison', secondaryType: 'Flying', maxHp: 280, speed: 5.6, reward: 30, modelType: 'zubat' },
@@ -641,7 +638,7 @@ function generateWave(round: number, winRound: number): WaveDefinition {
 }
 
 /** Every type fielded in the opening rounds — what team select warns about. */
-export function openingThreatTypes(rounds = 10, winRound = WIN_ROUNDS.easy): PokemonType[] {
+export function openingThreatTypes(rounds = 10, winRound = CUPS.little.winRound): PokemonType[] {
   const types = new Set<PokemonType>();
   for (let round = 1; round <= rounds; round++) {
     const wave = round <= AUTHORED_WAVES.length ? AUTHORED_WAVES[round - 1] : generateWave(round, winRound);

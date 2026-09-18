@@ -1,18 +1,18 @@
 # Tower-defense courses
 
-The course selector previews the actual route and terrain data. Difficulty tabs
-filter six authored courses; each starts with $420 and six lives. The first wave
+The course selector previews the actual route and terrain data. Cup tabs
+(Little / Poké / Great / Prime) filter the authored courses; each starts with $420 and six lives. The first wave
 waits for **Start Match**, allowing time to plan. **Maps** pauses the match while
 browsing; **Resume Match** keeps it, and choosing a course starts a fresh match.
 
-| Course | Difficulty | Placement decision |
+| Course | Cup | Placement decision |
 | --- | --- | --- |
-| Viridian Gardens | Easy | A long curling trail lets inside-bend towers cover multiple stretches. |
-| Mt. Moon Pass | Medium | Rock ridges occupy the interiors of three switchbacks, leaving small firing pockets. |
-| Cerulean Crossing | Medium | An unbuildable river divides two banks; two bridges concentrate passing enemies. |
-| Power Plant | Hard | Shorter twin circuits alternate spawns between entrances; shared junctions compete with exit coverage. |
-| Indigo Plateau | Hard | Three terraces climb from Victory Road to the League gate. High ground reaches further; stairs slow climbers; the summit is small. |
-| Mt. Silver Crown | Hard | Twin trails coil up five elevation bands. A short steep route and a long switchback route trade speed for exposure before looping around the summit. |
+| Viridian Gardens | Little | A long curling trail lets inside-bend towers cover multiple stretches. |
+| Mt. Moon Pass | Little | Rock ridges occupy the interiors of three switchbacks, leaving small firing pockets. |
+| Cerulean Crossing | Poké | An unbuildable river divides two banks; two bridges concentrate passing enemies. |
+| Power Plant | Poké | Shorter twin circuits alternate spawns between entrances; shared junctions compete with exit coverage. |
+| Indigo Plateau | Great | Three terraces climb from Victory Road to the League gate. High ground reaches further; stairs slow climbers; the summit is small. |
+| Mt. Silver Crown | Prime | Twin trails coil up five elevation bands. A short steep route and a long switchback route trade speed for exposure before looping around the summit. |
 
 ## Elevation (Indigo Plateau)
 
@@ -62,7 +62,7 @@ assets are included in the game.
 
 - `src/td/MapCatalog.ts` owns route control points (optionally `[x, z, y]` to pin a
   stair landing), terrace outlines (`terrain.plateaus`), story decor, obstacle circles, water
-  polygons, bridges, palette, difficulty and strategy text.
+  polygons, bridges, palette, cup and strategy text.
 - `MapTerrain.ts` bakes one height grid: terraces drop away as cliffs outside
   their outline, the arena rim trims everything to zero, and lanes are cut into
   the hillside. Rendering, movement, placement and picking all read it.
@@ -96,5 +96,6 @@ python3 take_screenshot.py battle_mt-silver-crown
 ```
 
 Course captures use a paused tactical view without the opening announcer banner.
-Difficulty labels describe geometry and placement pressure; combat balance can
-be tuned separately as the combat system develops.
+A course's cup sets its level bracket, win round and creep levels (`src/td/Cups.ts`,
+design in `docs/cup-rules.md`). Geometry and placement pressure are authored per
+course; combat balance can be tuned separately as the combat system develops.

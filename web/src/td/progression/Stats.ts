@@ -7,6 +7,8 @@
  * constant for the progression curve lives in this file.
  */
 
+import type { CupRules } from '../Cups';
+
 export interface StatBlock {
   attack: number;
   speed: number;
@@ -93,10 +95,11 @@ export function knockoutPool(expYield: number, creepLevel: number, threat: 'norm
   return (expYield * creepLevel / 5) * THREAT_XP[threat];
 }
 
-/** Creep levels climb with the round; harder courses start higher. */
-const DIFFICULTY_LEVEL_OFFSET = { easy: 0, medium: 9, hard: 18 } as const;
-export function creepLevel(round: number, difficulty: keyof typeof DIFFICULTY_LEVEL_OFFSET, threat: 'normal' | 'elite' | 'titan'): number {
-  const base = 3 + Math.floor(round * 0.9) + DIFFICULTY_LEVEL_OFFSET[difficulty];
+/** Creep levels climb the cup's range from round 1 to the win round, then hold there in freeplay. */
+export function creepLevel(round: number, cup: CupRules, threat: 'normal' | 'elite' | 'titan'): number {
+  const [from, to] = cup.creepLevels;
+  const t = Math.min(1, Math.max(0, (round - 1) / Math.max(1, cup.winRound - 1)));
+  const base = Math.round(from + (to - from) * t);
   const bonus = threat === 'titan' ? 8 : threat === 'elite' ? 3 : 0;
   return Math.min(MAX_LEVEL, base + bonus);
 }

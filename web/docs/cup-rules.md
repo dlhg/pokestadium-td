@@ -5,8 +5,9 @@ can enter only if its level is at or below the cup's entry limit. During the mat
 it levels up, but no higher than the cup's level cap, and that XP is kept.
 Rentals fill team slots when you don't own enough eligible Pokémon.
 
-Status: **planned.** This extends `trainer-progression.md`. Where the two
-disagree, this doc wins.
+Status: **phase 1 shipped** (cup data, creep levels, XP cap, catch clamp, map
+select). Phases 2–5 are planned. This extends `trainer-progression.md`. Where the
+two disagree, this doc wins.
 
 ## Why
 
@@ -73,7 +74,7 @@ Prime Cup reaches Rhydon (42) and Dragonite (50).
 ## Data model
 
 ```ts
-// MapCatalog.ts — replaces MapDifficulty as the map's progression key
+// Cups.ts — replaces MapDifficulty as the map's progression key
 export type CupId = 'little' | 'poke' | 'great' | 'prime';
 
 export interface CupRules {
@@ -143,7 +144,12 @@ their meaning.
 - **`WaveManager.ts`**
   - Takes `CupRules` instead of `MapDifficulty`.
   - `winRound` comes from the cup.
-- **`MapCatalog.ts`**: `cup` on each map, plus `CUPS`.
+- **`Cups.ts`**: `CUPS` and `CUP_ORDER`. It's kept separate from `MapCatalog.ts`
+  so that `Stats.ts` doesn't pull in the course data.
+- **`MapCatalog.ts`**: `cup` on each map.
+- **Wave stage names**: the first ten rounds were labeled "POKE CUP" and "PRIME
+  CUP" in the top bar. They're renamed QUALIFIERS and MAIN DRAW so they don't
+  clash with the map's cup.
 - **`DevPanel.ts`**
   - "Fill with rentals" button.
   - Cup override, for testing any map under any cup's rules.

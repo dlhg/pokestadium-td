@@ -34,6 +34,7 @@ import { MOVES } from '../stadium/MoveDatabase';
 import { TYPE_COLORS } from '../stadium/TypeMatrix';
 import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
 import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
+import { CUPS } from './Cups';
 import { BALL_ORDER, BALL_PRICES, BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
@@ -178,7 +179,7 @@ export class StadiumTDGame {
     this.aimPreview.visible = false;
     this.renderer.scene.add(this.aimPreview);
 
-    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, this.map.difficulty, this.arena.walkLifts);
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
 
     this.bindUIEvents();
@@ -380,7 +381,7 @@ export class StadiumTDGame {
     this.arena.dispose();
     this.arena = new StadiumArena(map);
     this.renderer.scene.add(this.arena.group);
-    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, this.map.difficulty, this.arena.walkLifts);
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts);
     this.money = 420;
     this.lives = 6;
     // A brand-new trainer gets extra balls to build a team with.
@@ -393,7 +394,7 @@ export class StadiumTDGame {
     this.roster = [...this.store.team];
     this.guestSlotsUsed = 0;
     this.roster.forEach(member => member.record.matches++);
-    this.progress.start(this.roster);
+    this.progress.start(this.roster, CUPS[this.map.cup].levelCap);
     this.store.data.matchesPlayed++;
     this.store.commit();
     this.matchActive = true;
@@ -705,7 +706,9 @@ export class StadiumTDGame {
   private createCaughtPokemon(creep: Creep, ball: BallType): OwnedPokemon | null {
     const match = speciesForCreepName(creep.name);
     if (!match) return null;
-    const pokemon = createPokemon(match.speciesId, creep.level, {
+    // A catch keeps the creep's level, but never above what this cup allows.
+    const level = Math.min(creep.level, CUPS[this.map.cup].levelCap);
+    const pokemon = createPokemon(match.speciesId, level, {
       kind: 'caught', mapId: this.map.id, round: this.waveManager.round, ball, at: Date.now(),
     }, { stage: match.stage });
     return pokemon;

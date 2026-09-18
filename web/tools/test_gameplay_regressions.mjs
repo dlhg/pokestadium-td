@@ -16,7 +16,9 @@ const result = await build({
       "export { resolveMoveHit, collectVictims, hitDamage, strikeCreeps } from './src/td/MoveDelivery.ts';",
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
       "export { createPokemon, formOf, statsOf, TrainerStore } from './src/td/progression/TrainerStore.ts';",
-      "export { xpForLevel } from './src/td/progression/Stats.ts';",
+      "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
+      "export { CUPS, CUP_ORDER } from './src/td/Cups.ts';",
+      "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
       "export { getSpecies, SPECIES } from './src/td/progression/Species.ts';",
       "export { HAZARDS } from './src/td/Hazard.ts';",
       "export { Hazard } from './src/td/Hazard.ts';",
@@ -36,7 +38,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, STADIUM_MAPS, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Action mode follows the live creep nearest the exit. A knockout hands the
@@ -284,6 +286,48 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   store.gainXp(rattata, xpForLevel(21) - rattata.xp);
   assert.equal(rattata.level, 21, 'enough XP reaches the next level');
   assert.equal(formOf(rattata).name, 'Raticate', 'over-level capture evolves on a real level-up');
+}
+
+// Cup rules: each cap lands inside the next cup's entry window, every course
+// has a cup, and creeps climb exactly the cup's range by the win round.
+{
+  CUP_ORDER.forEach((id, i) => {
+    const cup = CUPS[id];
+    assert.ok(cup.entryMax <= cup.levelCap, `${id} entry fits under its cap`);
+    const next = CUPS[CUP_ORDER[i + 1]];
+    if (next) assert.ok(cup.levelCap <= next.entryMax, `${id} graduates into ${next.id}`);
+    assert.equal(creepLevel(1, cup, 'normal'), cup.creepLevels[0], `${id} creeps start at the bottom of the range`);
+    assert.equal(creepLevel(cup.winRound, cup, 'normal'), cup.creepLevels[1], `${id} creeps top out at the win round`);
+    assert.equal(creepLevel(cup.winRound + 30, cup, 'normal'), cup.creepLevels[1], `${id} freeplay holds the top level`);
+    assert.ok(creepLevel(cup.winRound, cup, 'titan') <= MAX_LEVEL, `${id} titans respect the level ceiling`);
+  });
+  for (const map of STADIUM_MAPS) assert.ok(CUPS[map.cup], `${map.name} belongs to a cup`);
+  for (const id of CUP_ORDER) {
+    assert.ok(STADIUM_MAPS.filter(map => map.cup === id).length >= 2, `${id} offers at least two courses`);
+  }
+}
+
+// In-match XP stops at the cup's level cap, evolving on the way; the next
+// cup's higher cap lets it climb again.
+{
+  const store = new TrainerStore(false);
+  const charmander = createPokemon('charmander', 10, { kind: 'starter', at: 0 });
+  store.gainXp(charmander, xpForLevel(30), CUPS.little.levelCap);
+  assert.equal(charmander.level, CUPS.little.levelCap, 'XP stops at the Little Cup cap');
+  assert.equal(charmander.xp, xpForLevel(CUPS.little.levelCap), 'no hidden XP banks past the cap');
+  assert.equal(formOf(charmander).name, 'Charmeleon', 'evolution below the cap still fires');
+  assert.equal(store.gainXp(charmander, 5000, CUPS.little.levelCap).levelsGained, 0, 'a capped Pokémon earns nothing more');
+  store.gainXp(charmander, xpForLevel(24) - charmander.xp, CUPS.poke.levelCap);
+  assert.equal(charmander.level, 24, 'a higher cup lifts the cap');
+}
+
+// A catch keeps the creep's level, clamped to the cup cap.
+{
+  const game = new StadiumTDGame();
+  game.map = STADIUM_MAPS.find(map => map.cup === 'little');
+  game.waveManager = { round: 30 };
+  const caught = game.createCaughtPokemon({ name: 'Rattata', level: 28 }, 'poke');
+  assert.equal(caught.level, CUPS.little.levelCap, 'Little Cup catches never exceed its cap');
 }
 
 // The faint animation remains clickable briefly, but a dead target cannot
@@ -569,13 +613,13 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
     applyStatus: () => true, pushBack() {},
     takeDamage(amount) { damage.push([name, Math.round(amount)]); return false; },
   });
-  const noop = { emitRing() {}, emitAura() {}, emitBeam() {}, emitImpact() {}, emitGroundBurst() {} };
+  const noop = { emitRing() {}, emitAura() {}, emitBeam() {}, emitImpact() {}, emitGroundBurst() {}, emitSignatureFlash() {} };
   const tower = { position: new THREE.Vector3(), modifiers: { damage: 1, rate: 1, status: 1 }, seesPhantoms: false,
     getMaxRange: () => 10, reachAgainst: range => range };
   const context = creeps => ({
-    creeps, towers: [tower], particles: noop, camera: { shake() {}, triggerActionCam() {} }, announcer: { trigger() {} },
+    creeps, towers: [tower], particles: noop, camera: { shake() {}, triggerActionCam() {}, punchZoom() {} }, announcer: { trigger() {} },
     cinematicCuts: false, channel() {},
-    hit: { creeps, particles: noop, audio: { playHit() {} }, onFaint() {}, popup() {}, showTypeEffectiveness: false },
+    hit: { creeps, particles: noop, audio: { playHit() {}, playSignatureCast() {} }, onFaint() {}, popup() {}, showTypeEffectiveness: false },
   });
 
   assert.equal(castSignature(SIGNATURES.blaze, tower, null, context([creep('dry', 50)])), false, 'blaze needs a burn');
@@ -659,4 +703,4 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   assert.deepEqual(hits, [['grunt', 30], ['titan', 22]], 'boss bonus and percent shares apply by threat');
 }
 
-console.log('PASS: gameplay timing, capture, summon, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, and bonus damage regressions.');
+console.log('PASS: gameplay timing, capture, summon, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, bonus damage, and cup rules regressions.');

@@ -384,10 +384,12 @@ export class TrainerStore {
   /**
    * Adds XP in place (towers hold the same object), levels up, and evolves
    * when a level threshold is crossed. Does not commit — matches save per wave.
+   * `cap` is the cup's level cap: XP stops there for the rest of the match.
    */
-  public gainXp(pokemon: OwnedPokemon, amount: number): XpResult {
-    if (amount <= 0 || pokemon.level >= MAX_LEVEL) return { levelsGained: 0, evolvedFrom: null };
-    pokemon.xp = Math.min(xpForLevel(MAX_LEVEL), pokemon.xp + amount);
+  public gainXp(pokemon: OwnedPokemon, amount: number, cap = MAX_LEVEL): XpResult {
+    const ceiling = Math.min(MAX_LEVEL, cap);
+    if (amount <= 0 || pokemon.level >= ceiling) return { levelsGained: 0, evolvedFrom: null };
+    pokemon.xp = Math.min(xpForLevel(ceiling), pokemon.xp + amount);
     return this.syncLevel(pokemon);
   }
 

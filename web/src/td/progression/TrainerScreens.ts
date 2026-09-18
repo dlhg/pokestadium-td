@@ -8,7 +8,8 @@
 
 import { RosterModelView } from '../RosterModelView';
 import type { StadiumMap } from '../MapCatalog';
-import { openingThreatTypes, WIN_ROUNDS } from '../WaveManager';
+import { openingThreatTypes } from '../WaveManager';
+import { CUPS } from '../Cups';
 import { MOVES } from '../../stadium/MoveDatabase';
 import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../../stadium/TypeMatrix';
 import { dexNumber, GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
@@ -244,7 +245,7 @@ export class TrainerScreens {
    * built once so the search box keeps focus while typing.
    */
   public openTeamSelect(options: TeamSelectOptions): void {
-    const threats = options.map ? openingThreatTypes(10, WIN_ROUNDS[options.map.difficulty]) : [];
+    const threats = options.map ? openingThreatTypes(10, CUPS[options.map.cup].winRound) : [];
     const filter: BenchFilter = { query: '', sort: 'level', types: new Set(), strongOnly: false };
     const strongCache = new Map<string, PokemonType[]>();
     const strong = (pokemon: OwnedPokemon) => {

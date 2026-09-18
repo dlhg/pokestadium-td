@@ -34,9 +34,11 @@
 .map-card:hover, .map-card:focus-visible { border-color: #ffe082; transform: translateY(-4px); outline: 2px solid #9f7b32; }
 .map-preview { display: block; width: 100%; aspect-ratio: 1.2; border-bottom: 2px solid #719bc2; }
 .map-card-body { display: flex; flex: 1; flex-direction: column; padding: 14px; }
-.map-difficulty { position: absolute; top: 8px; left: 8px; padding: 3px 8px; font: 14px 'Teko', sans-serif; letter-spacing: 1px; background: #20593c; border: 1px solid #a9e6be; }
-.map-difficulty.medium { background: #805917; border-color: #ffe283; }
-.map-difficulty.hard { background: #912632; border-color: #ffaaa8; }
+.map-cup { position: absolute; top: 8px; left: 8px; padding: 3px 8px; font: 14px 'Teko', sans-serif; letter-spacing: 1px; background: #20593c; border: 1px solid #a9e6be; }
+.map-cup.poke { background: #805917; border-color: #ffe283; }
+.map-cup.great { background: #1f4f8f; border-color: #a8cfff; }
+.map-cup.prime { background: #912632; border-color: #ffaaa8; }
+.map-cup-rules { display: block; margin-top: 6px; color: #ffe082; font: 13px 'Teko', sans-serif; letter-spacing: 1px; }
 .map-name { display: block; font: 25px 'Teko', Impact, sans-serif; line-height: 1; letter-spacing: .3px; color: #fff2c6; }
 .map-venue { display: block; color: #83b7d4; font-size: 9px; font-weight: 800; letter-spacing: 1px; margin-top: 6px; }
 .map-description { display: block; margin: 13px 0 16px; color: #dceafa; font: 13px/1.4 'Rajdhani', sans-serif; }

@@ -777,7 +777,7 @@
   border-bottom: 4px solid var(--broadcast-gold);
 }
 
-.map-difficulty {
+.map-cup {
   border: 2px solid white;
   border-radius: 5px;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, .55);

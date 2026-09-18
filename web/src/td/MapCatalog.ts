@@ -1,5 +1,6 @@
 /** Authored courses: routes, terrain and collision all share these definitions. */
-export type MapDifficulty = 'easy' | 'medium' | 'hard';
+import type { CupId } from './Cups';
+
 export type MapPoint = readonly [x: number, z: number];
 /** A route control point. Height defaults to the terrace beneath it; give one to pin a stair landing. */
 export type RoutePoint = readonly [x: number, z: number, y?: number];
@@ -31,7 +32,8 @@ export interface StadiumMap {
   id: string;
   name: string;
   venue: string;
-  difficulty: MapDifficulty;
+  /** The level bracket this course is played under (see Cups.ts). */
+  cup: CupId;
   description: string;
   strategy: string;
   theme: 'garden' | 'canyon' | 'river' | 'industrial' | 'plateau';
@@ -58,7 +60,7 @@ const TIER_STORY_1 = 3, TIER_STORY_2 = 6.5, TIER_STORY_3 = 10, TIER_STORY_4 = 13
 
 export const STADIUM_MAPS: StadiumMap[] = [
   {
-    id: 'open-cup', name: 'Viridian Gardens', venue: 'FOREST EXHIBITION', difficulty: 'easy',
+    id: 'open-cup', name: 'Viridian Gardens', venue: 'FOREST EXHIBITION', cup: 'little',
     description: 'A long garden trail curls back past open clearings. Give your team a second shot.',
     strategy: 'Cover both sides of a bend to attack the same wave twice.',
     theme: 'garden',
@@ -74,7 +76,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ], water: [], bridges: [],
   },
   {
-    id: 'boulder-circuit', name: 'Mt. Moon Pass', venue: 'BOULDER TOURNAMENT', difficulty: 'medium',
+    id: 'boulder-circuit', name: 'Mt. Moon Pass', venue: 'BOULDER TOURNAMENT', cup: 'little',
     description: 'Three switchbacks wind through a rocky pass. The inside corners are precious.',
     strategy: 'Claim the small clearings between hairpins before spreading out.',
     theme: 'canyon',
@@ -93,7 +95,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ], water:[], bridges:[],
   },
   {
-    id:'cerulean-crossing', name:'Cerulean Crossing', venue:'RIVERSIDE CHALLENGE', difficulty:'medium',
+    id:'cerulean-crossing', name:'Cerulean Crossing', venue:'RIVERSIDE CHALLENGE', cup:'poke',
     description:'A winding river divides two banks. Two bridges funnel the wave past the shore.',
     strategy:'Watch the bridge approaches. Water leaves less room for shore defenses.',
     theme:'river',
@@ -110,7 +112,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ],
   },
   {
-    id:'power-plant', name:'Power Plant', venue:'DUAL-ENTRY CHALLENGE', difficulty:'hard',
+    id:'power-plant', name:'Power Plant', venue:'DUAL-ENTRY CHALLENGE', cup:'poke',
     description:'Two entrances feed separate circuits around the reactor. Every wave uses both.',
     strategy:'Cover the shared junctions, then guard both exits. Enemies alternate entrances.',
     theme:'industrial',
@@ -129,7 +131,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     ], water:[], bridges:[],
   },
   {
-    id:'indigo-plateau', name:'Indigo Plateau', venue:'VICTORY ROAD ASCENT', difficulty:'hard',
+    id:'indigo-plateau', name:'Indigo Plateau', venue:'VICTORY ROAD ASCENT', cup:'great',
     description:'Challengers leave Victory Road and climb three terraces to the League gate. The stairs slow every climber.',
     strategy:'High ground reaches further down. Stairs are kill zones, but terraces are small. Pick your ledges carefully.',
     theme:'plateau',
@@ -198,7 +200,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     showGates: false,
   },
   {
-    id:'mt-silver-crown', name:'Mt. Silver Crown', venue:'TWIN-TRAIL SUMMIT', difficulty:'hard',
+    id:'mt-silver-crown', name:'Mt. Silver Crown', venue:'TWIN-TRAIL SUMMIT', cup:'prime',
     description:'Two mountain trails coil up five shrinking shelves before rejoining beneath the summit gate.',
     strategy:'The west trail crosses each shelf directly; the longer east trail doubles back beneath your high ground. Control the middle shelves.',
     theme:'plateau',
@@ -258,7 +260,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     showGates: false,
   },
   {
-    id:'bell-tower', name:'Bell Tower', venue:'ECRUTEAK ASCENT', difficulty:'hard',
+    id:'bell-tower', name:'Bell Tower', venue:'ECRUTEAK ASCENT', cup:'great',
     description:'A sacred pagoda rises in four shrinking storeys above the forest. The route spirals around its balconies toward the roost at the top.',
     strategy:'Every storey is a full ring around the tower, not a doorway — high ground here covers a whole balcony below it. But the summit is barely big enough for one tower, so place it well.',
     theme:'plateau',
@@ -300,7 +302,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     showGates: false,
   },
   {
-    id:'seafoam-islands', name:'Seafoam Islands', venue:'FROZEN STRAIT', difficulty:'hard',
+    id:'seafoam-islands', name:'Seafoam Islands', venue:'FROZEN STRAIT', cup:'prime',
     description:"A chain of ice-crusted islets threads across a frigid strait toward Articuno's roost. Every gap between them is a cracked-ice crossing, and open water carries a shot just as well as any bank.",
     strategy:"Bridges are the only chokepoints, but a tower posted on one islet's shore can also reach the lane on the next islet over open water — stack that reach instead of splitting forces across every islet.",
     theme:'river',

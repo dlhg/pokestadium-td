@@ -17,6 +17,7 @@ import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
+import { CUP_ORDER, CUPS, type CupId } from './Cups';
 import { mapPreview } from './MapPreview';
 import { BALL_ORDER, BALL_PRICES, BallType, CaptureHud } from './CaptureSequence';
 import type { Creep } from './Creep';
@@ -1503,17 +1504,18 @@ export class StadiumUI {
           <div class="map-select-eyebrow">POKÉMON STADIUM TD / COURSE SELECT</div>
           <h1 class="map-select-title">CHOOSE YOUR BATTLEFIELD</h1>
           <p class="map-select-subtitle">Every course has a different way through. Find your team's home advantage.</p>
-          <div class="map-filters" aria-label="Map difficulty">
-            ${['all','easy','medium','hard'].map((filter,i)=>`<button class="stadium-btn map-filter ${i===0?'active':''}" data-difficulty="${filter}" aria-pressed="${i===0}">${filter.toUpperCase()}</button>`).join('')}
+          <div class="map-filters" aria-label="Filter by cup">
+            ${['all',...CUP_ORDER].map((filter,i)=>`<button class="stadium-btn map-filter ${i===0?'active':''}" data-cup-filter="${filter}" aria-pressed="${i===0}">${filter==='all'?'ALL':CUPS[filter as CupId].name.replace(' CUP','')}</button>`).join('')}
           </div>
           <div class="map-cards">
-            ${STADIUM_MAPS.map(map=>`<button class="map-card interactive" data-map-id="${map.id}" data-map-difficulty="${map.difficulty}" aria-label="Play ${map.name}, ${map.difficulty}">
+            ${[...STADIUM_MAPS].sort((a,b)=>CUP_ORDER.indexOf(a.cup)-CUP_ORDER.indexOf(b.cup)).map(map=>{const cup=CUPS[map.cup];return `<button class="map-card interactive" data-map-id="${map.id}" data-map-cup="${map.cup}" aria-label="Play ${map.name}, ${cup.name}, entry level ${cup.entryMax} and under">
               ${mapPreview(map)}
-              <span class="map-difficulty ${map.difficulty}">${map.difficulty.toUpperCase()}</span>
+              <span class="map-cup ${map.cup}">${cup.name}</span>
               <span class="map-card-body"><strong class="map-name">${map.name}</strong><span class="map-venue">${map.venue}</span>
+              <span class="map-cup-rules">LV ≤ ${cup.entryMax} · CAP ${cup.levelCap}</span>
               <span class="map-description">${map.description}</span>
               <span class="map-record" data-map-record="${map.id}"></span><span class="map-obstacles">${map.terrain?'3 TERRACES · HIGH GROUND':map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
-            </button>`).join('')}
+            </button>`;}).join('')}
           </div>
           <div class="map-select-footer"><div class="map-legend"><span>Entrance</span><span>Exit</span></div><span>Choose a course, then pick your team.</span><button id="btn-open-team" class="stadium-btn">MY POKÉMON</button><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>
         </section>
@@ -1525,7 +1527,7 @@ export class StadiumUI {
         <!-- Top Bar -->
         <div id="top-bar" class="stadium-panel">
           <div class="stat-badge">
-            <span class="stat-label" id="cup-title">POKE CUP</span>
+            <span class="stat-label" id="cup-title">QUALIFIERS</span>
             <span class="stat-value gold-glow" id="round-number">ROUND 1</span>
           </div>
           <div class="stat-badge" aria-label="Available funds">
@@ -1937,14 +1939,14 @@ export class StadiumUI {
     bindVolume('pause-music-volume', 'pause-music-volume-value', value => this.onMusicVolumeChange(value));
     bindVolume('pause-sfx-volume', 'pause-sfx-volume-value', value => this.onSfxVolumeChange(value));
     bindVolume('pause-announcer-volume', 'pause-announcer-volume-value', value => this.onAnnouncerVolumeChange(value));
-    this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(button=>{
+    this.container.querySelectorAll<HTMLButtonElement>('[data-cup-filter]').forEach(button=>{
       button.addEventListener('click',()=>{
-        const filter=button.dataset.difficulty;
-        this.container.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach(tab=>{
+        const filter=button.dataset.cupFilter;
+        this.container.querySelectorAll<HTMLButtonElement>('[data-cup-filter]').forEach(tab=>{
           tab.classList.toggle('active',tab===button);tab.setAttribute('aria-pressed',String(tab===button));
         });
         this.container.querySelectorAll<HTMLButtonElement>('[data-map-id]').forEach(card=>{
-          card.hidden=filter!=='all' && card.dataset.mapDifficulty!==filter;
+          card.hidden=filter!=='all' && card.dataset.mapCup!==filter;
         });
       });
     });
