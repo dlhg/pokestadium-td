@@ -22,7 +22,8 @@ web/
 ├── take_screenshot.py       # Visual self-critique & screenshot capture script
 ├── docs/                    # Design-rationale docs, updated alongside the features they cover
 │   ├── tower-roles.md       # Tower path/signature design and rationale
-│   └── trainer-progression.md
+│   ├── trainer-progression.md
+│   └── cup-rules.md         # Planned: cup entry limits, level caps, rentals
 ├── ROM_ASSETS.md            # Optional, gitignored ROM-extraction workflow
 └── src/
     ├── engine/               # Reusable 3D engine (renderer, camera, audio, input, particles, FX)
