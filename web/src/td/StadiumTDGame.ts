@@ -180,7 +180,7 @@ export class StadiumTDGame {
     this.aimPreview.visible = false;
     this.renderer.scene.add(this.aimPreview);
 
-    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts);
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
 
     this.bindUIEvents();
@@ -382,7 +382,7 @@ export class StadiumTDGame {
     this.arena.dispose();
     this.arena = new StadiumArena(map);
     this.renderer.scene.add(this.arena.group);
-    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts);
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights);
     this.money = 420;
     this.lives = 6;
     // A brand-new trainer gets extra balls to build a team with.
@@ -1206,6 +1206,7 @@ export class StadiumTDGame {
         cupName: currentWave.cupName,
         round: currentWave.round,
         winRound: this.waveManager.winRound,
+        isMystery: !!currentWave.isMystery,
         freeplay: this.waveManager.isFreeplay,
         inWave: this.waveManager.inWave,
         intermissionTimer: this.waveManager.intermissionTimer,

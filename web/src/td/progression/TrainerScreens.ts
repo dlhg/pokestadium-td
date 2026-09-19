@@ -294,7 +294,7 @@ export class TrainerScreens {
    */
   public openTeamSelect(options: TeamSelectOptions): void {
     const cup = options.map ? CUPS[options.map.cup] : null;
-    const threats = cup ? openingThreatTypes(10, cup.winRound) : [];
+    const threats = cup ? openingThreatTypes(10, cup.winRound, options.map?.typeWeights) : [];
     const canEnter = (pokemon: OwnedPokemon) => !cup || isEligible(pokemon.level, cup);
     const filter: BenchFilter = { query: '', sort: 'level', types: new Set(), strongOnly: false };
     const strongCache = new Map<string, PokemonType[]>();

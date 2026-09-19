@@ -102,6 +102,8 @@ export interface UIState {
   round: number;
   /** The round whose clear wins the course; play continues past it. */
   winRound: number;
+  /** Full roster, ignoring the map's type bias, plus a random modifier. */
+  isMystery: boolean;
   freeplay: boolean;
   inWave: boolean;
   intermissionTimer: number;
@@ -302,6 +304,13 @@ export class StadiumUI {
         }
 
         .stat-badge { display: flex; flex-direction: column; align-items: center; }
+        #mystery-badge[hidden] { display: none; }
+        .mystery-glow {
+          color: #d9a6ff;
+          text-shadow: 0 0 10px #b347ff, 0 0 20px #7c1fd6;
+          animation: mystery-pulse 1.1s ease-in-out infinite;
+        }
+        @keyframes mystery-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.75; } }
 
         #start-match-bar {
           flex: 1 1 auto;
@@ -1555,6 +1564,10 @@ export class StadiumUI {
           <div class="stat-badge">
             <span class="stat-label" id="cup-title">QUALIFIERS</span>
             <span class="stat-value gold-glow" id="round-number">ROUND 1</span>
+          </div>
+          <div class="stat-badge" id="mystery-badge" hidden title="Mystery round: full roster, random modifier">
+            <span class="stat-label">???</span>
+            <span class="stat-value mystery-glow" id="mystery-mark">?</span>
           </div>
           <div class="stat-badge" aria-label="Available funds">
             <span class="stat-value" style="color: #48ff48;" id="prize-money">$400</span>
@@ -2840,6 +2853,7 @@ export class StadiumUI {
     document.getElementById('round-number')!.innerText = state.freeplay
       ? `ROUND ${state.round} · FREEPLAY`
       : `ROUND ${state.round} / ${state.winRound}`;
+    document.getElementById('mystery-badge')!.hidden = !state.isMystery;
     document.getElementById('prize-money')!.innerText = `$${state.money}`;
 
     // Stadium HP remains the defensive fail-state; balls are capture inventory.

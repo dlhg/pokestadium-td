@@ -18,345 +18,54 @@ export interface WaveDefinition {
   cupName: string;
   name: string;
   spawns: { config: CreepConfig; count: number; interval: number }[];
+  /** True for a generated round rolled unweighted, with a random modifier. */
+  isMystery?: boolean;
 }
 
 /** Density/toughness tradeoff applied to rank-and-file creeps at spawn time. */
 const TRASH_COUNT_MULTIPLIER = 0.5;
 const TRASH_HP_MULTIPLIER = 2;
 
-/** The opening cups, hand-authored. Later rounds are generated. */
-const AUTHORED_WAVES: WaveDefinition[] = [
-  // QUALIFIERS (Waves 1 - 5)
-  {
-    round: 1,
-    cupName: 'QUALIFIERS',
-    name: 'Round 1: Route 1 Runners',
-    spawns: [
-      {
-        config: {
-          id: 'rattata_1',
-          name: 'Rattata',
-          type: 'Normal',
-          maxHp: 75,
-          speed: 4.2,
-          reward: 15,
-          modelType: 'rattata'
-        },
-        count: 8,
-        interval: 1.2
-      },
-      {
-        config: {
-          id: 'pidgey_1', name: 'Pidgey', type: 'Normal', secondaryType: 'Flying',
-          maxHp: 68, speed: 4.8, reward: 16, modelType: 'zubat'
-        },
-        count: 5,
-        interval: 1.35
-      }
-    ]
-  },
-  {
-    round: 2,
-    cupName: 'QUALIFIERS',
-    name: 'Round 2: Mt. Moon Swarm',
-    spawns: [
-      {
-        config: {
-          id: 'zubat_1',
-          name: 'Zubat',
-          type: 'Poison',
-          secondaryType: 'Flying',
-          maxHp: 95,
-          speed: 5.0,
-          reward: 18,
-          modelType: 'zubat'
-        },
-        count: 12,
-        interval: 1.0
-      },
-      {
-        config: {
-          id: 'paras_1', name: 'Paras', type: 'Bug', secondaryType: 'Grass',
-          maxHp: 125, speed: 3.2, reward: 23, modelType: 'rattata'
-        },
-        count: 6,
-        interval: 1.25
-      }
-    ]
-  },
-  {
-    round: 3,
-    cupName: 'QUALIFIERS',
-    name: 'Round 3: Granite Guard',
-    spawns: [
-      {
-        config: {
-          id: 'geodude_1',
-          name: 'Geodude',
-          type: 'Rock',
-          secondaryType: 'Ground',
-          maxHp: 180,
-          speed: 2.8,
-          reward: 25,
-          modelType: 'geodude'
-        },
-        count: 10,
-        interval: 1.4
-      },
-      {
-        config: {
-          id: 'machop_1', name: 'Machop', type: 'Fighting',
-          maxHp: 210, speed: 3.1, reward: 29, modelType: 'geodude'
-        },
-        count: 5,
-        interval: 1.55
-      },
-      {
-        config: {
-          id: 'elite_geodude_1', name: 'Geodude', type: 'Rock', secondaryType: 'Ground',
-          maxHp: 720, speed: 2.35, reward: 100, threat: 'elite', modelType: 'geodude'
-        },
-        count: 1,
-        interval: 2.4
-      }
-    ]
-  },
-  {
-    round: 4,
-    cupName: 'QUALIFIERS',
-    name: 'Round 4: Stadium Qualifier',
-    spawns: [
-      {
-        config: {
-          id: 'ponyta_1',
-          name: 'Ponyta',
-          type: 'Fire',
-          maxHp: 130,
-          speed: 4.6,
-          reward: 20,
-          modelType: 'rattata'
-        },
-        count: 8,
-        interval: 0.9
-      },
-      {
-        config: {
-          id: 'oddish_1',
-          name: 'Oddish',
-          type: 'Grass',
-          secondaryType: 'Poison',
-          maxHp: 140,
-          speed: 5.2,
-          reward: 22,
-          modelType: 'rattata'
-        },
-        count: 8,
-        interval: 0.9
-      },
-      {
-        config: {
-          id: 'psyduck_1', name: 'Psyduck', type: 'Water',
-          maxHp: 165, speed: 4.1, reward: 25, modelType: 'rattata'
-        },
-        count: 6,
-        interval: 1.0
-      }
-    ]
-  },
-  {
-    round: 5,
-    cupName: 'QUALIFIERS',
-    name: 'Qualifiers Final: TITAN ONIX',
-    spawns: [
-      {
-        config: {
-          id: 'boss_onix',
-          name: 'Titan Onix',
-          type: 'Rock',
-          secondaryType: 'Ground',
-          maxHp: 1400,
-          speed: 2.2,
-          reward: 250,
-          isBoss: true,
-          threat: 'titan',
-          modelType: 'boss_titan',
-          titanType: 'Onix'
-        },
-        count: 1,
-        interval: 1.0
-      }
-    ]
-  },
+type RosterEntry = Omit<CreepConfig, 'id'>;
 
-  // MAIN DRAW (Waves 6 - 10)
-  {
-    round: 6,
-    cupName: 'MAIN DRAW',
-    name: 'Main Draw: Spectral Apparitions',
-    spawns: [
-      // Phantoms can't be aimed at by most towers, so targetable Zubat
-      // escorts are threaded through the ghosts to keep a starter team busy.
-      ...[0, 1].flatMap(half => [
-        {
-          config: {
-            id: `zubat_escort_6_${half}`, name: 'Zubat', type: 'Poison' as const, secondaryType: 'Flying' as const,
-            maxHp: 160, speed: 4.5, reward: 20, modelType: 'zubat' as const
-          },
-          count: 3 - half,
-          interval: 1.2
-        },
-        {
-          config: {
-            id: `haunter_1_${half}`, name: 'Haunter', type: 'Ghost' as const, secondaryType: 'Poison' as const,
-            maxHp: 220, speed: 4.5, reward: 30, modelType: 'zubat' as const
-          },
-          count: 7,
-          interval: 1.1
-        },
-      ])
-    ]
-  },
-  {
-    round: 7,
-    cupName: 'MAIN DRAW',
-    name: 'Main Draw: Boulder Battalion',
-    spawns: [
-      {
-        config: {
-          id: 'geodude_2',
-          name: 'Graveler',
-          type: 'Rock',
-          secondaryType: 'Ground',
-          maxHp: 340,
-          speed: 3.2,
-          reward: 35,
-          modelType: 'geodude'
-        },
-        count: 12,
-        interval: 1.2
-      },
-      {
-        config: {
-          id: 'machoke_1', name: 'Machoke', type: 'Fighting',
-          maxHp: 390, speed: 3.0, reward: 42, modelType: 'geodude'
-        },
-        count: 7,
-        interval: 1.35
-      }
-    ]
-  },
-  {
-    round: 8,
-    cupName: 'MAIN DRAW',
-    name: 'Main Draw: Dragonair Sprint',
-    spawns: [
-      {
-        config: {
-          id: 'dragonair_1',
-          name: 'Dragonair',
-          type: 'Dragon',
-          maxHp: 380,
-          speed: 5.6,
-          reward: 40,
-          modelType: 'dragonair'
-        },
-        count: 15,
-        interval: 0.9
-      },
-      {
-        config: {
-          id: 'lapras_1', name: 'Lapras', type: 'Water', secondaryType: 'Ice',
-          maxHp: 540, speed: 3.1, reward: 52, modelType: 'dragonair'
-        },
-        count: 5,
-        interval: 1.5
-      },
-      {
-        config: {
-          id: 'elite_dragonair_1', name: 'Dragonair', type: 'Dragon',
-          maxHp: 1520, speed: 3.7, reward: 185, threat: 'elite', modelType: 'dragonair'
-        },
-        count: 1,
-        interval: 2.6
-      }
-    ]
-  },
-  {
-    round: 9,
-    cupName: 'MAIN DRAW',
-    name: 'Main Draw: Semifinal Rush',
-    spawns: [
-      {
-        config: {
-          id: 'exeggutor_1',
-          name: 'Exeggutor',
-          type: 'Grass',
-          secondaryType: 'Psychic',
-          maxHp: 420,
-          speed: 5.4,
-          reward: 45,
-          modelType: 'geodude'
-        },
-        count: 10,
-        interval: 0.8
-      },
-      {
-        config: {
-          id: 'rhydon_1',
-          name: 'Rhydon',
-          type: 'Ground',
-          secondaryType: 'Rock',
-          maxHp: 480,
-          speed: 3.2,
-          reward: 45,
-          modelType: 'geodude'
-        },
-        count: 8,
-        interval: 0.8
-      },
-      {
-        config: {
-          id: 'scyther_1', name: 'Scyther', type: 'Bug', secondaryType: 'Flying',
-          maxHp: 410, speed: 5.8, reward: 48, modelType: 'zubat'
-        },
-        count: 8,
-        interval: 0.85
-      },
-      {
-        config: {
-          id: 'elite_rhydon_1', name: 'Rhydon', type: 'Ground', secondaryType: 'Rock',
-          maxHp: 1920, speed: 2.55, reward: 220, threat: 'elite', modelType: 'geodude'
-        },
-        count: 1,
-        interval: 2.8
-      }
-    ]
-  },
-  {
-    round: 10,
-    cupName: 'MAIN DRAW',
-    name: 'Main Draw Final: TITAN GYARADOS',
-    spawns: [
-      {
-        config: {
-          id: 'boss_gyarados',
-          name: 'Titan Gyarados',
-          type: 'Water',
-          secondaryType: 'Flying',
-          maxHp: 3600,
-          speed: 2.8,
-          reward: 500,
-          isBoss: true,
-          threat: 'titan',
-          modelType: 'boss_titan',
-          titanType: 'Gyarados'
-        },
-        count: 1,
-        interval: 1.0
-      }
-    ]
-  }
+/**
+ * The opening rounds (1–10, QUALIFIERS/MAIN DRAW) draw from this weaker,
+ * pre-evolution lineup instead of the mid-game ROSTER below — generated,
+ * like every other round, so a map's `typeWeights` reach the opening too.
+ * TRAIT_ANCHOR_ROUNDS and the Phantom safety net (see generateWave) keep
+ * the trait-teaching beats intact regardless of which map rolls them.
+ */
+const EARLY_ROSTER: RosterEntry[] = [
+  { name: 'Rattata', type: 'Normal', maxHp: 220, speed: 4.6, reward: 22, modelType: 'rattata' },
+  { name: 'Pidgey', type: 'Normal', secondaryType: 'Flying', maxHp: 180, speed: 5.0, reward: 22, modelType: 'zubat' },
+  { name: 'Zubat', type: 'Poison', secondaryType: 'Flying', maxHp: 190, speed: 5.2, reward: 22, modelType: 'zubat' },
+  { name: 'Paras', type: 'Bug', secondaryType: 'Grass', maxHp: 230, speed: 3.6, reward: 24, modelType: 'rattata' },
+  { name: 'Geodude', type: 'Rock', secondaryType: 'Ground', maxHp: 260, speed: 3.0, reward: 26, modelType: 'geodude' },
+  { name: 'Machop', type: 'Fighting', maxHp: 280, speed: 3.4, reward: 27, modelType: 'geodude' },
+  { name: 'Ponyta', type: 'Fire', maxHp: 230, speed: 4.9, reward: 24, modelType: 'rattata' },
+  { name: 'Oddish', type: 'Grass', secondaryType: 'Poison', maxHp: 240, speed: 5.5, reward: 24, modelType: 'rattata' },
+  { name: 'Psyduck', type: 'Water', maxHp: 260, speed: 4.4, reward: 26, modelType: 'rattata' },
+  { name: 'Haunter', type: 'Ghost', secondaryType: 'Poison', maxHp: 240, speed: 4.6, reward: 28, modelType: 'zubat' },
+  { name: 'Graveler', type: 'Rock', secondaryType: 'Ground', maxHp: 320, speed: 3.2, reward: 32, modelType: 'geodude' },
+  { name: 'Machoke', type: 'Fighting', maxHp: 340, speed: 3.1, reward: 34, modelType: 'geodude' },
+  { name: 'Dragonair', type: 'Dragon', maxHp: 320, speed: 5.3, reward: 34, modelType: 'dragonair' },
+  { name: 'Lapras', type: 'Water', secondaryType: 'Ice', maxHp: 400, speed: 3.1, reward: 38, modelType: 'dragonair' },
+  { name: 'Exeggutor', type: 'Grass', secondaryType: 'Psychic', maxHp: 340, speed: 5.0, reward: 36, modelType: 'geodude' },
+  { name: 'Rhydon', type: 'Ground', secondaryType: 'Rock', maxHp: 380, speed: 3.0, reward: 36, modelType: 'geodude' },
+  { name: 'Scyther', type: 'Bug', secondaryType: 'Flying', maxHp: 330, speed: 5.6, reward: 34, modelType: 'zubat' },
 ];
+
+/**
+ * A round that must field a creep of this type, regardless of the map's
+ * bias, so a fresh team meets the type behind each creep trait
+ * (`tower-roles.md`) on a predictable schedule: Airborne at round 1,
+ * Armored at round 3, Phantom at round 6.
+ */
+const TRAIT_ANCHOR_ROUNDS: Partial<Record<number, PokemonType>> = {
+  1: 'Flying',
+  3: 'Rock',
+  6: 'Ghost',
+};
 
 export class WaveManager {
   public currentWaveIndex: number = 0;
@@ -371,20 +80,26 @@ export class WaveManager {
   private nextRoute = 0;
   private announcer: StadiumAnnouncer;
   private cup: CupRules;
+  private typeWeights?: Partial<Record<PokemonType, number>>;
 
-  private waves = AUTHORED_WAVES;
-
-  /** Hand-authored cups cover the opening; every later round is generated. */
+  /** Every round is generated (and map-flavored); this just caches the result. */
   private generated = new Map<number, WaveDefinition>();
   public readonly winRound: number;
 
-  constructor(routes: THREE.Vector3[][], announcer: StadiumAnnouncer, cup: CupRules, lifts?: number[][]) {
+  constructor(
+    routes: THREE.Vector3[][],
+    announcer: StadiumAnnouncer,
+    cup: CupRules,
+    lifts?: number[][],
+    typeWeights?: Partial<Record<PokemonType, number>>
+  ) {
     if (!routes.length || routes.some(route => route.length < 2)) throw new Error('A course needs a traversable route');
     this.routes = routes;
     this.lifts = lifts;
     this.announcer = announcer;
     this.cup = cup;
     this.winRound = cup.winRound;
+    this.typeWeights = typeWeights;
   }
 
   /** Round number of the wave in play, or the one queued next during an intermission. */
@@ -395,12 +110,11 @@ export class WaveManager {
     return this.getWave(this.round);
   }
 
-  /** Rounds never run out: past the authored cups they are built, then cached. */
+  /** Rounds never run out: each is built once, then cached. */
   public getWave(round: number): WaveDefinition {
-    if (round <= this.waves.length) return this.waves[round - 1];
     let wave = this.generated.get(round);
     if (!wave) {
-      wave = generateWave(round, this.winRound);
+      wave = generateWave(round, this.winRound, this.typeWeights);
       this.generated.set(round, wave);
     }
     return wave;
@@ -442,6 +156,8 @@ export class WaveManager {
 
     if (wave.spawns.some(s => s.config.isBoss)) {
       this.announcer.trigger('boss_spawn', wave.name);
+    } else if (wave.isMystery) {
+      this.announcer.trigger('mystery_round', wave.name);
     } else {
       this.announcer.trigger('round_start', String(wave.round));
     }
@@ -523,9 +239,7 @@ export function getMilestone(round: number, winRound: number): MilestoneReward |
 // Generated rounds
 // --------------------------------------------------------------------------
 
-type RosterEntry = Omit<CreepConfig, 'id'>;
-
-/** Rank-and-file lineup for generated rounds, tuned at the round-10 baseline. */
+/** Mid-game-and-later lineup (round 11+), tuned at the round-10 baseline. */
 const ROSTER: RosterEntry[] = [
   { name: 'Raticate', type: 'Normal', maxHp: 300, speed: 5.2, reward: 30, modelType: 'rattata' },
   { name: 'Golbat', type: 'Poison', secondaryType: 'Flying', maxHp: 280, speed: 5.6, reward: 30, modelType: 'zubat' },
@@ -567,26 +281,130 @@ function hpScale(round: number, winRound: number): number {
   return round > winRound ? base * Math.pow(1.045, round - winRound) : base;
 }
 
-function generateWave(round: number, winRound: number): WaveDefinition {
+/** Weighted pick, without replacement, from an explicit `{index, weight}` pool. */
+function weightedDraw(rand: () => number, count: number, pool: { index: number; weight: number }[]): number[] {
+  const remaining = [...pool];
+  const picks: number[] = [];
+  while (picks.length < count && remaining.length > 0) {
+    const total = remaining.reduce((sum, r) => sum + r.weight, 0);
+    let r = rand() * total;
+    let i = 0;
+    while (i < remaining.length - 1 && (r -= remaining[i].weight) > 0) i++;
+    picks.push(remaining.splice(i, 1)[0].index);
+  }
+  return picks;
+}
+
+/**
+ * Weighted pick, without replacement, over a roster's indices. A dual-type
+ * entry counts under whichever of its types has the higher weight. No
+ * `weights` (or all-1) degrades to a plain uniform draw. `exclude` keeps
+ * already-picked (e.g. trait-anchor) indices out of the draw.
+ */
+function pickRosterIndices(
+  rand: () => number,
+  count: number,
+  roster: RosterEntry[],
+  weights?: Partial<Record<PokemonType, number>>,
+  exclude: readonly number[] = []
+): number[] {
+  const weightOf = (entry: RosterEntry): number => {
+    if (!weights) return 1;
+    const primary = weights[entry.type] ?? 1;
+    const secondary = entry.secondaryType ? weights[entry.secondaryType] ?? 1 : primary;
+    return Math.max(primary, secondary);
+  };
+  const pool = roster
+    .map((entry, index) => ({ index, weight: weightOf(entry) }))
+    .filter(r => !exclude.includes(r.index));
+  return weightedDraw(rand, count, pool);
+}
+
+/** True for Ghost-type (Phantom-trait) entries — used to keep a wave targetable. */
+function isPhantom(entry: RosterEntry): boolean {
+  return entry.type === 'Ghost' || entry.secondaryType === 'Ghost';
+}
+
+/**
+ * Towers can't target Phantoms (tower-roles.md); a wave built entirely of
+ * them would be unwinnable for a team with no untargeted or Ghost/Psychic
+ * coverage yet. If every pick came up Phantom, swap the last one for a
+ * targetable escort (weighted, like any other pick) so there's always
+ * something a starter team can aim at.
+ */
+function ensureTargetable(
+  picks: number[],
+  rand: () => number,
+  roster: RosterEntry[],
+  weights: Partial<Record<PokemonType, number>> | undefined
+): number[] {
+  if (picks.length === 0 || !picks.every(i => isPhantom(roster[i]))) return picks;
+  const weightOf = (entry: RosterEntry): number => {
+    if (!weights) return 1;
+    const primary = weights[entry.type] ?? 1;
+    const secondary = entry.secondaryType ? weights[entry.secondaryType] ?? 1 : primary;
+    return Math.max(primary, secondary);
+  };
+  const pool = roster
+    .map((entry, index) => ({ index, weight: weightOf(entry) }))
+    .filter(r => !isPhantom(roster[r.index]) && !picks.includes(r.index));
+  const [escort] = weightedDraw(rand, 1, pool);
+  if (escort === undefined) return picks;
+  return [...picks.slice(0, -1), escort];
+}
+
+/**
+ * Rounds that skip the map's type bias and roll the full roster instead,
+ * each carrying one random modifier — the "keep it spicy" exception to an
+ * otherwise learnable, counterable map identity.
+ */
+const MYSTERY_CHANCE = 0.22;
+const MYSTERY_MODIFIERS = [
+  { id: 'swarm', label: 'Swarm Surge', groupBonus: 1, countMult: 0.85, hpMult: 1, speedMult: 1, payMult: 0.95, forceElite: false },
+  { id: 'juggernaut', label: 'Juggernaut', groupBonus: 0, countMult: 1, hpMult: 1, speedMult: 1, payMult: 1, forceElite: true },
+  { id: 'stampede', label: 'Stampede', groupBonus: 0, countMult: 1, hpMult: 1, speedMult: 1.25, payMult: 1.15, forceElite: false },
+  { id: 'bounty', label: 'Bounty Round', groupBonus: 0, countMult: 1, hpMult: 0.85, speedMult: 1, payMult: 1.6, forceElite: false },
+] as const;
+
+/** Every 10th round is a Titan; rounds 1–10 also close with one at round 5 (Qualifiers Final). */
+function isBossRound(round: number): boolean {
+  return round === 5 || round % 10 === 0;
+}
+
+/** Round 5/10 keep their original Onix-then-Gyarados pair; later Titans alternate every 20. */
+function titanTypeForRound(round: number): 'Onix' | 'Gyarados' {
+  if (round === 5) return 'Onix';
+  if (round === 10) return 'Gyarados';
+  return round % 20 === 0 ? 'Gyarados' : 'Onix';
+}
+
+function generateWave(round: number, winRound: number, typeWeights?: Partial<Record<PokemonType, number>>): WaveDefinition {
   const rand = mulberry32(round * 2654435761);
   const hp = hpScale(round, winRound);
   // Rewards trail HP so income doesn't outrun the difficulty curve.
   const pay = Math.sqrt(hp);
   const freeplay = round > winRound;
-  const cupName = freeplay ? 'FREEPLAY' : CUP_NAMES[Math.floor((round - 11) / 10) % CUP_NAMES.length];
+  const roster = round <= 10 ? EARLY_ROSTER : ROSTER;
+  const cupName = round <= 5 ? 'QUALIFIERS' : round <= 10 ? 'MAIN DRAW'
+    : freeplay ? 'FREEPLAY' : CUP_NAMES[Math.floor((round - 11) / 10) % CUP_NAMES.length];
+
+  // Titan rounds stay on-theme; mystery only applies to normal rounds.
+  const isMystery = !isBossRound(round) && rand() < MYSTERY_CHANCE;
+  const modifier = isMystery ? MYSTERY_MODIFIERS[Math.floor(rand() * MYSTERY_MODIFIERS.length)] : null;
+  const weights = isMystery ? undefined : typeWeights;
 
   const scaled = (entry: RosterEntry, id: string, extra: Partial<CreepConfig> = {}): CreepConfig => ({
     ...entry,
     id,
-    maxHp: Math.round(entry.maxHp * hp),
-    speed: Math.min(entry.speed * (1 + Math.min(round, 120) * 0.0025), entry.speed * 1.3),
-    reward: Math.round(entry.reward * pay),
+    maxHp: Math.round(entry.maxHp * hp * (modifier?.hpMult ?? 1)),
+    speed: Math.min(entry.speed * (1 + Math.min(round, 120) * 0.0025), entry.speed * 1.3) * (modifier?.speedMult ?? 1),
+    reward: Math.round(entry.reward * pay * (modifier?.payMult ?? 1)),
     ...extra,
   });
 
-  if (round % 10 === 0) {
-    const titanType = round % 20 === 0 ? 'Gyarados' : 'Onix';
-    const escortEntry = ROSTER[Math.floor(rand() * ROSTER.length)];
+  if (isBossRound(round)) {
+    const titanType = titanTypeForRound(round);
+    const escortEntry = roster[pickRosterIndices(rand, 1, roster, weights)[0]];
     return {
       round, cupName,
       name: `${freeplay ? 'Freeplay' : cupName} Final: TITAN ${titanType.toUpperCase()}`,
@@ -610,22 +428,33 @@ function generateWave(round: number, winRound: number): WaveDefinition {
     };
   }
 
-  const groupCount = Math.min(2 + Math.floor(round / 25), 4);
-  const picks = new Set<number>();
-  while (picks.size < groupCount) picks.add(Math.floor(rand() * ROSTER.length));
-  const spawns: WaveDefinition['spawns'] = [...picks].map((index, i) => ({
-    config: scaled(ROSTER[index], `gen_${round}_${i}`),
-    count: Math.min(6 + Math.floor(round / 6) + Math.floor(rand() * 4), 28),
+  // Rounds 1/3/6 guarantee a creep of the type behind Airborne/Armored/Phantom, on-bias or
+  // not, so every save meets each trait on the same schedule (see TRAIT_ANCHOR_ROUNDS).
+  const anchorType = TRAIT_ANCHOR_ROUNDS[round];
+  const anchorPool = anchorType
+    ? roster.map((entry, index) => index).filter(index => roster[index].type === anchorType || roster[index].secondaryType === anchorType)
+    : [];
+  const anchorPick = anchorPool.length ? anchorPool[Math.floor(rand() * anchorPool.length)] : undefined;
+
+  const groupCount = (round <= 10 ? Math.min(2 + Math.floor(round / 4), 4) : Math.min(2 + Math.floor(round / 25), 4))
+    + (modifier?.groupBonus ?? 0);
+  const rest = pickRosterIndices(rand, anchorPick !== undefined ? groupCount - 1 : groupCount, roster, weights, anchorPick !== undefined ? [anchorPick] : []);
+  const picks = ensureTargetable(anchorPick !== undefined ? [anchorPick, ...rest] : rest, rand, roster, weights);
+
+  const spawns: WaveDefinition['spawns'] = picks.map((index, i) => ({
+    config: scaled(roster[index], `gen_${round}_${i}`),
+    count: Math.min(Math.round((6 + Math.floor(round / 6) + Math.floor(rand() * 4)) * (modifier?.countMult ?? 1)), 28),
     interval: Math.max(1.1 - round * 0.006, 0.45),
   }));
 
-  if (round % 5 === 0) {
-    const eliteEntry = ROSTER[Math.floor(rand() * ROSTER.length)];
+  const eliteEligible = round <= 10 ? (round % 3 === 0 && round !== 6) : round % 5 === 0;
+  if (eliteEligible || modifier?.forceElite) {
+    const eliteEntry = roster[pickRosterIndices(rand, 1, roster, weights, picks)[0]];
     spawns.push({
       config: scaled(eliteEntry, `elite_${round}`, {
-        maxHp: Math.round(eliteEntry.maxHp * 4 * hp),
-        reward: Math.round(eliteEntry.reward * 5 * pay),
-        speed: eliteEntry.speed * 0.8,
+        maxHp: Math.round(eliteEntry.maxHp * 4 * hp * (modifier?.hpMult ?? 1)),
+        reward: Math.round(eliteEntry.reward * 5 * pay * (modifier?.payMult ?? 1)),
+        speed: eliteEntry.speed * 0.8 * (modifier?.speedMult ?? 1),
         threat: 'elite',
       }),
       count: 1 + Math.floor(round / 40),
@@ -634,14 +463,19 @@ function generateWave(round: number, winRound: number): WaveDefinition {
   }
 
   const lead = spawns[0].config.name;
-  return { round, cupName, name: `${cupName}: ${lead} Assault`, spawns };
+  const name = modifier ? `${cupName}: MYSTERY ROUND — ${modifier.label}` : `${cupName}: ${lead} Assault`;
+  return { round, cupName, name, spawns, isMystery };
 }
 
 /** Every type fielded in the opening rounds — what team select warns about. */
-export function openingThreatTypes(rounds = 10, winRound = CUPS.little.winRound): PokemonType[] {
+export function openingThreatTypes(
+  rounds = 10,
+  winRound = CUPS.little.winRound,
+  typeWeights?: Partial<Record<PokemonType, number>>
+): PokemonType[] {
   const types = new Set<PokemonType>();
   for (let round = 1; round <= rounds; round++) {
-    const wave = round <= AUTHORED_WAVES.length ? AUTHORED_WAVES[round - 1] : generateWave(round, winRound);
+    const wave = generateWave(round, winRound, typeWeights);
     for (const spawn of wave.spawns) {
       types.add(spawn.config.type);
       if (spawn.config.secondaryType) types.add(spawn.config.secondaryType);

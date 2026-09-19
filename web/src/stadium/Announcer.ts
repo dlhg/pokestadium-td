@@ -20,6 +20,7 @@ export class StadiumAnnouncer {
     round_start: { cooldown: 6_000, chance: 1 },
     boss_spawn: { cooldown: 0, chance: 1 }, boss_defeat: { cooldown: 0, chance: 1 },
     elite_spawn: { cooldown: 12_000, chance: 1 }, elite_defeat: { cooldown: 12_000, chance: 0.7 },
+    mystery_round: { cooldown: 0, chance: 1 },
     victory: { cooldown: 0, chance: 1 }, game_over: { cooldown: 0, chance: 1 },
     tower_evolve: { cooldown: 15_000, chance: 0.6 }, wave_cleared: { cooldown: 22_000, chance: 0.2 },
     capture_throw: { cooldown: 0, chance: 1 },
@@ -116,6 +117,11 @@ export class StadiumAnnouncer {
         return [{ text: "PHANTOMS! ONLY PSYCHIC AND GHOST POKÉMON CAN AIM AT THEM!", intensity: 'high' }];
       case 'trait_armored':
         return [{ text: "ARMORED FOES! LIGHT HITS BOUNCE OFF — BRING HEAVY MOVES!", intensity: 'high' }];
+      case 'mystery_round':
+        return [
+          { text: "A MYSTERY ROUND! NO ONE KNOWS WHAT'S COMING!", intensity: 'epic' },
+          { text: `SOMETHING'S DIFFERENT THIS ROUND — ${detail || 'STAY SHARP'}!`, intensity: 'epic' },
+        ];
       case 'elite_spawn':
         return [{ text: `AN ELITE ${detail || 'CHALLENGER'} JOINS THE ASSAULT!`, intensity: 'high' }];
       case 'elite_defeat':

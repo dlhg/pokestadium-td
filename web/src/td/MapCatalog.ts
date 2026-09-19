@@ -1,5 +1,6 @@
 /** Authored courses: routes, terrain and collision all share these definitions. */
 import type { CupId } from './Cups';
+import type { PokemonType } from '../stadium/TypeMatrix';
 
 export type MapPoint = readonly [x: number, z: number];
 /** A route control point. Height defaults to the terrace beneath it; give one to pin a stair landing. */
@@ -40,6 +41,14 @@ export interface StadiumMap {
   palette: { ground: string; patch: string; path: string; edge: string; accent: string };
   buildableRadius: number;
   laneWidth: number;
+  /**
+   * Bias on generated-round enemy picks (WaveManager's ROSTER, rounds 11+):
+   * a type here is that many times more likely to be picked than an
+   * unlisted type (default weight 1). A 2–3x lean lets a team built to
+   * counter this course's theme feel strong without hard-countering every
+   * wave — mystery rounds (WaveManager.ts) ignore this and roll unweighted.
+   */
+  typeWeights?: Partial<Record<PokemonType, number>>;
   routes: RoutePoint[][];
   obstacles: MapObstacle[];
   water: WaterRegion[];
@@ -64,6 +73,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description: 'A long garden trail curls back past open clearings. Give your team a second shot.',
     strategy: 'Cover both sides of a bend to attack the same wave twice.',
     theme: 'garden',
+    typeWeights: { Grass: 3, Bug: 3, Poison: 2 },
     palette: { ground: '#568452', patch: '#659a5c', path: '#e4c58b', edge: '#806544', accent: '#bad77a' },
     buildableRadius: 31, laneWidth: 3.2,
     routes: [[[-30,-12],[-24,-12],[-20,-21],[-9,-21],[-5,-13],[-11,-7],[-19,-1],[-17,9],[-7,13],[1,8],[3,-3],[9,-13],[20,-13],[23,-3],[17,7],[10,15],[10,23],[20,22],[29,13]]],
@@ -80,6 +90,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description: 'Three switchbacks wind through a rocky pass. The inside corners are precious.',
     strategy: 'Claim the small clearings between hairpins before spreading out.',
     theme: 'canyon',
+    typeWeights: { Rock: 3, Ground: 3, Fighting: 2 },
     palette: { ground:'#877164', patch:'#9f8872', path:'#e6b986', edge:'#594743', accent:'#e6b9f0' },
     buildableRadius:31, laneWidth:3,
     routes: [[[-30,-12],[-21,-19],[4,-19],[17,-13],[14,-5],[-10,-5],[-18,2],[-14,10],[11,10],[18,16],[10,24],[-8,24],[-20,20],[-29,12]]],
@@ -99,6 +110,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description:'A winding river divides two banks. Two bridges funnel the wave past the shore.',
     strategy:'Watch the bridge approaches. Water leaves less room for shore defenses.',
     theme:'river',
+    typeWeights: { Water: 3, Ice: 2 },
     palette:{ ground:'#598c78', patch:'#77a38a', path:'#e4cdaa', edge:'#7c775d', accent:'#67dbea' },
     buildableRadius:31, laneWidth:3,
     routes:[[[-30,-14],[-18,-14],[-14,-4],[-22,3],[-18,14],[-8,14],[0,14],[10,14],[20,10],[21,0],[12,-3],[8,-12],[0,-12],[-8,-12],[-8,-22],[7,-25],[18,-20],[29,-12]]],
@@ -116,6 +128,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description:'Two entrances feed separate circuits around the reactor. Every wave uses both.',
     strategy:'Cover the shared junctions, then guard both exits. Enemies alternate entrances.',
     theme:'industrial',
+    typeWeights: { Electric: 3, Poison: 3, Ghost: 2 },
     palette:{ ground:'#435969', patch:'#506775', path:'#a9b9b5', edge:'#253b4c', accent:'#ffcf58' },
     buildableRadius:30, laneWidth:2.8,
     routes:[
@@ -135,6 +148,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description:'Challengers leave Victory Road and climb three terraces to the League gate. The stairs slow every climber.',
     strategy:'High ground reaches further down. Stairs are kill zones, but terraces are small. Pick your ledges carefully.',
     theme:'plateau',
+    typeWeights: { Rock: 3, Flying: 2, Psychic: 2 },
     palette:{ ground:'#6f9c52', patch:'#86b35f', path:'#dcb77e', edge:'#9a6b45', accent:'#f2c65a' },
     buildableRadius:31, laneWidth:3,
     terrain:{ plateaus:[
@@ -204,6 +218,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description:'Two mountain trails coil up five shrinking shelves before rejoining beneath the summit gate.',
     strategy:'The west trail crosses each shelf directly; the longer east trail doubles back beneath your high ground. Control the middle shelves.',
     theme:'plateau',
+    typeWeights: { Ice: 3, Rock: 2, Dragon: 2 },
     palette:{ ground:'#405f4c', patch:'#658069', path:'#c9b28c', edge:'#665b55', accent:'#a9d9e8' },
     buildableRadius:31, laneWidth:2.8,
     terrain:{ plateaus:[
@@ -264,6 +279,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description:'A sacred pagoda rises in four shrinking storeys above the forest. The route spirals around its balconies toward the roost at the top.',
     strategy:'Every storey is a full ring around the tower, not a doorway — high ground here covers a whole balcony below it. But the summit is barely big enough for one tower, so place it well.',
     theme:'plateau',
+    typeWeights: { Ghost: 3, Psychic: 2, Poison: 2 },
     palette:{ ground:'#3f5c46', patch:'#4d6b52', path:'#c9a06a', edge:'#5c3a2a', accent:'#c0392b' },
     buildableRadius:31, laneWidth:3,
     terrain:{ plateaus:[
@@ -306,6 +322,7 @@ export const STADIUM_MAPS: StadiumMap[] = [
     description:"A chain of ice-crusted islets threads across a frigid strait toward Articuno's roost. Every gap between them is a cracked-ice crossing, and open water carries a shot just as well as any bank.",
     strategy:"Bridges are the only chokepoints, but a tower posted on one islet's shore can also reach the lane on the next islet over open water — stack that reach instead of splitting forces across every islet.",
     theme:'river',
+    typeWeights: { Ice: 3, Water: 3, Flying: 2 },
     palette:{ ground:'#7e97a8', patch:'#9db8c6', path:'#e6f1f5', edge:'#4c6472', accent:'#82e9ff' },
     buildableRadius:31, laneWidth:3,
     routes:[[
