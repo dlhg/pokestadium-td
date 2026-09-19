@@ -610,7 +610,10 @@ export class StadiumUI {
         .pause-audio input { width:100%; accent-color:#f6c437; }
         .pause-audio output { color:#f6c437; text-align:right; }
         #capture-kit { position:absolute; left:18px; bottom:88px; z-index:30; padding:8px 10px; display:grid; gap:5px; }
-        .capture-kit-title { color:#f6c437; font-family:'Teko','Impact',sans-serif; font-size:15px; line-height:.9; letter-spacing:1.2px; }
+        .capture-kit-header { display:grid; grid-template-columns:1fr auto; gap:5px; }
+        .capture-kit-header span { color:#f6c437; font-family:'Teko','Impact',sans-serif; font-size:12px; line-height:.9; letter-spacing:1.1px; }
+        .capture-kit-header .col-select { text-align:center; }
+        .capture-kit-header .col-buy { min-width:58px; text-align:center; }
         .capture-row { display:grid; grid-template-columns:1fr auto; gap:5px; }
         .ball-stock { display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px; min-width:118px; padding:4px 8px 4px 6px; border:2px solid transparent; border-radius:6px; background:#07182f; color:#fff; cursor:pointer; text-align:left; font-family:'Teko','Impact',sans-serif; font-size:17px; letter-spacing:.6px; }
         .ball-stock:hover:not(:disabled) { border-color:#7fa6c9; background:#123766; }
@@ -1726,7 +1729,10 @@ export class StadiumUI {
           <strong class="catch-tray-title">CATCH NOW <span class="catch-key">Q</span></strong>
           <div class="catch-chips"></div>
         </div>
-        <strong class="capture-kit-title">CAPTURE BALLS</strong>
+        <div class="capture-kit-header">
+          <span class="col-select">BALL SELECT</span>
+          <span class="col-buy">BUY</span>
+        </div>
         ${BALL_ORDER.map(type => `
           <div class="capture-row" data-ball-row="${type}">
             <button class="ball-stock" data-ball-type="${type}" data-select-ball="${type}" aria-pressed="false">
@@ -1734,7 +1740,7 @@ export class StadiumUI {
               <span class="ball-name">${BALL_NAMES[type]}</span>
               <span class="ball-count">×0</span>
             </button>
-            <button class="stadium-btn ball-buy" data-buy-ball="${type}">+$${BALL_PRICES[type]}</button>
+            <button class="stadium-btn ball-buy" data-buy-ball="${type}">$${BALL_PRICES[type]}</button>
           </div>`).join('')}
       </div>
       <div id="premium-ball-tip" class="interactive" hidden>Great &amp; Ultra Balls only restock between rounds &mdash; stock up before you start the next one!</div>
@@ -2829,7 +2835,7 @@ export class StadiumUI {
       button.classList.toggle('poor', !premiumLocked && !canAfford);
       // A locked ball can't be bought at any price right now, so the label drops the
       // dollar sign entirely rather than showing a price that looks buyable but isn't.
-      const label = premiumLocked ? 'AFTER ROUND' : `+$${BALL_PRICES[type]}`;
+      const label = premiumLocked ? 'AFTER ROUND' : `$${BALL_PRICES[type]}`;
       if (button.textContent !== label) button.textContent = label;
       const title = premiumLocked ? 'Great & Ultra Balls restock between rounds'
         : !canAfford ? 'Not enough prize money'
