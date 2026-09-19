@@ -42,6 +42,7 @@ import { setCinemaDim } from '../engine/CinemaDim';
 import { speciesForCreepName } from './progression/Species';
 import { createPokemon, displayName, MATCH_GUEST_SLOTS, OwnedPokemon, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { MatchProgress, XpAward } from './progression/MatchProgress';
+import { createRental } from './progression/Rentals';
 
 /** Everything that can veto dropping the armed tower under the cursor. */
 type PlacementBlockReason =
@@ -392,7 +393,11 @@ export class StadiumTDGame {
     this.abortEvolution();
     this.traitsIntroduced.clear();
     // Team members over the cup's entry limit sit this match out; they stay on the saved team.
-    this.roster = this.store.team.filter(member => isEligible(member.level, CUPS[this.map.cup]));
+    this.roster = [
+      ...this.store.team.filter(member => isEligible(member.level, CUPS[this.map.cup])),
+      // Loaners picked in team select fill the open places; they're never saved.
+      ...this.store.rentalPicks.map(speciesId => createRental(speciesId, this.map.cup)),
+    ].slice(0, TEAM_SIZE);
     this.guestSlotsUsed = 0;
     this.roster.forEach(member => member.record.matches++);
     this.progress.start(this.roster, CUPS[this.map.cup].levelCap);

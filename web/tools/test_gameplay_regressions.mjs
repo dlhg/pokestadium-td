@@ -19,6 +19,8 @@ const result = await build({
       "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
       "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups } from './src/td/Cups.ts';",
       "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
+      "export { createRental, isRental, RENTALS, rentalLevel } from './src/td/progression/Rentals.ts';",
+      "export { MatchProgress } from './src/td/progression/MatchProgress.ts';",
       "export { getSpecies, SPECIES } from './src/td/progression/Species.ts';",
       "export { HAZARDS } from './src/td/Hazard.ts';",
       "export { Hazard } from './src/td/Hazard.ts';",
@@ -38,7 +40,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Action mode follows the live creep nearest the exit. A knockout hands the
@@ -340,6 +342,39 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   assert.equal(store.gainXp(charmander, 5000, CUPS.little.levelCap).levelsGained, 0, 'a capped Pokémon earns nothing more');
   store.gainXp(charmander, xpForLevel(24) - charmander.xp, CUPS.poke.levelCap);
   assert.equal(charmander.level, 24, 'a higher cup lifts the cap');
+}
+
+// Rentals: every cup has a full loaner pool under its entry limit, in the form
+// that level has reached.
+{
+  for (const id of CUP_ORDER) {
+    const cup = CUPS[id];
+    assert.ok(RENTALS[id].length >= 6, `${id} can field a full rental team`);
+    assert.equal(new Set(RENTALS[id]).size, RENTALS[id].length, `${id} rentals are distinct species`);
+    assert.equal(rentalLevel(id), cup.entryMax - 2, `${id} rentals enter two levels under the limit`);
+    for (const speciesId of RENTALS[id]) {
+      const rental = createRental(speciesId, id);
+      assert.ok(isEligible(rental.level, cup), `${speciesId} may enter ${id}`);
+      assert.ok(isRental(rental) && rental.uid.startsWith('rental_'), `${speciesId} is marked as a loaner`);
+    }
+  }
+  assert.equal(formOf(createRental('charmander', 'great')).name, 'Charmeleon', 'a Great Cup rental arrives evolved for its level');
+}
+
+// A rental levels up in the match, shows in the report, and never reaches the save.
+{
+  const store = new TrainerStore(false);
+  const rental = createRental('pikachu', 'little');
+  const progress = new MatchProgress(store);
+  progress.start([rental], CUPS.little.levelCap);
+  store.gainXp(rental, xpForLevel(12) - rental.xp, CUPS.little.levelCap);
+  store.commit();
+  assert.equal(rental.level, 12, 'rentals earn XP during the match');
+  assert.ok(!store.data.collection.includes(rental), 'rentals never join the collection');
+  assert.ok(!JSON.stringify(store.data).includes('rental_'), 'rentals never reach the save');
+  const [entry] = progress.report();
+  assert.ok(entry?.rental, 'the match report lists the rental');
+  assert.equal(entry.pokemon.level, 12, 'the report shows what the rental earned');
 }
 
 // A catch keeps the creep's level, clamped to the cup cap.

@@ -18,6 +18,7 @@ import {
   displayName, formOf, NICKNAME_MAX, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore,
 } from './TrainerStore';
 import type { MatchReportEntry } from './MatchProgress';
+import { createRental, RENTALS, rentalLevel } from './Rentals';
 import './trainer.css';
 
 export function escapeHtml(text: string): string {
@@ -51,6 +52,16 @@ function strongAgainst(pokemon: OwnedPokemon, threats: PokemonType[]): PokemonTy
 
 /** Set in `unlocks` once the player has been told new catches go to the bench. */
 const BENCH_INTRO_UNLOCK = 'bench-intro';
+/** localStorage flag: the trainer has been told rentals cover cups nothing they own can enter. */
+const RENTAL_INTRO_KEY = 'pokestadium.rentalIntroSeen';
+function readFlag(key: string): boolean {
+  try { return localStorage.getItem(key) === '1'; } catch { return false; }
+}
+
+function writeFlag(key: string): void {
+  try { localStorage.setItem(key, '1'); } catch { /* storage blocked */ }
+}
+
 /** Below this many benched Pokémon the search, sort and filter toolbar stays hidden. */
 const BENCH_TOOLS_MIN = 8;
 
@@ -103,6 +114,28 @@ function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[], cup: CupRul
   </div>`;
 }
 
+/** A loaner on offer: no summary or drag, a click puts it in the next open place. The RENTALS tab already names it, so no ribbon. */
+function rentalTileHtml(pokemon: OwnedPokemon, strong: PokemonType[]): string {
+  const form = formOf(pokemon);
+  return `<div class="tr-card rental">
+    <button class="tr-card-main" data-rent="${pokemon.speciesId}" title="Rent for this match" style="${typeArtStyle(form.type)}">
+      <span class="tr-card-name">${escapeHtml(form.name.toUpperCase())}</span>
+      <span class="tr-card-meta">LV ${pokemon.level}</span>
+      <span class="tr-card-types">${typeChips(pokemon)}</span>
+      ${strong.length ? `<span class="tr-matchup" title="Strong vs ${strong.join(', ')}">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
+    </button>
+  </div>`;
+}
+
+/** Rentals picked in team select: which species, and whether the bench is showing them. */
+interface RentalDesk {
+  picks: string[];
+  showing: boolean;
+  add(speciesId: string): void;
+  remove(speciesId: string): void;
+  fill(): void;
+}
+
 /** Shared by the quit report and the defeat card. */
 export function reportListHtml(report: MatchReportEntry[]): string {
   if (!report.length) return '';
@@ -110,6 +143,7 @@ export function reportListHtml(report: MatchReportEntry[]): string {
     const { pokemon } = entry;
     const form = formOf(pokemon).name;
     const tags = [
+      entry.rental ? '<em class="tr-tag rental">RENTAL · RETURNED</em>' : '',
       entry.caughtThisMatch ? '<em class="tr-tag new">NEW CATCH</em>' : '',
       form !== entry.formFrom ? `<em class="tr-tag evo">EVOLVED INTO ${form.toUpperCase()}</em>` : '',
       pokemon.level > entry.levelFrom ? `<em class="tr-tag up">LV ${entry.levelFrom} → ${pokemon.level}</em>` : '',
@@ -271,14 +305,64 @@ export class TrainerScreens {
     const showBenchIntro = !!options.map && this.store.data.collection.length > TEAM_SIZE
       && !this.store.data.unlocks.includes(BENCH_INTRO_UNLOCK);
 
+    // Rentals: previews of the cup's pool, placed in whichever slots are empty or sitting out.
+    const pool = cup ? RENTALS[cup.id] : [];
+    const previews = new Map(pool.map(id => [id, createRental(id, cup!.id)]));
+    const openPlaces = () => this.store.data.team.flatMap((uid, slot) => {
+      const member = uid ? this.store.get(uid) : null;
+      return !member || !canEnter(member) ? [slot] : [];
+    });
+    const nothingEligible = !!cup && !this.store.data.collection.some(canEnter);
+    const showRentalIntro = nothingEligible && !readFlag(RENTAL_INTRO_KEY);
+    const desk: RentalDesk = {
+      picks: cup ? this.store.rentalPicks.filter(id => pool.includes(id)) : [],
+      showing: nothingEligible,
+      add: (speciesId) => {
+        if (desk.picks.includes(speciesId)) return;
+        if (desk.picks.length >= openPlaces().length) {
+          this.flash('NO OPEN PLACE · RETURN A RENTAL OR CLEAR A SLOT');
+          return;
+        }
+        desk.picks.push(speciesId);
+        this.rerender?.();
+      },
+      remove: (speciesId) => {
+        desk.picks = desk.picks.filter(id => id !== speciesId);
+        this.rerender?.();
+      },
+      fill: () => {
+        const best = [...pool].sort((a, b) => strong(previews.get(b)!).length - strong(previews.get(a)!).length);
+        for (const id of best) {
+          if (desk.picks.length >= openPlaces().length) break;
+          if (!desk.picks.includes(id)) desk.picks.push(id);
+        }
+        this.rerender?.();
+      },
+    };
+
     const renderSlots = () => {
       this.clearViews();
       const { data } = this.store;
       const team = data.team.map(uid => (uid ? this.store.get(uid) : null));
       const teamCount = team.filter(Boolean).length;
+      // Rentals take the open places in order; a place filled by an owned Pokémon hands its rental back.
+      const places = openPlaces();
+      desk.picks.splice(places.length);
+      const rentalAt = new Map(places.slice(0, desk.picks.length).map((slot, i) => [slot, previews.get(desk.picks[i])!]));
       // Only members allowed in this cup take the field; the rest stay on the saved team.
-      const fielded = team.filter((pokemon): pokemon is OwnedPokemon => !!pokemon && canEnter(pokemon)).length;
-      this.root.querySelector('.tr-slots')!.innerHTML = team.map((pokemon, slot) => pokemon
+      const eligible = team.filter((pokemon): pokemon is OwnedPokemon => !!pokemon && canEnter(pokemon)).length;
+      const fielded = eligible + desk.picks.length;
+      this.root.querySelector('.tr-slots')!.innerHTML = team.map((owned, slot) => [owned, rentalAt.get(slot)] as const).map(([pokemon, rental], slot) => rental
+        ? `<div class="tr-slot filled rental" data-drop-slot="${slot}" style="${typeArtStyle(formOf(rental).type)}">
+            <button class="tr-slot-main" data-unrent="${rental.speciesId}" title="Return this rental">
+              <span class="tr-model" data-model="${formOf(rental).name}" data-species="${rental.speciesId}"></span>
+              <span class="tr-slot-name">${escapeHtml(formOf(rental).name.toUpperCase())}</span>
+              <span class="tr-slot-meta">LV ${rental.level}</span>
+              <span class="tr-slot-types">${typeChips(rental)}</span>
+            </button>
+            <span class="tr-rental-ribbon">RENTAL</span>
+          </div>`
+        : pokemon
         ? `<div class="tr-slot filled ${canEnter(pokemon) ? '' : 'ineligible'}" data-drop-slot="${slot}" data-drag-uid="${pokemon.uid}" draggable="true" style="${typeArtStyle(formOf(pokemon).type)}">
             <button class="tr-slot-main" data-slot="${slot}" title="Click to remove · drag to swap">
               <span class="tr-model" data-model="${formOf(pokemon).name}" data-species="${pokemon.speciesId}"></span>
@@ -292,13 +376,17 @@ export class TrainerScreens {
           </div>`
         : `<div class="tr-slot empty" data-drop-slot="${slot}"><span>SLOT ${slot + 1}</span></div>`).join('');
       this.mountModels(this.root.querySelector('.tr-slots')!);
-      const sittingOut = teamCount - fielded;
-      this.root.querySelector('[data-team-count]')!.textContent = `TEAM ${teamCount}/${TEAM_SIZE}${sittingOut ? ` · ${sittingOut} SIT${sittingOut === 1 ? 'S' : ''} OUT` : ''}`;
+      const sittingOut = teamCount - eligible;
+      this.root.querySelector('[data-team-count]')!.textContent = `TEAM ${teamCount}/${TEAM_SIZE}`
+        + (sittingOut ? ` · ${sittingOut} SIT${sittingOut === 1 ? 'S' : ''} OUT` : '')
+        + (desk.picks.length ? ` · ${desk.picks.length} RENTAL${desk.picks.length === 1 ? '' : 'S'}` : '');
+      const fillButton = this.root.querySelector<HTMLButtonElement>('[data-fill-rentals]');
+      if (fillButton) fillButton.disabled = desk.picks.length >= Math.min(places.length, pool.length);
       this.root.querySelector<HTMLButtonElement>('[data-clear-team]')!.disabled = !teamCount;
       const confirm = this.root.querySelector<HTMLButtonElement>('[data-confirm]');
       if (confirm) {
         confirm.disabled = !fielded;
-        confirm.textContent = fielded ? `START MATCH · ${fielded}/${TEAM_SIZE}` : teamCount ? 'NO ONE ON THE TEAM CAN ENTER' : 'ADD A POKÉMON';
+        confirm.textContent = fielded ? `START MATCH · ${fielded}/${TEAM_SIZE}` : cup ? 'ADD A POKÉMON OR RENTAL' : 'ADD A POKÉMON';
       }
     };
 
@@ -306,7 +394,10 @@ export class TrainerScreens {
       const list = this.root.querySelector<HTMLElement>('.tr-collection');
       if (!list) return;
       const { data } = this.store;
-      const bench = data.collection.filter(pokemon => !data.team.includes(pokemon.uid));
+      const renting = desk.showing;
+      const bench = renting
+        ? pool.filter(id => !desk.picks.includes(id)).map(id => previews.get(id)!)
+        : data.collection.filter(pokemon => !data.team.includes(pokemon.uid));
       const query = filter.query.trim().toLowerCase();
       const shown = bench.filter(pokemon => {
         const form = formOf(pokemon);
@@ -316,13 +407,20 @@ export class TrainerScreens {
       }).sort((a, b) => Number(canEnter(b)) - Number(canEnter(a)) || BENCH_SORTS[filter.sort].compare(strong)(a, b));
 
       const scroll = list.scrollTop;
-      list.innerHTML = shown.map(pokemon => benchTileHtml(pokemon, strong(pokemon), cup)).join('')
-        || `<p class="tr-empty">${!data.collection.length ? 'No Pokémon yet.' : !bench.length ? 'Everyone you own is already on your team.' : 'No Pokémon match these filters.'}</p>`;
+      list.innerHTML = shown.map(pokemon => renting ? rentalTileHtml(pokemon, strong(pokemon)) : benchTileHtml(pokemon, strong(pokemon), cup)).join('')
+        || `<p class="tr-empty">${renting ? (!bench.length ? 'Every rental is already on loan.' : 'No rentals match these filters.')
+          : !data.collection.length ? 'No Pokémon yet.' : !bench.length ? 'Everyone you own is already on your team.' : 'No Pokémon match these filters.'}</p>`;
       list.scrollTop = scroll;
 
       const filtering = !!query || filter.types.size > 0 || filter.strongOnly;
       const researchTotal = Object.values(data.research).reduce((total, points) => total + points, 0);
-      this.root.querySelector('[data-bench-count]')!.textContent = `${filtering ? `SHOWING ${shown.length} OF ${bench.length}` : bench.length} ON BENCH · ${data.collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT · ${researchTotal} RESEARCH DATA`;
+      const shownCount = filtering ? `SHOWING ${shown.length} OF ${bench.length}` : `${bench.length}`;
+      this.root.querySelector('[data-bench-count]')!.textContent = renting
+        ? `${shownCount} RENTALS AT LV ${rentalLevel(cup!.id)} · ${desk.picks.length} ON LOAN · RETURNED AFTER THE MATCH`
+        : `${shownCount} ON BENCH · ${data.collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT · ${researchTotal} RESEARCH DATA`;
+      this.root.querySelectorAll<HTMLButtonElement>('[data-bench-mode]').forEach(tab => {
+        tab.setAttribute('aria-pressed', String((tab.dataset.benchMode === 'rentals') === renting));
+      });
       // A handful of Pokémon doesn't need a toolbar; keep it while any filter is on so it can be cleared.
       this.root.querySelector<HTMLElement>('.tr-bench-tools')!.hidden = bench.length < BENCH_TOOLS_MIN && !filtering;
       this.root.querySelector<HTMLButtonElement>('[data-clear-filters]')!.hidden = !filtering;
@@ -336,7 +434,7 @@ export class TrainerScreens {
     };
 
     this.open(() => {
-      if (!this.root.querySelector('.tr-team')) this.buildTeamShell(options, threats, filter, showBenchIntro, renderBench);
+      if (!this.root.querySelector('.tr-team')) this.buildTeamShell(options, threats, filter, showBenchIntro, showRentalIntro, desk, renderBench);
       renderSlots();
       renderBench();
     });
@@ -345,10 +443,14 @@ export class TrainerScreens {
       this.store.data.unlocks.push(BENCH_INTRO_UNLOCK);
       this.store.commit();
     }
+    if (showRentalIntro) writeFlag(RENTAL_INTRO_KEY);
   }
 
   /** Static chrome and delegated listeners for team select, built once per opening. */
-  private buildTeamShell(options: TeamSelectOptions, threats: PokemonType[], filter: BenchFilter, showBenchIntro: boolean, renderBench: () => void): void {
+  private buildTeamShell(
+    options: TeamSelectOptions, threats: PokemonType[], filter: BenchFilter,
+    showBenchIntro: boolean, showRentalIntro: boolean, desk: RentalDesk, renderBench: () => void,
+  ): void {
     this.clearViews();
     const cup = options.map ? CUPS[options.map.cup] : null;
     const record = options.map ? this.store.data.maps[options.map.id] : undefined;
@@ -365,13 +467,19 @@ export class TrainerScreens {
         ${options.map ? `<div class="tr-threats"><span>OPENING WAVES</span>${threats.map(typeChip).join('')}
           ${record ? `<span class="tr-record">BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}</span>` : ''}</div>` : ''}
         ${cup ? `<p class="tr-cup-rules"><b>${cup.name}</b>${cup.entryMax >= MAX_LEVEL ? 'Pokémon of any level can enter.' : `Pokémon LV ${cup.entryMax} and under can enter.`} Your team can grow to LV ${cup.levelCap} this match.</p>` : ''}
+        ${showRentalIntro && cup ? `<p class="tr-intro">None of your Pokémon are LV ${cup.entryMax} or under, so they can't enter ${cup.name}. Rent a team below: rentals level up this match, then go back to the stadium.</p>` : ''}
         ${showBenchIntro ? '<p class="tr-intro">Your team is full, so new catches wait on the bench. Click one, or drag it onto a slot, to swap it in.</p>' : ''}
         <div class="tr-team-head">
           <span data-team-count></span>
           <span class="tr-team-hint">Click a slot to bench it · drag to swap</span>
+          ${cup ? '<button class="stadium-btn tr-mini" data-fill-rentals title="Fill every open place with a rental">FILL WITH RENTALS</button>' : ''}
           <button class="stadium-btn tr-mini" data-clear-team>CLEAR TEAM</button>
         </div>
         <div class="tr-slots"></div>
+        ${cup ? `<div class="tr-bench-tabs" role="group" aria-label="Bench">
+          <button class="tr-filter-toggle" data-bench-mode="mine" aria-pressed="true">MY POKÉMON</button>
+          <button class="tr-filter-toggle" data-bench-mode="rentals" aria-pressed="false">RENTALS</button>
+        </div>` : ''}
         <div class="tr-collection-head"><span data-bench-count></span><span>One tower per Pokémon on the field. Catch duplicates to field more.</span></div>
         <div class="tr-bench-tools">
           <div class="tr-bench-row">
@@ -403,6 +511,13 @@ export class TrainerScreens {
       if (!target || target.disabled) return;
       const { dataset } = target;
       if (dataset.slot !== undefined) this.store.setTeamSlot(Number(dataset.slot), null);
+      else if (dataset.rent) desk.add(dataset.rent);
+      else if (dataset.unrent) desk.remove(dataset.unrent);
+      else if (dataset.fillRentals !== undefined) desk.fill();
+      else if (dataset.benchMode) {
+        desk.showing = dataset.benchMode === 'rentals';
+        renderBench();
+      }
       else if (dataset.toggle) {
         if (!this.store.toggleTeam(dataset.toggle)) {
           // A full team can still take a newcomer in place of someone who can't enter this cup.
@@ -433,7 +548,8 @@ export class TrainerScreens {
         this.close();
         options.onBack();
       } else if (dataset.confirm !== undefined) {
-        if (!this.store.team.some(member => !cup || isEligible(member.level, cup))) return;
+        if (!this.store.team.some(member => !cup || isEligible(member.level, cup)) && !desk.picks.length) return;
+        this.store.rentalPicks = cup ? [...desk.picks] : [];
         this.close();
         options.onConfirm!();
       }

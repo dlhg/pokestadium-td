@@ -13,6 +13,7 @@ import type { Creep } from '../Creep';
 import type { Tower } from '../Tower';
 import { getSpecies, speciesForCreepName } from './Species';
 import { knockoutPool, levelScale, MAX_LEVEL, WAVE_CLEAR_SHARE } from './Stats';
+import { isRental } from './Rentals';
 import { formOf, OwnedPokemon, TrainerStore, XpResult } from './TrainerStore';
 
 /** XP yield for creeps with no species entry (new roster names added later). */
@@ -31,9 +32,13 @@ export interface MatchReportEntry {
   formFrom: string;
   knockouts: number;
   caughtThisMatch: boolean;
+  /** A loaner: its XP is shown but goes back with it. */
+  rental: boolean;
 }
 
 interface Baseline {
+  /** Rentals aren't in the store, so the report keeps hold of them directly. */
+  pokemon: OwnedPokemon;
   xp: number;
   level: number;
   form: string;
@@ -61,7 +66,7 @@ export class MatchProgress {
   public track(pokemon: OwnedPokemon, caught: boolean): void {
     if (this.baselines.has(pokemon.uid)) return;
     this.baselines.set(pokemon.uid, {
-      xp: pokemon.xp, level: pokemon.level, form: formOf(pokemon).name, knockouts: pokemon.record.knockouts, caught,
+      pokemon, xp: pokemon.xp, level: pokemon.level, form: formOf(pokemon).name, knockouts: pokemon.record.knockouts, caught,
     });
   }
 
@@ -103,7 +108,8 @@ export class MatchProgress {
 
   public report(): MatchReportEntry[] {
     return [...this.baselines].flatMap(([uid, base]) => {
-      const pokemon = this.store.get(uid);
+      const rental = isRental(base.pokemon);
+      const pokemon = rental ? base.pokemon : this.store.get(uid);
       if (!pokemon) return [];
       return [{
         pokemon,
@@ -112,6 +118,7 @@ export class MatchProgress {
         formFrom: base.form,
         knockouts: pokemon.record.knockouts - base.knockouts,
         caughtThisMatch: base.caught,
+        rental,
       }];
     });
   }

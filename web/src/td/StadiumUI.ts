@@ -28,6 +28,7 @@ import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
 import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
 import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { isRental } from './progression/Rentals';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import type { MatchReportEntry } from './progression/MatchProgress';
 import './map-select.css';
@@ -1761,6 +1762,7 @@ export class StadiumUI {
         const everyoneEligible = collection.every(pokemon => isEligible(pokemon.level, CUPS[map.cup]));
         if (collection.length > 0 && collection.length <= TEAM_SIZE && everyoneEligible) {
           this.store.fillTeam();
+          this.store.rentalPicks = [];
           this.onSelectMap(map);
           return;
         }
@@ -1853,6 +1855,8 @@ export class StadiumUI {
       const typeCol = TYPE_COLORS[form.type]?.hex || '#fff';
       const typeArt = `/ui/types/${form.type.toLowerCase()}.jpg`;
 
+      const rental = isRental(member);
+      if (rental) card.classList.add('rental');
       card.innerHTML = `
         <span class="card-portrait-stage" style="background-image: linear-gradient(90deg, transparent 28%, rgba(4,12,43,.18) 48%, rgba(4,12,43,.96) 78%), url('${typeArt}');"></span>
         <span class="card-type-tag" style="background-color: ${typeCol};">LV <b class="card-level">${member.level}</b></span>
@@ -1860,7 +1864,8 @@ export class StadiumUI {
         <span class="card-cost"><b class="card-cost-label">SEND OUT</b>$${speciesOf(member).deployCost}</span>
         <span class="card-xp"><i style="width:${levelProgress(member.xp, member.level) * 100}%"></i></span>
         <span class="card-deployed">ON FIELD</span>
-        <button class="card-storage" type="button" data-store-member aria-label="Send ${escapeHtml(displayName(member))} to storage">STORE</button>
+        <button class="card-storage" type="button" data-store-member aria-label="Send ${escapeHtml(displayName(member))} to storage" ${rental ? 'hidden' : ''}>STORE</button>
+        ${rental ? '<span class="card-rental">RENTAL</span>' : ''}
       `;
 
       const select = () => this.onSelectMember(member);

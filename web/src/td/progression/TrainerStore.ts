@@ -34,7 +34,8 @@ export interface OwnedPokemon {
   /** Total XP, not progress into the current level. */
   xp: number;
   dvs: StatBlock;
-  origin: { kind: 'starter' | 'gift' | 'caught' | 'dev'; mapId?: string; round?: number; ball?: BallType; at: number };
+  /** 'rental' Pokémon are loaners from Rentals.ts and never enter the collection or the save. */
+  origin: { kind: 'starter' | 'gift' | 'caught' | 'dev' | 'rental'; mapId?: string; round?: number; ball?: BallType; at: number };
   record: { knockouts: number; damageDealt: number; matches: number };
 }
 
@@ -241,6 +242,12 @@ function migrate(raw: unknown): TrainerSave {
 
 export class TrainerStore {
   public data: TrainerSave;
+  /**
+   * Species loaned out in team select for the next match. Each match builds
+   * fresh rentals from these, so a retry doesn't inherit last match's levels.
+   * Session-only: never part of `data`, so never saved.
+   */
+  public rentalPicks: string[] = [];
   private listeners = new Set<() => void>();
 
   /** `persist: false` keeps everything in memory — the headless shot harness uses it. */

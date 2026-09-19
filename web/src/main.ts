@@ -81,6 +81,17 @@ window.addEventListener('DOMContentLoaded', () => {
     store.data.collection.push(shotPokemon('pidgey', 7), shotPokemon('zubat', 15));
     document.querySelector<HTMLButtonElement>(`[data-map-id="${STADIUM_MAPS[0].id}"]`)!.click();
   }
+  // A veteran whose whole team is over the first cup's limit, after filling with rentals.
+  if (shot === 'team_rentals') {
+    store.team.forEach(member => store.setLevel(member, CUPS.little.entryMax + 6));
+    document.querySelector<HTMLButtonElement>(`[data-map-id="${STADIUM_MAPS[0].id}"]`)!.click();
+    document.querySelector<HTMLButtonElement>('[data-fill-rentals]')!.click();
+  }
+  // The in-match roster with three members sitting out and three rentals in their places.
+  if (shot === 'roster_rentals') {
+    store.team.slice(0, 3).forEach(member => store.setLevel(member, CUPS.little.entryMax + 6));
+    store.rentalPicks = ['geodude', 'pidgey', 'zubat'];
+  }
   // map_<id> is the tactical course view; map3d_<id> frames the same course from the stands.
   const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}` || shot === `map3d_${map.id}` || shot === `battle_${map.id}` || shot === `exit_${map.id}`);
   if (courseShot) {
@@ -198,7 +209,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  if (shot && shot !== 'map_select' && shot !== 'team_select' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
+  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

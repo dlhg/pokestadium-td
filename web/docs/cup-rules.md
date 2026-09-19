@@ -5,9 +5,9 @@ can enter only if its level is at or below the cup's entry limit. During the mat
 it levels up, but no higher than the cup's level cap, and that XP is kept.
 Rentals fill team slots when you don't own enough eligible Pokémon.
 
-Status: **phases 1–2 shipped.** Phase 1 added cup data, creep levels, the XP cap,
+Status: **phases 1–3 shipped.** Phase 1 added cup data, creep levels, the XP cap,
 the catch clamp and map select. Phase 2 added entry rules, cup locks and the
-team-select changes. Phases 3–5 are planned. This extends `trainer-progression.md`. Where the
+team-select changes. Phase 3 added rentals. Phases 4–5 are planned. This extends `trainer-progression.md`. Where the
 two disagree, this doc wins.
 
 ## Why
@@ -108,18 +108,23 @@ export interface StadiumMap {
 
 ```ts
 // progression/Rentals.ts
-export interface RentalDef { speciesId: string; level: number }
-export const RENTALS: Record<CupId, RentalDef[]>;   // ~10–14 per cup, level = entryMax − 2
-
-export function createRental(def: RentalDef): OwnedPokemon;
+export const RENTALS: Record<CupId, string[]>;   // 12 species per cup
+export function rentalLevel(cup: CupId): number;  // entryMax − 2
+export function createRental(speciesId: string, cup: CupId): OwnedPokemon;
 // createPokemon(...) with origin.kind 'rental', fixed DVs of 8, uid prefix 'rental_'
 ```
+
+Team select stores the picked **species** in `TrainerStore.rentalPicks`, a
+session-only field outside `data`. `loadMap` builds fresh rentals from those
+species for every match, so a retry starts the rentals at the cup's rental level
+again instead of reusing last match's leveled-up objects.
 
 No separate battle copy is needed. Today towers hold the saved `OwnedPokemon` and
 XP changes it in place. A rental is simply an `OwnedPokemon` that is never added to
 `store.data.collection`, so `commit()` never writes it. `MatchProgress.report()`
-already skips uids that `store.get()` can't find. Instead, it will list rentals
-under a "Rental" tag with the XP they gained that match.
+skipped uids that `store.get()` couldn't find. It now keeps a reference to each
+Pokémon, so rentals are listed with a "RENTAL · RETURNED" tag and the XP they
+gained that match.
 
 `origin.kind` gains `'rental'`. `migrate()` doesn't need to accept it, because
 rentals are never saved. There's no save version bump. Saved `level` and `xp` keep
@@ -154,10 +159,12 @@ their meaning.
 - **`main.ts`**
   - The dev seed (`?save=dev` and every headless shot) starts the classic six at
     the Little Cup's entry limit, so shots on the first course still field a team.
-  - New `team_select` shot, with one member over the limit and one near it.
-- **`DevPanel.ts`**
-  - "Fill with rentals" button.
-  - Cup override, for testing any map under any cup's rules.
+  - New shots: `team_select` (one member over the limit, one near it),
+    `team_rentals` (a veteran after "Fill with rentals") and `roster_rentals`
+    (the in-match roster with three rentals).
+- **`DevPanel.ts`** (deferred)
+  - The cup override, for testing any map under any cup's rules, is still to do.
+    A dev-panel "fill with rentals" button isn't needed now that team select has one.
 
 ## UI
 
@@ -182,15 +189,23 @@ their meaning.
      the first member who sits out.
    - Team select is skipped for trainers with six or fewer Pokémon only when all
      of them are eligible.
-   - A **Rentals** tab next to the collection. Rental cards look the same, with a
-     RENTAL ribbon.
+   - A **Rentals** tab next to the collection lists the cup's pool with the same
+     search, sort and type filters. Clicking a rental puts it in the next open
+     place: an empty slot, or the slot of a team member who sits out. Rentals in
+     team slots have a dashed outline and a RENTAL ribbon. Clicking one returns it.
+     If an owned Pokémon is placed in an open slot, the last rental picked is
+     handed back.
    - **Outgrow warning**: when a Pokémon is within 2 levels of `entryMax`, its
      card shows "NEAR LV 10 LIMIT". Hovering explains that it may be its last run.
-   - Starting with empty slots is allowed. A "Fill with rentals" button fills them.
+   - Starting with empty slots is allowed. "FILL WITH RENTALS" fills every open
+     place, choosing first the rentals strong against the opening waves.
    - **Veteran notice**: the first time a player opens a cup where nothing they own
-     qualifies, a short one-time popup explains the entry rule and points to the
-     Rentals tab. Whether it's been shown is remembered in a localStorage key, as
-     with the other one-time tips in `StadiumUI.ts`, not in the save.
+     qualifies, a one-time notice inside team select explains the entry rule. It
+     isn't a separate popup. Whenever nothing owned qualifies, the bench opens on
+     the Rentals tab. The "shown" flag is `pokestadium.rentalIntroSeen` in
+     localStorage, like the other one-time tips, not in the save.
+   - **In the match**, rentals' roster cards show a RENTAL tag in place of the STORE
+     button.
 3. **Match report** (phase 4)
    - "SPARKY outgrew LITTLE CUP" when a Pokémon passes `entryMax`, together with
      the level-up line.
@@ -227,9 +242,9 @@ Each phase leaves the game playable.
    - Eligibility in team select, ineligible slots opened for the match.
    - Outgrow warning and cup-rules banner.
    - Cup locks by clears in map select, and the "NEW CUP" callout.
-3. **Rentals.**
+3. **Rentals.** ✅
    - `Rentals.ts` pools, Rentals tab, "Fill with rentals".
-   - Rentals in the match report, dev panel button.
+   - Rentals in the match report and the in-match roster.
    - The one-time veteran notice.
 4. **Presentation.**
    - Match-report "outgrew" and "now eligible" lines, tower panel "CUP CAP".

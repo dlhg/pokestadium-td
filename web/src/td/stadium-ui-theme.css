@@ -391,6 +391,20 @@
 }
 .card-storage:hover:not(:disabled), .card-storage:focus-visible { border-color: var(--broadcast-gold); color: #fff2a7; }
 .card-storage:disabled { opacity: .45; cursor: not-allowed; }
+.card-storage[hidden] { display: none; }
+/* Loaners can't be stored; the tag sits where STORE would. */
+.card-rental {
+  position: absolute;
+  z-index: 3;
+  top: 5px;
+  right: 5px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: #8ec5ff;
+  color: #06173f;
+  font: 700 9px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: .6px;
+}
 
 /* Tower strategy card */
 #tower-panel {
