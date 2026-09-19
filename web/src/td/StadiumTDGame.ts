@@ -656,7 +656,7 @@ export class StadiumTDGame {
     const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
     // Every miss since the last catch makes the quarry warier of the next throw.
     const missPenalty = this.store.captureMissPenalty;
-    return THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.45 + ballBonus[ball] + statusBonus - rarityPenalty - missPenalty, 0.08, 0.95);
+    return THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.3 + ballBonus[ball] + statusBonus - rarityPenalty - missPenalty, 0.08, 0.95);
   }
 
   /** Public so the headless shot harness can stage a capture set piece. */

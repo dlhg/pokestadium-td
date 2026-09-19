@@ -199,7 +199,7 @@ Implementation:
 - `npx tsc --noEmit` clean after the sweep.
 
 ## 16. Catching is still too easy — catch rate too high
-Status: interviewed — confirmed, needs implementation pass
+Status: done
 
 Confirmed by a different playtester than round 1's #8 fix (a39d5ae — miss
 penalty + QTE variants by rarity), reporting the game feels too easy
@@ -212,6 +212,24 @@ Decisions:
   not yet decided — scope during implementation. Round 1's #8 already
   flagged "needs a code check on current escape-chance formula," which
   is still the right starting point.
+
+Implementation:
+- Code check on `captureChance` (`StadiumTDGame.ts`) found the weaken
+  term — `(1 - hpFraction) * 0.45` — was the dominant, free lever: any
+  `normal`-threat creep whittled down with towers (standard TD play
+  before throwing) plus a merely-good release-meter throw already hit
+  0.85, and a perfect throw clamped straight to the 0.95 ceiling
+  regardless of ball type. Ball choice and status effects only mattered
+  on `elite`/`titan` encounters, which carry a rarity penalty.
+- Cut the weaken weight to 0.30. Left the base rate, ball bonuses, and
+  release-meter bonus untouched — this was the surgical lever, not a
+  broad nerf. A weakened normal creep + perfect throw now lands around
+  0.83 with a Poké Ball, so Great/Ultra Ball and status effects stay
+  differentiating instead of being redundant on top of an already-maxed
+  roll. `npx tsc --noEmit` clean.
+- Risk to watch in the next playtest round: this could swing the
+  complaint from "too easy" to "too grindy" on common encounters —
+  no code change made for that yet, revisit if reported.
 
 ## 17. Can't see Ghost Pokémon without a Ghost/Psychic — but how do you catch the first Ghost then?
 Status: interviewed — parked, needs more research
@@ -600,7 +618,7 @@ Decisions:
   planning pass.
 
 ## 35. Leveling is too fast — would feel more meaningful if slower
-Status: interviewed — ready to implement
+Status: done
 
 Decisions:
 - Slow down the XP-to-level curve (increase XP required per level and/or
@@ -608,6 +626,17 @@ Decisions:
   upgrade costs (item 31) as the primary lever for this round; a full
   balance-numbers session is still likely needed eventually, but this is
   the committed starting move.
+
+Implementation:
+- Landed as cup rules phase 5 (`docs/cup-rules.md`): `xpForLevel`'s
+  exponent (`Stats.ts`) went from a flat `level³` to `level^3.36`, tuned
+  via a new pacing script (`npm run balance:xp`) against the target of
+  each cup's level cap landing around 75–85% of its win round. Before:
+  Little/Poké/Great capped at 57%/50%/38%. After: 85%/85%/74%. `THREAT_XP`
+  and `WAVE_CLEAR_SHARE` were left untouched — the curve exponent alone
+  disproportionately slows the higher levels each cup's cap sits at,
+  which is what closed the gap between cups without a flat multiplier
+  overcorrecting Little Cup.
 
 ## 36. Want to send a Pokémon from the bench back to storage mid-match
 Status: done — already implemented, no code change needed
