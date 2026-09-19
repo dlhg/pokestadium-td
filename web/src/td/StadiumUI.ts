@@ -220,6 +220,8 @@ export class StadiumUI {
 
   public onSelectMember: (member: OwnedPokemon | null) => void = () => {};
   public onStoreMember: (member: OwnedPokemon) => void = () => {};
+  /** The current cup's level cap: XP bars read CUP CAP there instead of counting on. */
+  public levelCap = MAX_LEVEL;
   public onUpgradeTower: (tower: Tower, lineIdx: number) => void = () => {};
   public onRecallTower: (tower: Tower) => void = () => {};
   public onChangeTargetPriority: (tower: Tower, dir: number) => void = () => {};
@@ -2218,7 +2220,7 @@ export class StadiumUI {
     if (xpFill && xpLabel) {
       const { xp, level } = tower.pokemon;
       xpFill.style.width = `${levelProgress(xp, level) * 100}%`;
-      const label = level >= MAX_LEVEL ? 'MAX LEVEL' : `${xpForLevel(level + 1) - xp} XP TO LV ${level + 1}`;
+      const label = level >= MAX_LEVEL ? 'MAX LEVEL' : level >= this.levelCap ? `CUP CAP · LV ${this.levelCap}` : `${xpForLevel(level + 1) - xp} XP TO LV ${level + 1}`;
       if (xpLabel.textContent !== label) xpLabel.textContent = label;
     }
   }

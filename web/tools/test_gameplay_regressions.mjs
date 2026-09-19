@@ -366,7 +366,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   const store = new TrainerStore(false);
   const rental = createRental('pikachu', 'little');
   const progress = new MatchProgress(store);
-  progress.start([rental], CUPS.little.levelCap);
+  progress.start([rental], CUPS.little);
   store.gainXp(rental, xpForLevel(12) - rental.xp, CUPS.little.levelCap);
   store.commit();
   assert.equal(rental.level, 12, 'rentals earn XP during the match');
@@ -375,6 +375,24 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   const [entry] = progress.report();
   assert.ok(entry?.rental, 'the match report lists the rental');
   assert.equal(entry.pokemon.level, 12, 'the report shows what the rental earned');
+}
+
+// Passing the entry limit graduates your own Pokémon from the cup; a rental
+// going the same distance doesn't, since it goes back.
+{
+  const store = new TrainerStore(false);
+  const charmander = createPokemon('charmander', 9, { kind: 'starter', at: 0 });
+  const stays = createPokemon('squirtle', 5, { kind: 'starter', at: 0 });
+  const rental = createRental('pikachu', 'little');
+  [charmander, stays].forEach(pokemon => store.add(pokemon));
+  const progress = new MatchProgress(store);
+  progress.start([charmander, stays, rental], CUPS.little);
+  for (const pokemon of [charmander, rental]) store.gainXp(pokemon, xpForLevel(12) - pokemon.xp, CUPS.little.levelCap);
+  store.gainXp(stays, xpForLevel(8) - stays.xp, CUPS.little.levelCap);
+  const graduated = Object.fromEntries(progress.report().map(entry => [entry.pokemon.speciesId, entry.graduatedFrom]));
+  assert.equal(graduated.charmander, 'LITTLE CUP', 'passing the limit graduates the Pokémon');
+  assert.equal(graduated.squirtle, null, 'staying under the limit is not a graduation');
+  assert.equal(graduated.pikachu, null, 'rentals never graduate');
 }
 
 // A catch keeps the creep's level, clamped to the cup cap.

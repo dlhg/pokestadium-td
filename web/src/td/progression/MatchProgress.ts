@@ -13,6 +13,7 @@ import type { Creep } from '../Creep';
 import type { Tower } from '../Tower';
 import { getSpecies, speciesForCreepName } from './Species';
 import { knockoutPool, levelScale, MAX_LEVEL, WAVE_CLEAR_SHARE } from './Stats';
+import type { CupRules } from '../Cups';
 import { isRental } from './Rentals';
 import { formOf, OwnedPokemon, TrainerStore, XpResult } from './TrainerStore';
 
@@ -34,6 +35,8 @@ export interface MatchReportEntry {
   caughtThisMatch: boolean;
   /** A loaner: its XP is shown but goes back with it. */
   rental: boolean;
+  /** The cup this match passed the Pokémon beyond, e.g. 'LITTLE CUP'. */
+  graduatedFrom: string | null;
 }
 
 interface Baseline {
@@ -50,15 +53,15 @@ export class MatchProgress {
   private baselines = new Map<string, Baseline>();
   private wavePool = 0;
   private waveLevel = 1;
-  private levelCap = MAX_LEVEL;
+  private cup: CupRules | null = null;
 
   constructor(private store: TrainerStore) {}
 
-  /** `levelCap` is the cup's: no one levels past it this match. */
-  public start(team: OwnedPokemon[], levelCap = MAX_LEVEL): void {
+  /** The cup's level cap holds for everyone this match; without a cup, only MAX_LEVEL does. */
+  public start(team: OwnedPokemon[], cup: CupRules | null = null): void {
     this.baselines.clear();
     this.wavePool = 0;
-    this.levelCap = levelCap;
+    this.cup = cup;
     team.forEach(pokemon => this.track(pokemon, false));
   }
 
@@ -103,7 +106,7 @@ export class MatchProgress {
 
   private give(tower: Tower, raw: number): XpAward {
     const amount = Math.max(1, Math.round(raw));
-    return { tower, amount, result: this.store.gainXp(tower.pokemon, amount, this.levelCap) };
+    return { tower, amount, result: this.store.gainXp(tower.pokemon, amount, this.cup?.levelCap ?? MAX_LEVEL) };
   }
 
   public report(): MatchReportEntry[] {
@@ -119,6 +122,9 @@ export class MatchProgress {
         knockouts: pokemon.record.knockouts - base.knockouts,
         caughtThisMatch: base.caught,
         rental,
+        // Rentals go back, so only your own Pokémon graduate.
+        graduatedFrom: this.cup && !rental && base.level <= this.cup.entryMax && pokemon.level > this.cup.entryMax
+          ? this.cup.name : null,
       }];
     });
   }

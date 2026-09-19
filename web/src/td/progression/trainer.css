@@ -260,3 +260,4 @@ select.tr-input { padding: 4px 6px; border: 2px solid #9dc0dc; border-radius: 4p
 .tr-rental-ribbon { position: absolute; top: 6px; right: 6px; padding: 1px 6px; border-radius: 3px; background: #8ec5ff; color: #06173f; font: 13px/1.2 'Teko', sans-serif; letter-spacing: 1px; pointer-events: none; }
 .tr-slot.rental { outline: 2px dashed #8ec5ff; outline-offset: -4px; }
 .tr-tag.rental { background: #8ec5ff; }
+.tr-tag.grad { background: #ffb3f0; }

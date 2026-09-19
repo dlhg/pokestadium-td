@@ -15,6 +15,8 @@ import { CUPS } from './td/Cups';
 import { getMilestone } from './td/WaveManager';
 import { createPokemon, freshSave, TrainerStore } from './td/progression/TrainerStore';
 import { DevPanel } from './td/progression/DevPanel';
+import { MatchProgress } from './td/progression/MatchProgress';
+import { xpForLevel } from './td/progression/Stats';
 import { applyRetroUiCss } from './engine/RetroFX';
 
 /** A fixed trainer for headless shots and `?save=dev`: the classic six at the Little Cup's entry limit. */
@@ -350,7 +352,12 @@ window.addEventListener('DOMContentLoaded', () => {
       } else if (shot === 'defeat') {
         game.waveManager.currentWaveIndex = 16;
         game.gameOver = true;
-        game.ui.showDefeat(game.map.name, game.waveManager.round, game.waveManager.winRound);
+        // A staged report in which one member levels past the entry limit and graduates from the cup.
+        const report = new MatchProgress(store);
+        const cup = CUPS[game.map.cup];
+        report.start(game.roster, cup);
+        store.gainXp(game.roster[0], xpForLevel(cup.entryMax + 3) - game.roster[0].xp, cup.levelCap);
+        game.ui.showDefeat(game.map.name, game.waveManager.round, game.waveManager.winRound, report.report());
       } else if (shot?.startsWith('capture_')) {
         // Stage a live capture attempt and step it to a chosen beat: the
         // release meter, the first wobble, the lock, or the trophy card after it.

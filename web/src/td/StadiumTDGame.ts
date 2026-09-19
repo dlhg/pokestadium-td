@@ -400,7 +400,8 @@ export class StadiumTDGame {
     ].slice(0, TEAM_SIZE);
     this.guestSlotsUsed = 0;
     this.roster.forEach(member => member.record.matches++);
-    this.progress.start(this.roster, CUPS[this.map.cup].levelCap);
+    this.progress.start(this.roster, CUPS[this.map.cup]);
+    this.ui.levelCap = CUPS[this.map.cup].levelCap;
     this.store.data.matchesPlayed++;
     this.store.commit();
     this.matchActive = true;

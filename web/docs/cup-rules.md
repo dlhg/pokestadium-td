@@ -5,9 +5,10 @@ can enter only if its level is at or below the cup's entry limit. During the mat
 it levels up, but no higher than the cup's level cap, and that XP is kept.
 Rentals fill team slots when you don't own enough eligible Pokémon.
 
-Status: **phases 1–3 shipped.** Phase 1 added cup data, creep levels, the XP cap,
+Status: **phases 1–4 shipped.** Phase 1 added cup data, creep levels, the XP cap,
 the catch clamp and map select. Phase 2 added entry rules, cup locks and the
-team-select changes. Phase 3 added rentals. Phases 4–5 are planned. This extends `trainer-progression.md`. Where the
+team-select changes. Phase 3 added rentals. Phase 4 added the report and panel text.
+Phase 5 (tuning) is next. This extends `trainer-progression.md`. Where the
 two disagree, this doc wins.
 
 ## Why
@@ -140,7 +141,8 @@ their meaning.
   - `gainXp(pokemon, amount, cap = MAX_LEVEL)`: XP stops at `xpForLevel(cap)`.
   - Everything else stays the same.
 - **`MatchProgress.ts`**
-  - Constructed with the match's cap, which it passes to `gainXp`.
+  - `start(team, cup)` takes the cup. It passes the cup's cap to `gainXp` and
+    uses the entry limit to mark graduations.
   - The report includes rentals.
 - **`StadiumTDGame.ts`**
   - `loadMap` builds the roster as eligible team members plus the rentals picked for
@@ -206,11 +208,14 @@ their meaning.
      localStorage, like the other one-time tips, not in the save.
    - **In the match**, rentals' roster cards show a RENTAL tag in place of the STORE
      button.
-3. **Match report** (phase 4)
-   - "SPARKY outgrew LITTLE CUP" when a Pokémon passes `entryMax`, together with
-     the level-up line.
-   - "Now eligible for POKÉ CUP" when this is the first Pokémon to qualify.
-4. **Tower panel**: at the cap, the XP bar shows "CUP CAP" instead of progress.
+3. **Match report**
+   - A "GRADUATED FROM LITTLE CUP" tag, next to the level-up tag, when your own
+     Pokémon started the match within `entryMax` and ended above it. Rentals never
+     graduate.
+   - A "Now eligible for POKÉ CUP" line was planned but dropped. Cups have no
+     minimum level, so every Pokémon is already eligible for the cups above it.
+4. **Tower panel**: at the cap, the XP label reads "CUP CAP · LV 20" instead of
+   the XP needed for the next level.
 
 ## Tests
 
@@ -246,8 +251,8 @@ Each phase leaves the game playable.
    - `Rentals.ts` pools, Rentals tab, "Fill with rentals".
    - Rentals in the match report and the in-match roster.
    - The one-time veteran notice.
-4. **Presentation.**
-   - Match-report "outgrew" and "now eligible" lines, tower panel "CUP CAP".
+4. **Presentation.** ✅
+   - Match-report graduation tag, tower panel "CUP CAP".
    - Update `trainer-progression.md` (core rules table, creep levels) and `AGENTS.md`.
 5. **Tuning.**
    - Use the XP pacing script to retune `THREAT_XP`, `WAVE_CLEAR_SHARE` and the

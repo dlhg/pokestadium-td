@@ -147,6 +147,7 @@ export function reportListHtml(report: MatchReportEntry[]): string {
       entry.caughtThisMatch ? '<em class="tr-tag new">NEW CATCH</em>' : '',
       form !== entry.formFrom ? `<em class="tr-tag evo">EVOLVED INTO ${form.toUpperCase()}</em>` : '',
       pokemon.level > entry.levelFrom ? `<em class="tr-tag up">LV ${entry.levelFrom} → ${pokemon.level}</em>` : '',
+      entry.graduatedFrom ? `<em class="tr-tag grad" title="Now over its entry limit">GRADUATED FROM ${entry.graduatedFrom}</em>` : '',
     ].join('');
     return `<li class="tr-report-row">
       <span class="tr-report-name">${escapeHtml(displayName(pokemon).toUpperCase())}<small>LV ${pokemon.level}</small></span>

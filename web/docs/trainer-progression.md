@@ -28,6 +28,10 @@ higher move tiers. Tiers are still bought with prize money during the match.
   Data is persistent, does not refund the ball or award prize money, and is reserved
   for future collection upgrades.
 - **Defeat keeps XP and catches.** Nothing is lost; losing just means less XP.
+- **Cups bound levels.** Every course belongs to a cup with an entry limit and a
+  level cap. Team members over the limit sit the match out, XP stops at the cap,
+  and passing the limit graduates a Pokémon from that cup. Rentals fill places your
+  own Pokémon can't. See `cup-rules.md`, which wins where the two docs disagree.
 
 ## Data model
 
@@ -157,9 +161,10 @@ gain(t)   = pool * share(t) * levelScale(t.level, creepLevel)
   get nothing unless Exp. All is unlocked (see Later).
 - **Curve:** medium-fast, `xp(level) = level³`. Soft cap at Lv 50 for now.
 
-**Creep levels** go on `CreepConfig.level`. All maps share one wave list, so the map's
-difficulty applies an offset: roughly easy Lv 3–12, medium Lv 12–28, hard Lv 25–45.
-Elites get +3 levels and titans +8. A caught Pokémon keeps the level of the creep.
+**Creep levels** go on `CreepConfig.level`. All maps share one wave list, and the
+course's cup sets the levels: they climb the cup's range from round 1 to the win round
+(Little Lv 3–20, Poké 12–32, Great 22–42, Prime 32–50). Elites get +3 levels and
+titans +8. A caught Pokémon keeps the level of the creep, clamped to the cup's cap.
 
 ### Attribution plumbing
 
