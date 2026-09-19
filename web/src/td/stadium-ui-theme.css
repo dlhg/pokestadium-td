@@ -328,51 +328,49 @@
   pointer-events: none;
 }
 
-.tower-card .card-type-tag,
-.tower-card .card-name,
+.tower-card .card-info-btn,
 .tower-card .card-cost {
   position: relative;
   z-index: 2;
 }
 
-.tower-card .card-type-tag {
+.tower-card .card-info-btn {
   position: absolute;
   top: 7px;
   left: 65px;
   margin: 0;
 }
 
-.tower-card .card-name {
-  position: absolute;
-  right: 7px;
-  bottom: 22px;
-  left: 65px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .tower-card .card-cost {
   position: absolute;
-  right: 7px;
-  bottom: 3px;
+  inset: 0 7px 0 65px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Decorative once centered; the ? button underneath needs the hover/click. */
+  pointer-events: none;
 }
 
-.card-type-tag {
+.card-info-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
   border: 1px solid white;
-  border-radius: 4px;
-  padding: 2px 6px 1px;
-  font-size: 12px;
-  line-height: 1;
+  border-radius: 50%;
+  background: rgba(4, 12, 43, .62);
+  color: #fff;
+  font: 700 12px/18px 'Trebuchet MS', sans-serif;
+  text-align: center;
+  cursor: pointer;
 }
-
-.card-name {
-  font-size: 16px;
-  line-height: .9;
-}
+.card-info-btn:hover, .card-info-btn:focus-visible { border-color: var(--broadcast-gold); color: var(--broadcast-gold); }
 
 .card-cost {
   color: var(--broadcast-gold);
-  font-size: 17px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 1px 2px rgba(0, 0, 0, .5);
 }
 
 .card-storage {

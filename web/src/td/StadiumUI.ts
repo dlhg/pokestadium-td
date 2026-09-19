@@ -27,7 +27,7 @@ import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
 import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
-import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { isRental } from './progression/Rentals';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import type { MatchReportEntry } from './progression/MatchProgress';
@@ -43,6 +43,8 @@ const ROSTER_COLLAPSED_KEY = 'pokestadium.rosterCollapsed';
 const UI_SCALE_BASE_WIDTH = 1440;
 const UI_SCALE_BASE_HEIGHT = 900;
 const UI_SCALE_AUTO_MAX = 1.5;
+/** Upper bound a roster info card's stat bars are scaled against; a level-50 stat rarely clears this. */
+const ROSTER_STAT_BAR_MAX = 200;
 type UIScalePreference = 'auto' | number;
 
 function readUiScalePreference(): UIScalePreference {
@@ -198,6 +200,7 @@ export class StadiumUI {
   })();
   private signatureTipEl!: HTMLElement;
   private sigTooltipEl!: HTMLElement;
+  private rosterInfoTipEl!: HTMLElement;
   private combatTextLayerEl!: HTMLElement;
   private showTypeEffectiveness = false;
   private wasBallLocked: Partial<Record<BallType, boolean>> = {};
@@ -605,6 +608,30 @@ export class StadiumUI {
         #sig-tooltip .sigt-type { padding:1px 7px; border-radius:3px; font-size:11px; font-weight:800; letter-spacing:.8px; color:#07162f; }
         #sig-tooltip .sigt-desc { margin-top:5px; font-size:14px; line-height:1.4; color:#e7f1fb; }
         #sig-tooltip .sigt-pp { margin-top:6px; font-size:11px; letter-spacing:.6px; color:#9fc4e8; }
+        /* The roster card trims name/level/stats to fit; the ? icon opens this
+           richer readout instead. No portrait here — the card right next to it
+           already shows one, live. */
+        #roster-info-tip {
+          position:fixed; z-index:70; width:220px; pointer-events:none;
+          background:rgba(6,16,33,.97); border:2px solid #ffd700; border-radius:8px;
+          padding:10px 12px; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,.6);
+        }
+        #roster-info-tip[hidden] { display:none; }
+        .rit-header { display:flex; align-items:baseline; gap:6px; }
+        .rit-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Teko','Impact',sans-serif; font-size:20px; letter-spacing:.5px; color:#ffd700; }
+        .rit-type { flex:0 0 auto; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:800; letter-spacing:.6px; color:#07162f; }
+        .rit-level { flex:0 0 auto; font-size:12px; font-weight:700; letter-spacing:.4px; color:#9fc4e8; }
+        .rit-role { margin-top:2px; font-size:10px; font-weight:700; letter-spacing:.6px; color:#9fb4cf; }
+        .rit-stats { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+        .rit-stat { display:grid; grid-template-columns:28px 1fr 22px; align-items:center; gap:6px; }
+        .rit-stat-label { font-size:10px; font-weight:700; letter-spacing:.4px; color:#9fb4cf; }
+        .rit-stat-track { height:5px; border-radius:3px; background:rgba(255,255,255,.15); overflow:hidden; }
+        .rit-stat-track i { display:block; height:100%; background:#ffd700; }
+        .rit-stat-value { text-align:right; font-size:11px; font-weight:700; }
+        .rit-move { margin-top:9px; display:flex; align-items:center; gap:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,.18); }
+        .rit-move-name { flex:1 1 auto; font-size:13px; font-weight:700; }
+        .rit-move-type { flex:0 0 auto; padding:1px 6px; border-radius:3px; font-size:9px; font-weight:800; letter-spacing:.6px; color:#07162f; }
+        .rit-move-desc { margin-top:3px; font-size:11px; line-height:1.35; color:#c7d9ec; }
         .pause-setting { margin-top:10px; font-size:12px; }
         .pause-audio { display:grid; grid-template-columns:82px 1fr 34px; align-items:center; gap:8px; margin-top:10px; font-size:11px; letter-spacing:1px; color:#bcd7ec; }
         .pause-audio input { width:100%; accent-color:#f6c437; }
@@ -923,43 +950,6 @@ export class StadiumUI {
         }
 
         .tower-card.disabled { opacity: 0.4; filter: grayscale(0.7); cursor: not-allowed; }
-
-        .card-type-tag {
-          grid-column: 1 / -1;
-          justify-self: start;
-          font-size: 10px;
-          font-weight: 800;
-          padding: 2px 6px;
-          border-radius: 50%;
-          color: #fff;
-          text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-          letter-spacing: 0.5px;
-        }
-
-        .card-name {
-          font-family: 'Impact', sans-serif;
-          font-size: 14px;
-          letter-spacing: 0.5px;
-          color: #fff;
-          white-space: nowrap;
-        }
-
-        .card-cost {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          font-family: 'Rajdhani', sans-serif;
-          font-size: 16px;
-          font-weight: 800;
-          color: #ffd700;
-        }
-
-        .card-cost-label {
-          font-size: 8px;
-          font-weight: 700;
-          letter-spacing: 0.8px;
-          color: #9fb4cf;
-        }
 
         @media (max-height: 650px) {
           .tower-card { min-height: 62px; flex-basis: 62px; }
@@ -1502,8 +1492,6 @@ export class StadiumUI {
         .tower-card:hover { transform: translateX(-4px); border-color: #ffe06a; box-shadow: 2px 3px 0 rgba(0,0,0,.42), 0 0 0 2px #b77d15; }
         .tower-card.selected { border-color: #fff1a5; background: linear-gradient(135deg, rgba(255,255,255,.35), transparent 36%), linear-gradient(180deg, #356fa7, #16477e 55%, #0b2852); box-shadow: 2px 3px 0 rgba(0,0,0,.42), 0 0 0 2px #f1bf36; transform: translateX(-5px); }
         .tower-card.selected::before { left: -6px; width: 4px; border-radius: 0; background: #f6c437; box-shadow: none; }
-        .card-type-tag { border-radius: 0; border: 1px solid rgba(255,255,255,.7); padding: 1px 5px; font-family: 'Teko', sans-serif; font-size: 12px; line-height: 1; letter-spacing: .5px; }
-        .card-name { font-family: 'Teko', 'Impact', sans-serif; font-size: 18px; line-height: .9; letter-spacing: .2px; text-shadow: 1px 2px #07162e; }
         .card-cost { font-family: 'Teko', sans-serif; font-size: 19px; line-height: 1; color: #ffdc48; text-shadow: 1px 2px #583606; }
 
         .banner-inner { border: 2px solid #ffe786; border-left: 0; border-right: 0; border-radius: 0; background: linear-gradient(90deg, transparent 0%, #9d1626 11%, #d02d32 22%, #d02d32 78%, #9d1626 89%, transparent 100%); box-shadow: 0 3px 0 rgba(53,7,15,.75), inset 0 1px rgba(255,255,255,.45); font-family: 'Teko', 'Impact', sans-serif; font-size: 35px; line-height: .9; letter-spacing: 1.4px; text-shadow: 2px 3px #560915; transform: skew(-6deg); }
@@ -1749,6 +1737,7 @@ export class StadiumUI {
       <div id="signature-tip" class="interactive" hidden>This is a SIGNATURE MOVE &mdash; a tower's strongest attack, worth aiming by hand. Click it or press its number key. Limited uses (PP) refill each round.</div>
       <div id="signature-bar" class="interactive" aria-label="Signature moves"></div>
       <div id="sig-tooltip" hidden></div>
+      <div id="roster-info-tip" hidden></div>
       <!-- Tower Detail Panel -->
       <div id="tower-panel" class="stadium-panel interactive"></div>
     `;
@@ -1763,6 +1752,7 @@ export class StadiumUI {
     this.signatureTipEl = document.getElementById('signature-tip')!;
     this.signatureTipEl.addEventListener('click', () => this.dismissSignatureTip());
     this.sigTooltipEl = document.getElementById('sig-tooltip')!;
+    this.rosterInfoTipEl = document.getElementById('roster-info-tip')!;
     this.combatTextLayerEl = document.getElementById('combat-text-layer')!;
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
@@ -1895,9 +1885,8 @@ export class StadiumUI {
       if (rental) card.classList.add('rental');
       card.innerHTML = `
         <span class="card-portrait-stage" style="background-image: linear-gradient(90deg, transparent 28%, rgba(4,12,43,.18) 48%, rgba(4,12,43,.96) 78%), url('${typeArt}');"></span>
-        <span class="card-type-tag" style="background-color: ${typeCol};">LV <b class="card-level">${member.level}</b></span>
-        <span class="card-name">${escapeHtml(displayName(member))}</span>
-        <span class="card-cost"><b class="card-cost-label">SEND OUT</b>$${speciesOf(member).deployCost}</span>
+        <button class="card-info-btn" type="button" data-info-member aria-label="View ${escapeHtml(displayName(member))} details">?</button>
+        <span class="card-cost">$${speciesOf(member).deployCost}</span>
         <span class="card-xp"><i style="width:${levelProgress(member.xp, member.level) * 100}%"></i></span>
         <span class="card-deployed">ON FIELD</span>
         <button class="card-storage" type="button" data-store-member aria-label="Send ${escapeHtml(displayName(member))} to storage" ${rental ? 'hidden' : ''}>STORE</button>
@@ -1918,6 +1907,14 @@ export class StadiumUI {
         if (!storageButton.disabled) this.openStorageConfirmation(member, storageButton);
       });
       storageButton.addEventListener('keydown', (event) => event.stopPropagation());
+
+      const infoButton = card.querySelector<HTMLButtonElement>('[data-info-member]')!;
+      infoButton.addEventListener('mouseenter', () => this.showRosterInfo(infoButton, member));
+      infoButton.addEventListener('focus', () => this.showRosterInfo(infoButton, member));
+      infoButton.addEventListener('mouseleave', () => this.hideRosterInfo());
+      infoButton.addEventListener('blur', () => this.hideRosterInfo());
+      infoButton.addEventListener('click', (event) => event.stopPropagation());
+      infoButton.addEventListener('keydown', (event) => event.stopPropagation());
 
       this.cardDeckEl.appendChild(card);
       const portraitStage = card.querySelector<HTMLElement>('.card-portrait-stage')!;
@@ -2721,6 +2718,52 @@ export class StadiumUI {
     this.sigTooltipEl.hidden = true;
   }
 
+  /** The roster card trims name/level/cost chrome to fit; this fills in the rest on demand. */
+  private showRosterInfo(button: HTMLElement, member: OwnedPokemon): void {
+    const form = formOf(member);
+    const species = speciesOf(member);
+    const stats = statsOf(member);
+    const move = MOVES[species.basicAttack];
+    const typeCol = TYPE_COLORS[form.type]?.hex || '#fff';
+    const statBar = (label: string, value: number) => `
+      <div class="rit-stat">
+        <span class="rit-stat-label">${label}</span>
+        <span class="rit-stat-track"><i style="width:${Math.min(100, (value / ROSTER_STAT_BAR_MAX) * 100)}%"></i></span>
+        <span class="rit-stat-value">${value}</span>
+      </div>`;
+    this.rosterInfoTipEl.innerHTML = `
+      <div class="rit-header">
+        <span class="rit-name">${escapeHtml(displayName(member))}</span>
+        <span class="rit-type" style="background:${typeCol}">${form.type.toUpperCase()}</span>
+        <span class="rit-level">LV ${member.level}</span>
+      </div>
+      <div class="rit-role">${escapeHtml(species.role)}</div>
+      <div class="rit-stats">
+        ${statBar('ATK', stats.attack)}
+        ${statBar('SPD', stats.speed)}
+        ${statBar('SPC', stats.special)}
+      </div>
+      ${move ? `
+        <div class="rit-move">
+          <span class="rit-move-name">${escapeHtml(move.name)}</span>
+          <span class="rit-move-type" style="background:${TYPE_COLORS[move.type]?.hex || '#fff'}">${move.type.toUpperCase()}</span>
+        </div>
+        <div class="rit-move-desc">${escapeHtml(move.description)}</div>
+      ` : ''}
+    `;
+    this.rosterInfoTipEl.hidden = false;
+    const rect = button.getBoundingClientRect();
+    const tipRect = this.rosterInfoTipEl.getBoundingClientRect();
+    // The roster rail is docked to the right edge, so the card opens to its left.
+    const top = Math.min(Math.max(8, rect.top), window.innerHeight - tipRect.height - 8);
+    this.rosterInfoTipEl.style.top = `${top}px`;
+    this.rosterInfoTipEl.style.left = `${Math.max(8, rect.left - tipRect.width - 10)}px`;
+  }
+
+  private hideRosterInfo(): void {
+    this.rosterInfoTipEl.hidden = true;
+  }
+
   public setSignatureCuts(enabled: boolean): void {
     document.getElementById('btn-signature-cuts')!.textContent = `SIGNATURE CAMERA CUTS: ${enabled ? 'ON' : 'OFF'}`;
   }
@@ -2909,8 +2952,6 @@ export class StadiumUI {
       const storageButton = el.querySelector<HTMLButtonElement>('[data-store-member]')!;
       storageButton.disabled = deployed;
       storageButton.title = deployed ? 'Recall the tower before sending this Pokémon to storage' : 'Send to storage';
-      const level = el.querySelector<HTMLElement>('.card-level')!;
-      if (level.textContent !== String(member.level)) level.textContent = String(member.level);
       el.querySelector<HTMLElement>('.card-xp i')!.style.width = `${levelProgress(member.xp, member.level) * 100}%`;
     });
 
