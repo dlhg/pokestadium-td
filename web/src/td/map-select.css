@@ -10,9 +10,9 @@
   background: radial-gradient(ellipse at 50% 25%, #244d71ed, #030d20f5 75%);
 }
 .map-select-panel { width: min(1120px, 100%); padding: 26px; }
+.map-select-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .map-select-eyebrow { color: #98c7e9; font-size: 12px; letter-spacing: 3px; }
-.map-select-title { color: #ffe082; font: 42px 'Teko', Impact, sans-serif; letter-spacing: 1px; line-height: 1.1; margin-top: 8px; }
-.map-select-subtitle { color: #c2d7e8; font-size: 15px; margin: 5px 0 20px; }
+.map-select-title { color: #ffe082; font: 42px 'Teko', Impact, sans-serif; letter-spacing: 1px; line-height: 1.1; margin: 8px 0 20px; }
 .map-filters { display: flex; gap: 8px; margin-bottom: 18px; }
 .map-filter { padding: 7px 20px; }
 .map-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
@@ -42,13 +42,9 @@
 .map-name { display: block; font: 25px 'Teko', Impact, sans-serif; line-height: 1; letter-spacing: .3px; color: #fff2c6; }
 .map-venue { display: block; color: #83b7d4; font-size: 9px; font-weight: 800; letter-spacing: 1px; margin-top: 6px; }
 .map-description { display: block; margin: 13px 0 16px; color: #dceafa; font: 13px/1.4 'Rajdhani', sans-serif; }
-.map-record { display: block; margin-bottom: 6px; color: #e9d89a; font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: .8px; }
+.map-record { display: block; margin-top: auto; padding-top: 9px; color: #e9d89a; font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: .8px; }
 .map-record[hidden] { display: none; }
-.map-obstacles { display: block; margin-top: auto; padding-top: 9px; border-top: 1px solid #436183; color: #e9d89a; font-size: 11px; letter-spacing: .5px; }
-.map-select-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 20px; color: #9fb9ce; font-size: 12px; }
-.map-legend { display: inline-flex; gap: 14px; }
-.map-legend span::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: #96f3b1; }
-.map-legend span:last-child::before { background: #fa8e76; }
+.map-select-footer { display: flex; align-items: center; justify-content: flex-end; margin-top: 20px; color: #9fb9ce; font-size: 12px; }
 .map-select-open > #top-row, .map-select-open > #announcer-banner,
 .map-select-open > #card-deck, .map-select-open > #tower-panel,
 .map-select-open > #capture-kit, .map-select-open > #capture-hint, .map-select-open > #catch-layer { visibility: hidden; }

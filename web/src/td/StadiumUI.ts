@@ -1536,9 +1536,11 @@ export class StadiumUI {
 
       <div id="map-select" class="interactive" aria-label="Select a battlefield">
         <section class="map-select-panel stadium-panel">
-          <div class="map-select-eyebrow">POKÉMON STADIUM TD / COURSE SELECT</div>
+          <div class="map-select-header">
+            <div class="map-select-eyebrow">POKÉMON STADIUM TD / COURSE SELECT</div>
+            <button id="btn-open-team" class="stadium-btn">VIEW MY POKÉMON</button>
+          </div>
           <h1 class="map-select-title">CHOOSE YOUR BATTLEFIELD</h1>
-          <p class="map-select-subtitle">Every course has a different way through. Find your team's home advantage.</p>
           <div class="map-filters" aria-label="Filter by cup">
             ${['all',...CUP_ORDER].map((filter,i)=>`<button class="stadium-btn map-filter ${i===0?'active':''}" data-cup-filter="${filter}" aria-pressed="${i===0}">${filter==='all'?'ALL':CUPS[filter as CupId].name.replace(' CUP','')}</button>`).join('')}
           </div>
@@ -1550,10 +1552,10 @@ export class StadiumUI {
               <span class="map-card-body"><strong class="map-name">${map.name}</strong><span class="map-venue">${map.venue}</span>
               <span class="map-cup-rules">LV ≤ ${cup.entryMax} · CAP ${cup.levelCap}</span>
               <span class="map-description">${map.description}</span>
-              <span class="map-record" data-map-record="${map.id}"></span><span class="map-obstacles">${map.terrain?'3 TERRACES · HIGH GROUND':map.routes.length>1?'2 ENTRANCES · SPLIT DEFENSE':map.bridges.length?'2 BRIDGES · SHORE DEFENSE':map.theme==='canyon'?'HAIRPINS · TIGHT CLEARINGS':'LONG ROUTE · REPEAT COVERAGE'}</span></span>
+              <span class="map-record" data-map-record="${map.id}"></span></span>
             </button>`;}).join('')}
           </div>
-          <div class="map-select-footer"><div class="map-legend"><span>Entrance</span><span>Exit</span></div><span>Choose a course, then pick your team.</span><button id="btn-open-team" class="stadium-btn">MY POKÉMON</button><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>
+          <div class="map-select-footer"><button id="btn-resume-map" class="stadium-btn" hidden>RESUME MATCH</button></div>
         </section>
       </div>
 

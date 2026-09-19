@@ -760,10 +760,6 @@
   text-shadow: 3px 4px var(--broadcast-ink), 0 0 0 #000;
 }
 
-.map-select-subtitle {
-  color: #dce6ff;
-}
-
 .map-card {
   overflow: hidden;
   border: 4px solid transparent;
@@ -809,11 +805,6 @@
 
 .map-description {
   color: #edf2ff;
-}
-
-.map-obstacles {
-  border-top-color: #5779ca;
-  color: #ffe05a;
 }
 
 .map-select-footer {
