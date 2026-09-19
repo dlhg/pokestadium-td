@@ -23,6 +23,7 @@ export class TrophyModelView {
   private cameraTarget = new THREE.Vector3();
   private pivot = new THREE.Group();
   private pokemon: AnimatedPokemon | null = null;
+  private rim: THREE.DirectionalLight;
   private generation = 0;
   private frame = 0;
   private lastTime = 0;
@@ -37,9 +38,9 @@ export class TrophyModelView {
     const key = new THREE.DirectionalLight(0xfff3db, 2.2);
     key.position.set(3, 6, 5);
     this.scene.add(key);
-    const rim = new THREE.DirectionalLight(0xf6c437, 1.4);
-    rim.position.set(-4, 3, -4);
-    this.scene.add(rim);
+    this.rim = new THREE.DirectionalLight(0xf6c437, 1.4);
+    this.rim.position.set(-4, 3, -4);
+    this.scene.add(this.rim);
     this.scene.add(this.pivot);
     this.frameCamera(new THREE.Box3(
       new THREE.Vector3(-MODEL_HEIGHT * .5, 0, -MODEL_HEIGHT * .5),
@@ -47,8 +48,11 @@ export class TrophyModelView {
     ));
   }
 
-  /** Loads the species onto the stage and starts the entrance → idle loop. */
-  public show(name: string, fallback: () => AnimatedPokemon): void {
+  /** Loads the species onto the stage and starts the entrance → idle loop.
+   *  An accent color (a variant's, e.g. Titan orange) tints the rim light;
+   *  omitting it restores the default gold. */
+  public show(name: string, fallback: () => AnimatedPokemon, accentColor?: string): void {
+    this.rim.color.set(accentColor ?? 0xf6c437);
     this.clearModel();
     const generation = ++this.generation;
     this.start();

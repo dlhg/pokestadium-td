@@ -41,6 +41,7 @@ import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
 import { speciesForCreepName } from './progression/Species';
 import { createPokemon, displayName, MATCH_GUEST_SLOTS, OwnedPokemon, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { variantForCreep } from './progression/Variants';
 import { MatchProgress, XpAward } from './progression/MatchProgress';
 import { createRental } from './progression/Rentals';
 
@@ -717,7 +718,7 @@ export class StadiumTDGame {
     const level = Math.min(creep.level, CUPS[this.map.cup].levelCap);
     const pokemon = createPokemon(match.speciesId, level, {
       kind: 'caught', mapId: this.map.id, round: this.waveManager.round, ball, at: Date.now(),
-    }, { stage: match.stage });
+    }, { stage: match.stage, variant: variantForCreep(creep) });
     return pokemon;
   }
 

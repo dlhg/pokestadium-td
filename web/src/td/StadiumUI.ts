@@ -30,6 +30,7 @@ import { escapeHtml, TrainerScreens, reportListHtml } from './progression/Traine
 import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { isRental } from './progression/Rentals';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
+import { VARIANTS } from './progression/Variants';
 import type { MatchReportEntry } from './progression/MatchProgress';
 import './map-select.css';
 import stadiumThemeUrl from './stadium-ui-theme.css?url';
@@ -516,9 +517,12 @@ export class StadiumUI {
           transition:opacity .25s ease, transform .35s cubic-bezier(.16,1.3,.5,1);
         }
         #capture-trophy.shown { opacity:1; transform:translate(-50%,-50%) skew(-6deg) scale(1); }
+        /* A variant (Titan, etc.) swaps the card's gold accent for its own color. */
+        #capture-trophy.has-variant { border-color:var(--variant-color); box-shadow:0 10px 0 rgba(3,7,16,.8), 0 0 40px var(--variant-color); }
         #capture-trophy .trophy-kicker { font-size:11px; font-weight:800; letter-spacing:3px; color:#f6c437; }
         #capture-trophy .trophy-name { font-family:'Teko','Impact',sans-serif; font-size:44px; line-height:1; color:#fff; text-shadow:3px 4px #08152b; }
         #capture-trophy .trophy-type { display:inline-block; margin:4px 0 10px; padding:2px 9px; font-size:11px; font-weight:800; letter-spacing:1.4px; border-radius:3px; color:#071326; }
+        #capture-trophy .trophy-variant { display:inline-block; margin:4px 0 10px 6px; padding:2px 9px; font-size:11px; font-weight:800; letter-spacing:1.4px; border-radius:3px; color:#071326; background:var(--variant-color); }
         #capture-trophy .trophy-moves { display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(246,196,55,.35); padding-top:9px; }
         #capture-trophy .trophy-move { display:flex; justify-content:space-between; gap:18px; font-size:12px; letter-spacing:.6px; color:#cfe3ff; }
         #capture-trophy .trophy-move em { color:#8faecf; font-style:normal; font-size:10px; letter-spacing:1.4px; }
@@ -629,6 +633,7 @@ export class StadiumUI {
         .rit-header { display:flex; align-items:baseline; gap:6px; }
         .rit-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Teko','Impact',sans-serif; font-size:20px; letter-spacing:.5px; color:#ffd700; }
         .rit-type { flex:0 0 auto; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:800; letter-spacing:.6px; color:#07162f; }
+        .rit-variant { flex:0 0 auto; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:800; letter-spacing:.6px; color:#07162f; }
         .rit-level { flex:0 0 auto; font-size:12px; font-weight:700; letter-spacing:.4px; color:#9fc4e8; }
         .rit-role { margin-top:2px; font-size:10px; font-weight:700; letter-spacing:.6px; color:#9fb4cf; }
         .rit-stats { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
@@ -1440,14 +1445,7 @@ export class StadiumUI {
           clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
         }
 
-        #start-match-bar {
-          min-height: 61px;
-          padding: 7px 22px;
-          align-items: center;
-          clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
-        }
-
-        #top-bar::before, #card-deck::before, #tower-panel::before, #start-match-bar::before {
+        #top-bar::before, #card-deck::before, #tower-panel::before {
           content: '';
           position: absolute;
           z-index: 1;
@@ -1578,9 +1576,9 @@ export class StadiumUI {
           </div>
         </div>
 
-        <!-- Start Match -->
-        <div id="start-match-bar" class="stadium-panel">
-          <button class="stadium-btn active" id="btn-wave">START MATCH</button>
+        <!-- Start Round -->
+        <div id="start-match-bar">
+          <button class="stadium-btn active" id="btn-wave">START ROUND</button>
         </div>
 
         <!-- Controls -->
@@ -1896,6 +1894,11 @@ export class StadiumUI {
 
       const rental = isRental(member);
       if (rental) card.classList.add('rental');
+      const variant = member.variant ? VARIANTS[member.variant.kind] : null;
+      if (variant) {
+        card.classList.add('has-variant');
+        card.style.setProperty('--variant-color', variant.accentColor);
+      }
       card.innerHTML = `
         <span class="card-portrait-stage" style="background-image: linear-gradient(90deg, transparent 28%, rgba(4,12,43,.18) 48%, rgba(4,12,43,.96) 78%), url('${typeArt}');"></span>
         <button class="card-info-btn" type="button" data-info-member aria-label="View ${escapeHtml(displayName(member))} details">?</button>
@@ -2455,6 +2458,7 @@ export class StadiumUI {
     const species = speciesOf(pokemon);
     const form = formOf(pokemon);
     const typeColor = TYPE_COLORS[form.type]?.hex || '#ffffff';
+    const variant = pokemon.variant ? VARIANTS[pokemon.variant.kind] : null;
     const moves = species.paths.map(path =>
       `<div class="trophy-move"><span>${path.tiers[0].name.toUpperCase()}</span><em>${path.label}</em></div>`
     ).join('');
@@ -2466,12 +2470,15 @@ export class StadiumUI {
     const addButton = openTeamSlot
       ? '<button class="stadium-btn active" type="submit">ADD TO TEAM</button>'
       : guestSlotsLeft ? `<button class="stadium-btn active" type="submit">ADD TO MATCH · ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT</button>` : '';
+    card.classList.toggle('has-variant', !!variant);
+    if (variant) card.style.setProperty('--variant-color', variant.accentColor);
     card.innerHTML = `
       <div class="trophy-stage"></div>
       <div class="trophy-copy">
         <div class="trophy-kicker">${duplicate ? 'DUPLICATE ENCOUNTER' : 'POKÉMON CAUGHT'}</div>
         <div class="trophy-name">${form.name.toUpperCase()} <small>LV ${pokemon.level}</small></div>
         <div class="trophy-type" style="background:${typeColor}">${form.type.toUpperCase()}</div>
+        ${variant ? `<span class="trophy-variant">${variant.label}</span>` : ''}
         <div class="trophy-moves">${moves}</div>
         <div class="trophy-duplicate-note">${duplicate ? 'You already own this species.' : 'Choose where this Pokémon goes.'} ${noteTail}</div>
         <form class="trophy-nickname">
@@ -2487,7 +2494,7 @@ export class StadiumUI {
     `;
     card.querySelector('.trophy-stage')!.appendChild(this.trophyView.canvas);
     card.classList.add('has-model', 'shown', 'naming', 'interactive');
-    this.trophyView.show(form.name, species.createModel);
+    this.trophyView.show(form.name, species.createModel, variant?.accentColor);
     window.clearTimeout(this.trophyTimer);
 
     const input = card.querySelector<HTMLInputElement>('#trophy-nickname-input')!;
@@ -2738,6 +2745,7 @@ export class StadiumUI {
     const stats = statsOf(member);
     const move = MOVES[species.basicAttack];
     const typeCol = TYPE_COLORS[form.type]?.hex || '#fff';
+    const variant = member.variant ? VARIANTS[member.variant.kind] : null;
     const statBar = (label: string, value: number) => `
       <div class="rit-stat">
         <span class="rit-stat-label">${label}</span>
@@ -2748,6 +2756,7 @@ export class StadiumUI {
       <div class="rit-header">
         <span class="rit-name">${escapeHtml(displayName(member))}</span>
         <span class="rit-type" style="background:${typeCol}">${form.type.toUpperCase()}</span>
+        ${variant ? `<span class="rit-variant" style="background:${variant.accentColor}">${variant.label}</span>` : ''}
         <span class="rit-level">LV ${member.level}</span>
       </div>
       <div class="rit-role">${escapeHtml(species.role)}</div>
@@ -2927,18 +2936,11 @@ export class StadiumUI {
     const captureHint = document.getElementById('capture-hint')!;
     captureHint.innerText = state.captureHint || '';
 
-    // Wave button label
+    // Wave button: only shown when starting a round is actually an option.
     const waveBtn = document.getElementById('btn-wave')!;
-    if (state.inWave) {
-      waveBtn.innerText = 'MATCH IN PROGRESS';
-      waveBtn.classList.remove('active');
-      waveBtn.style.pointerEvents = 'none';
-      waveBtn.style.opacity = '0.7';
-    } else {
-      waveBtn.innerText = state.intermissionTimer > 0 ? `NEXT MATCH (${Math.ceil(state.intermissionTimer)}S)` : 'START MATCH';
-      waveBtn.classList.add('active');
-      waveBtn.style.pointerEvents = 'auto';
-      waveBtn.style.opacity = '1.0';
+    waveBtn.style.display = state.inWave ? 'none' : '';
+    if (!state.inWave) {
+      waveBtn.innerText = state.intermissionTimer > 0 ? `NEXT ROUND (${Math.ceil(state.intermissionTimer)}S)` : 'START ROUND';
     }
 
     // Card Deck affordability & selection highlight

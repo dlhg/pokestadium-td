@@ -299,6 +299,11 @@
   box-shadow: 0 0 0 2px #70410a;
 }
 
+/* A variant (Titan, etc.) keeps a quiet ring at rest; hover/selected's gold still wins. */
+.tower-card.has-variant {
+  box-shadow: 0 0 0 2px var(--variant-color), 2px 3px 0 rgba(0, 0, 0, .48), inset 0 0 0 1px #6b99ff;
+}
+
 .card-portrait-stage {
   position: absolute;
   z-index: -1;

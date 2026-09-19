@@ -607,7 +607,7 @@ Decisions:
   confuse/sleep, etc.) gets addressed in the same pass.
 
 ## 34. Captured Titans don't feel special enough (model, moves, stats)
-Status: interviewed — ready to scope
+Status: stats + visual done; signature move deferred
 
 Decisions:
 - All three dimensions get attention: stats/power ceiling (stronger base
@@ -616,6 +616,15 @@ Decisions:
   treatment/scale/aura/entrance).
 - Scoping/sequencing across the three not yet decided — needs its own
   planning pass.
+- Shipped: a Titan catch now survives capture (it was previously discarded
+  the moment `createCaughtPokemon` resolved down to the base species) via a
+  generic `variant` tag on `OwnedPokemon` (`progression/Variants.ts`), built
+  so a future special catch (e.g. shiny) reuses the same registry and UI
+  hooks instead of a new one-off flag. Titans now get guaranteed max DVs
+  (perfect stats) and an orange accent — badge, card glow, and 3D rim-light
+  tint — on the capture trophy and the roster.
+- Deferred: a Titan-exclusive signature move/kit distinct from the
+  non-Titan counterpart's moveset is not part of this pass.
 
 ## 35. Leveling is too fast — would feel more meaningful if slower
 Status: done

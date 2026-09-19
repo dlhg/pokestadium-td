@@ -13,6 +13,7 @@
 import type { BallType } from '../CaptureSequence';
 import { GIFT_ID, getSpecies, SpeciesDef, SpeciesForm, stageForLevel } from './Species';
 import { levelForXp, MAX_DV, MAX_LEVEL, StatBlock, xpForLevel, computeStats } from './Stats';
+import { VARIANTS, VariantTag } from './Variants';
 
 export const TEAM_SIZE = 6;
 export const NICKNAME_MAX = 10;
@@ -34,6 +35,8 @@ export interface OwnedPokemon {
   /** Total XP, not progress into the current level. */
   xp: number;
   dvs: StatBlock;
+  /** Set when this catch was something special (a Titan encounter, etc.); see Variants.ts. */
+  variant?: VariantTag;
   /** 'rental' Pokémon are loaners from Rentals.ts and never enter the collection or the save. */
   origin: { kind: 'starter' | 'gift' | 'caught' | 'dev' | 'rental'; mapId?: string; round?: number; ball?: BallType; at: number };
   record: { knockouts: number; damageDealt: number; matches: number };
@@ -88,7 +91,7 @@ export function createPokemon(
   speciesId: string,
   level: number,
   origin: OwnedPokemon['origin'],
-  options: { stage?: number; nickname?: string | null; dvs?: StatBlock } = {},
+  options: { stage?: number; nickname?: string | null; dvs?: StatBlock; variant?: VariantTag } = {},
 ): OwnedPokemon {
   const species = getSpecies(speciesId);
   const clamped = Math.max(1, Math.min(MAX_LEVEL, Math.round(level)));
@@ -102,7 +105,8 @@ export function createPokemon(
     nickname: options.nickname ?? null,
     level: clamped,
     xp: xpForLevel(clamped),
-    dvs: options.dvs ?? { attack: randomDv(), speed: randomDv(), special: randomDv() },
+    dvs: options.dvs ?? (options.variant ? VARIANTS[options.variant.kind].dvOverride : { attack: randomDv(), speed: randomDv(), special: randomDv() }),
+    variant: options.variant,
     origin,
     record: { knockouts: 0, damageDealt: 0, matches: 0 },
   };
@@ -179,6 +183,9 @@ function migrate(raw: unknown): TrainerSave {
     if (typeof origin.round === 'number' && Number.isFinite(origin.round)) repairedOrigin.round = Math.max(0, Math.round(origin.round));
     if (origin.ball === 'poke' || origin.ball === 'great' || origin.ball === 'ultra') repairedOrigin.ball = origin.ball;
 
+    const variantKind = candidate.variant?.kind;
+    const variant: OwnedPokemon['variant'] = variantKind && variantKind in VARIANTS ? { kind: variantKind } : undefined;
+
     return [{
       uid: candidate.uid,
       speciesId: candidate.speciesId,
@@ -191,6 +198,7 @@ function migrate(raw: unknown): TrainerSave {
         speed: finiteInteger(dvs.speed, 8, 0, MAX_DV),
         special: finiteInteger(dvs.special, 8, 0, MAX_DV),
       },
+      variant,
       origin: repairedOrigin,
       record: {
         knockouts: finiteInteger(record.knockouts, 0, 0, Number.MAX_SAFE_INTEGER),
