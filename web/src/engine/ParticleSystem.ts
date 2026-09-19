@@ -147,6 +147,42 @@ export class ParticleSystem {
     }
   }
 
+  /**
+   * The universal "this is a signature move" payoff (round 2 feedback
+   * #28/33): a bright, white-hot burst layered on top of whatever
+   * per-move particles an effect already emits, plus a wide shockwave
+   * ring — distinctly bigger and whiter than an ordinary impact so a
+   * signature cast reads as a bigger moment at a glance.
+   */
+  public emitSignatureFlash(pos: THREE.Vector3, colorHex: number): void {
+    const col = new THREE.Color(colorHex).lerp(new THREE.Color(0xffffff), 0.55);
+    for (let i = 0; i < 36; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const elevation = (Math.random() - 0.5) * Math.PI;
+      const spd = (0.6 + Math.random()) * 11;
+
+      this.spawn({
+        position: pos.clone().add(new THREE.Vector3(
+          (Math.random() - 0.5) * 0.6,
+          (Math.random() - 0.5) * 0.6,
+          (Math.random() - 0.5) * 0.6
+        )),
+        velocity: new THREE.Vector3(
+          Math.cos(angle) * Math.cos(elevation) * spd,
+          Math.sin(elevation) * spd + 2.5,
+          Math.sin(angle) * Math.cos(elevation) * spd
+        ),
+        color: col.clone().offsetHSL(0, 0, (Math.random() - 0.5) * 0.15),
+        size: 1.1 + Math.random() * 1.5,
+        life: 0,
+        maxLife: 0.3 + Math.random() * 0.25,
+        gravity: 3.0,
+        drag: 1.0,
+      });
+    }
+    this.emitRing(pos, 0xffffff, 3.2, 0.4);
+  }
+
   /** Per-frame wake left behind a travelling projectile. */
   public emitTrail(pos: THREE.Vector3, colorHex: number, size: number = 1.0): void {
     this.spawn({

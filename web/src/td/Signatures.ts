@@ -296,9 +296,19 @@ function targetable(creep: Creep, grounded = false): boolean {
   return creep.alive && !creep.captureLocked && !(grounded && creep.hasTrait('airborne'));
 }
 
-function cut(ctx: SignatureContext, focus: THREE.Vector3): void {
+/**
+ * The universal "this is a signature move" payoff (round 2 feedback
+ * #28/33): every combat-effect signature gets this same baseline —
+ * camera punch, a bright flash burst on top of the move's own particles,
+ * and a shared stinger sound — before any hand-authored per-move
+ * treatment (none exist yet) would layer on top of it.
+ */
+function cut(ctx: SignatureContext, focus: THREE.Vector3, color: number): void {
   if (ctx.cinematicCuts) ctx.camera.triggerActionCam(focus, 0.9);
   else ctx.camera.shake(0.4);
+  ctx.camera.punchZoom(7);
+  ctx.particles.emitSignatureFlash(focus, color);
+  ctx.hit.audio.playSignatureCast();
 }
 
 const up = (height: number) => new THREE.Vector3(0, height, 0);
@@ -339,7 +349,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       } else {
         land(centres[0]);
       }
-      cut(ctx, aim);
+      cut(ctx, aim, color);
       return true;
     }
 
@@ -360,7 +370,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
         ctx.camera.shake(0.3);
       } else {
         fire();
-        cut(ctx, tower.position.clone().addScaledVector(direction, 10));
+        cut(ctx, tower.position.clone().addScaledVector(direction, 10), color);
       }
       return true;
     }
@@ -373,7 +383,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       victims.forEach(creep => ctx.particles.emitImpact(centerMass(creep), color, 10, 6));
       strikeCreeps(effect.move, victims, ctx.hit, tower, { signature: true });
       if (effect.disableSeconds) tower.disable(effect.disableSeconds);
-      cut(ctx, tower.position);
+      cut(ctx, tower.position, color);
       return true;
     }
 
@@ -388,6 +398,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
         creep.applyStatus(effect.status, effect.duration * statusScale * sporeMult, tower);
         ctx.particles.emitAura(centerMass(creep), color, 10, 1);
       }
+      cut(ctx, tower.position, color);
       return true;
     }
 
@@ -396,7 +407,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       ctx.particles.emitRing(tower.position, color, ringRadius(effect.reach), 1.1);
       strikeCreeps(effect.move, victims, ctx.hit, tower, { signature: true });
       for (const creep of victims) if (!creep.isBoss) creep.pushBack(effect.distance);
-      ctx.camera.shake(0.35);
+      cut(ctx, tower.position, color);
       return true;
     }
 
@@ -427,7 +438,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       if (!prey) return false;
       ctx.particles.emitBeam(centerMass(prey).add(up(14)), centerMass(prey), color, 0.7, 0.3);
       ctx.particles.emitImpact(centerMass(prey), color, 40, 9);
-      cut(ctx, prey.position);
+      cut(ctx, prey.position, color);
       strikeCreeps(effect.move, [prey], ctx.hit, tower, { percentDamage: effect.percent ?? null, signature: true });
       return true;
     }
@@ -444,7 +455,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
         ctx.particles.emitImpact(centerMass(creep), color, 24, 8);
         if (creep.takeDamage(remaining, dot.source ?? tower, true)) ctx.hit.onFaint(creep);
       }
-      ctx.camera.shake(0.45);
+      cut(ctx, tower.position, color);
       return true;
     }
 

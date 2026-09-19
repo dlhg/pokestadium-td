@@ -509,6 +509,22 @@ export class StadiumAudio {
   }
 
   /**
+   * The universal "this is a signature move" stinger (round 2 feedback
+   * #28/33) — one shared cue reused by every signature cast, not a
+   * per-move sound, matching the universal-first, per-move-later baseline
+   * decided for the visual/camera side of this feature. A quick rising
+   * charge, a flash-crack of noise, then a falling punch.
+   */
+  public playSignatureCast(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('signature_cast')) return;
+    this.tone('sawtooth', 220, 880, 0.14, 0.18);
+    this.noiseBurst(0.3, 2600, 4400, 0.22, 0.1);
+    this.tone('square', 700, 90, 0.28, 0.24, 0.08);
+  }
+
+  /**
    * Crowd level relative to its resting ambiance: below 1 hushes the stadium
    * (the held breath during a capture), above 1 swells it into a roar.
    */

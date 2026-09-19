@@ -438,7 +438,7 @@ Decisions:
   a separate binary toggle — see item 12.
 
 ## 28. Dislikes the zoom-in when placing a Pokémon / 33. Special attacks need a bigger animation + effect (player likes the zoom)
-Status: interviewed — ready to implement
+Status: done
 
 These are two separate camera-zoom events (deploy-placement zoom vs.
 special-attack zoom), not one shared mechanism. Clarified: the deploy
@@ -447,8 +447,25 @@ about item 33: the special-attack zoom currently sets up an expectation
 ("something big is about to happen") that the move itself doesn't pay
 off — no strong animation, effect, or sound sells the moment.
 
-Research findings: not yet done — needs a look at existing signature/
-special-move code and assets before implementation.
+Research findings:
+- Every signature effect kind already has its own bespoke particle calls
+  (ring/ground-burst/impact/beam) and a shared `cut()` helper that fires
+  a camera cut (`triggerActionCam`) or a mild `shake(0.4)` fallback —
+  that's the existing "cam zoom" the player likes. But `cut()` never
+  called `punchZoom()`, the much stronger camera hit capture verdicts
+  already use (`punchZoom(12–14)` vs. nothing for signatures).
+- Signatures call `strikeCreeps()` directly, bypassing `resolveMoveHit()`
+  — which means they skip its `ctx.audio.playHit(...)` call entirely.
+  **Signature casts played no distinct sound at all before this fix.**
+  That was likely the single biggest reason they felt flat.
+- No full-screen "flash" mechanism exists for live gameplay (unlike the
+  capture/evolution cinematics, which pause the game and own the whole
+  screen) — signatures fire mid-wave without pausing anything, so the
+  right "flash" here is a localized particle/light burst at the cast
+  point, not a screen-space white-out.
+- Not every effect kind called the shared `cut()` helper — `areaStatus`,
+  `allyBoost`, `selfBoost`, `pushWave` had no camera treatment or a
+  bare, uncoordinated `ctx.camera.shake(...)` call instead.
 
 Decisions:
 - Build one shared universal "special move" VFX/anim/SFX baseline
@@ -459,6 +476,34 @@ Decisions:
   where a species has a bespoke treatment, it overrides the baseline
   instead of stacking with it.
 - Deploy-placement zoom (item 28) is not being changed this round.
+
+Implementation:
+- `Signatures.ts`'s `cut()` helper is now the baseline: camera cut/shake
+  (as before) + a real `punchZoom(7)` + a new
+  `ParticleSystem.emitSignatureFlash()` (a white-hot burst layered over
+  whatever particles the effect already emits, plus a wide white
+  shockwave ring) + a new `StadiumAudio.playSignatureCast()` stinger (one
+  shared procedurally-synthesized cue, not per-move — matching the
+  "universal first" plan; the per-move hand-authored layer is future
+  work).
+- Extended `cut()` to the combat effect kinds that didn't call it before:
+  `areaStatus`, `pushWave`, `cashDot` now go through the same baseline.
+  Scoped out on purpose: `allyBoost`, `selfBoost`, `gainMoney`,
+  `revealPhantoms` (pure utility/buff signatures, not attacks — a big
+  damage-feeling flash+stinger on a support move would read as
+  mismatched) and `dropHazard` (a placement/setup action; the actual
+  damage happens later via the hazard system, not at cast time). The
+  channeled variant of `strikeLine` (a sustained beam ticking every
+  0.3s) also keeps its lighter existing treatment rather than repeating
+  the full baseline every tick.
+- Updated `tools/test_gameplay_regressions.mjs`'s signature-cast test
+  mocks (`camera`, `particles`, `hit.audio`) to include the three new
+  methods the baseline now calls — without this the tests failed with
+  `ctx.camera.punchZoom is not a function`.
+- Verified live: unlocked Charmeleon's Fire Blast, cast it on a creep,
+  and confirmed the camera visibly punches in, a bright flash/burst
+  renders at the impact point alongside the existing fire particles, and
+  the "222" damage number and everything else layer together correctly.
 
 ## 29. Extraction step missing from README, resulting in procedural fallback assets
 Status: done
