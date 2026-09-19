@@ -715,13 +715,33 @@ export class StadiumUI {
           gap: 8px;
         }
 
+        /* The SPEED group is the anchor for its own flap below (position:relative),
+           so the flap can float free of #controls-bar's shared card without
+           affecting the CAMERA group's box next to it. */
+        #speed-control-group {
+          position: relative;
+        }
+
         /* A small flap under the SPEED group rather than a third control-group
-           of its own — there's no spare width in this row, but there's height. */
+           of its own — there's no spare width in this row, but there's height.
+           It only matters once game speed is pushed above 1x (that's the only
+           time the slow-mo effect can fire), so it stays hidden at 1x/0.5x and
+           drops into view the moment the player goes faster — doubling as the
+           cue that this setting is now relevant. It's positioned absolutely,
+           anchored to the SPEED group alone, so appearing never grows the
+           shared #controls-bar card (which would otherwise stretch blank
+           space in behind the unrelated CAMERA group next to it). */
         .control-group-tab {
           display: block;
-          width: 100%;
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
           margin-top: 4px;
           padding: 3px 6px;
+          opacity: 0;
+          transform: translateY(-4px);
+          pointer-events: none;
           background: linear-gradient(180deg, #1c3554 0%, #0f2138 100%);
           color: #9fc4e8;
           border: 1px solid #3a5d84;
@@ -732,7 +752,13 @@ export class StadiumUI {
           letter-spacing: 0.5px;
           text-align: center;
           cursor: pointer;
-          transition: all 0.15s ease;
+          transition: opacity 0.15s ease, transform 0.2s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+        }
+
+        .control-group-tab.expanded {
+          opacity: 1;
+          transform: translateY(0);
+          pointer-events: auto;
         }
 
         .control-group-tab:hover {
@@ -1553,7 +1579,7 @@ export class StadiumUI {
 
         <!-- Controls -->
         <div id="controls-bar">
-          <div class="control-group" aria-label="Game speed">
+          <div class="control-group" id="speed-control-group" aria-label="Game speed">
             <span class="control-group-label">SPEED</span>
             <div class="control-group-buttons">
               <button class="stadium-btn" id="btn-speed-half">.5X</button>
@@ -2755,6 +2781,7 @@ export class StadiumUI {
     this.currentSelectedTower = state.selectedTower;
     this.renderSignatureBar(state.signatures, !!state.captureCinema || !!state.evolutionCinema || !!state.summonCinema);
     ([['half',0.5],['1',1],['2',2],['3',3],['4',4]] as const).forEach(([key,speed]) => document.getElementById(`btn-speed-${key}`)!.classList.toggle('active',state.gameSpeed===speed));
+    document.getElementById('btn-catch-slowmo')!.classList.toggle('expanded', state.gameSpeed > 1);
     ['tactical','stadium','action'].forEach(mode => document.getElementById(`btn-cam-${mode}`)!.classList.toggle('active',state.cameraMode===mode));
 
     // Top Bar updates
