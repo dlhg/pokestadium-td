@@ -5,11 +5,11 @@ can enter only if its level is at or below the cup's entry limit. During the mat
 it levels up, but no higher than the cup's level cap, and that XP is kept.
 Rentals fill team slots when you don't own enough eligible Pokémon.
 
-Status: **phases 1–4 shipped.** Phase 1 added cup data, creep levels, the XP cap,
+Status: **phases 1–5 shipped.** Phase 1 added cup data, creep levels, the XP cap,
 the catch clamp and map select. Phase 2 added entry rules, cup locks and the
 team-select changes. Phase 3 added rentals. Phase 4 added the report and panel text.
-Phase 5 (tuning) is next. This extends `trainer-progression.md`. Where the
-two disagree, this doc wins.
+Phase 5 retuned the XP curve to hit the cap-timing target below. This extends
+`trainer-progression.md`. Where the two disagree, this doc wins.
 
 ## Why
 
@@ -254,9 +254,44 @@ Each phase leaves the game playable.
 4. **Presentation.** ✅
    - Match-report graduation tag, tower panel "CUP CAP".
    - Update `trainer-progression.md` (core rules table, creep levels) and `AGENTS.md`.
-5. **Tuning.**
-   - Use the XP pacing script to retune `THREAT_XP`, `WAVE_CLEAR_SHARE` and the
-     curve so each cup reaches its cap on schedule.
+5. **Tuning.** ✅ `npm run balance:xp` prints the pacing report
+   (`tools/xp_pacing.mjs`). First run, at the phase 4 numbers, assuming every
+   creep is knocked out and a fully placed team of six:
+
+   | Cup | Entering at the limit: graduates | Caps | Caps at |
+   | --- | --- | --- | --- |
+   | Little | round 5 | round 23 | 57% of the win round |
+   | Poké | round 5 | round 30 | 50% |
+   | Great | round 6 | round 30 | 38% |
+   | Prime | — | already at 50 | — |
+
+   XP ran ahead of the 75–85% target in every cup, and the gap grew with cup
+   tier — Great's cap round needed to move the most, relative to its win round.
+   A Pokémon also passed the entry limit, and so graduated, within the first
+   5–7 rounds; slowing XP alone only pushes that back a few rounds, so in
+   practice each Pokémon gets one run per cup. Entry level barely matters by
+   mid-match, because the Gen 5 `levelScale` lets lower-level Pokémon catch up.
+
+   Fix: `xpForLevel` (`Stats.ts`) was a flat cube, `level³`. Raised the
+   exponent to `level^3.36` instead of touching `THREAT_XP` or
+   `WAVE_CLEAR_SHARE` — a steeper curve costs disproportionately more at the
+   higher levels each cup's cap sits at, which pulls the higher cups back
+   into range without a flat multiplier overcorrecting Little Cup. Re-run:
+
+   | Cup | Entering at the limit: graduates | Caps | Caps at |
+   | --- | --- | --- | --- |
+   | Little | round 6 | round 34 | 85% of the win round |
+   | Poké | round 11 | round 51 | 85% |
+   | Great | round 16 | round 59 | 74% |
+   | Prime | — | already at 50 | — |
+
+   Great Cup lands a point under the target band; a single curve exponent
+   can't perfectly equalize every cup since wave pool size and level range
+   both differ per cup, and pushing the exponent further overshoots Little
+   and Poké past 85%. Close enough to leave for playtesting rather than add a
+   second tuning knob for one point. Prime Cup's entry limit already equals
+   its level cap (50/50, unlike every other cup's gap), so it graduates and
+   caps immediately by design — not a target of this pass.
    - Adjust brackets once playtests have happened.
 
 ## Decisions

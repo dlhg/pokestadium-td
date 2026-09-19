@@ -64,7 +64,7 @@ export function towerModifiers(stats: StatBlock, level: number): TowerModifiers 
 
 /** Medium-fast growth: total XP to reach a level. */
 export function xpForLevel(level: number): number {
-  return level <= 1 ? 0 : level * level * level;
+  return level <= 1 ? 0 : Math.round(Math.pow(level, 3.36));
 }
 
 export function levelForXp(xp: number): number {

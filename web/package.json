@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test:gameplay": "node tools/test_gameplay_regressions.mjs",
     "test:maps": "node tools/test_map_layouts.mjs",
+    "balance:xp": "node tools/xp_pacing.mjs",
     "extract:stadium": "python3 tools/extract_stadium_assets.py && python3 tools/extract_stadium_announcer.py --if-missing"
   },
   "dependencies": {

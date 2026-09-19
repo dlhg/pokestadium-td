@@ -159,7 +159,9 @@ gain(t)   = pool * share(t) * levelScale(t.level, creepLevel)
   maps, so the anti-grind rule is built in.
 - **Wave clear:** every placed tower gets 10% of the wave's total pool. Bench members
   get nothing unless Exp. All is unlocked (see Later).
-- **Curve:** medium-fast, `xp(level) = level³`. Soft cap at Lv 50 for now.
+- **Curve:** medium-fast, `xp(level) = level^3.36` (tuned in `docs/cup-rules.md`
+  phase 5 so each cup's level cap lands around 75–85% of its win round). Soft
+  cap at Lv 50 for now.
 
 **Creep levels** go on `CreepConfig.level`. All maps share one wave list, and the
 course's cup sets the levels: they climb the cup's range from round 1 to the win round
