@@ -243,3 +243,12 @@ select.tr-input { padding: 4px 6px; border: 2px solid #9dc0dc; border-radius: 4p
 #dev-panel .dev-retro-row { margin-bottom: 4px; white-space: nowrap; }
 #dev-panel .dev-retro-row select { flex: 1; width: auto; }
 #dev-panel .dev-retro-value { width: 28px; text-align: right; color: #e6edf7; }
+
+/* Cup rules: the entry banner, cards over the limit, and graduation warnings. */
+.tr-cup-rules { margin: 10px 0 0; padding: 7px 10px; border-left: 4px solid #8ec5ff; background: rgba(90,150,255,.14); color: #dceafa; font: 16px/1.25 'Teko', sans-serif; letter-spacing: .6px; }
+.tr-cup-rules b { margin-right: 8px; color: #ffe082; font-weight: 400; }
+.tr-slot.ineligible, .tr-card.ineligible { filter: grayscale(.8) brightness(.72); }
+.tr-card.ineligible .tr-card-main { cursor: not-allowed; }
+.tr-cup-tag { display: block; overflow: hidden; margin-top: 2px; font: 12px/1.1 'Teko', sans-serif; letter-spacing: .5px; white-space: nowrap; text-overflow: ellipsis; }
+.tr-cup-tag.out { color: #ffaaa8; }
+.tr-cup-tag.last { color: #ffd27a; }

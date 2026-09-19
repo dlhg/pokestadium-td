@@ -17,7 +17,7 @@ import { MOVES, ParticleFXType } from '../stadium/MoveDatabase';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { StadiumCamera, CameraMode } from '../engine/StadiumCamera';
 import { STADIUM_MAPS, type StadiumMap } from './MapCatalog';
-import { CUP_ORDER, CUPS, type CupId } from './Cups';
+import { CUP_ORDER, CUPS, isEligible, unlockedCups, type CupId } from './Cups';
 import { mapPreview } from './MapPreview';
 import { BALL_ORDER, BALL_PRICES, BallType, CaptureHud } from './CaptureSequence';
 import type { Creep } from './Creep';
@@ -211,6 +211,8 @@ export class StadiumUI {
   private summonCinemaEl!: HTMLElement;
   private cinemaVerdict: string = '';
   private trophyTimer: number = 0;
+  /** Cups open at the last map-select refresh; anything new since gets a pulsing tab. */
+  private knownCups: Set<CupId> | null = null;
   private trophyView = new TrophyModelView();
   private storageConfirmMember: OwnedPokemon | null = null;
   private storageConfirmPreviousFocus: HTMLElement | null = null;
@@ -505,6 +507,7 @@ export class StadiumUI {
         #capture-trophy .trophy-moves { display:flex; flex-direction:column; gap:4px; border-top:1px solid rgba(246,196,55,.35); padding-top:9px; }
         #capture-trophy .trophy-move { display:flex; justify-content:space-between; gap:18px; font-size:12px; letter-spacing:.6px; color:#cfe3ff; }
         #capture-trophy .trophy-move em { color:#8faecf; font-style:normal; font-size:10px; letter-spacing:1.4px; }
+        #capture-trophy .trophy-move.new-cup span, #capture-trophy .trophy-move.new-cup em { color:#ffe082; }
         #capture-trophy .trophy-nickname-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
         #capture-trophy .trophy-nickname-row input { min-width:110px; flex:1 1 110px; }
         #capture-trophy.has-model { display:flex; align-items:center; gap:18px; }
@@ -1511,6 +1514,7 @@ export class StadiumUI {
             ${[...STADIUM_MAPS].sort((a,b)=>CUP_ORDER.indexOf(a.cup)-CUP_ORDER.indexOf(b.cup)).map(map=>{const cup=CUPS[map.cup];return `<button class="map-card interactive" data-map-id="${map.id}" data-map-cup="${map.cup}" aria-label="Play ${map.name}, ${cup.name}, entry level ${cup.entryMax} and under">
               ${mapPreview(map)}
               <span class="map-cup ${map.cup}">${cup.name}</span>
+              <span class="map-lock" data-map-lock hidden>LOCKED<small>Clear a ${CUP_ORDER.indexOf(map.cup)>0?CUPS[CUP_ORDER[CUP_ORDER.indexOf(map.cup)-1]].name:''} course to open</small></span>
               <span class="map-card-body"><strong class="map-name">${map.name}</strong><span class="map-venue">${map.venue}</span>
               <span class="map-cup-rules">LV ≤ ${cup.entryMax} · CAP ${cup.levelCap}</span>
               <span class="map-description">${map.description}</span>
@@ -1752,9 +1756,10 @@ export class StadiumUI {
         const map = STADIUM_MAPS.find(candidate => candidate.id === button.dataset.mapId);
         if (!map) return;
         this.setMapSelectVisible(false);
-        // With six or fewer Pokémon everyone plays, so there is nothing to pick.
-        const owned = this.store.data.collection.length;
-        if (owned > 0 && owned <= TEAM_SIZE) {
+        // With six or fewer Pokémon, all allowed in this cup, everyone plays, so there is nothing to pick.
+        const { collection } = this.store.data;
+        const everyoneEligible = collection.every(pokemon => isEligible(pokemon.level, CUPS[map.cup]));
+        if (collection.length > 0 && collection.length <= TEAM_SIZE && everyoneEligible) {
           this.store.fillTeam();
           this.onSelectMap(map);
           return;
@@ -1774,13 +1779,27 @@ export class StadiumUI {
     });
   }
 
-  /** Course cards show the trainer's best run, which changes after every match. */
+  /** Course cards show the trainer's best run and whether the cup is open, both of which change after every match. */
   private refreshMapRecords(): void {
     this.container.querySelectorAll<HTMLElement>('[data-map-record]').forEach(el => {
       const record = this.store.data.maps[el.dataset.mapRecord!];
       el.textContent = record ? `BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}` : '';
       el.hidden = !record;
     });
+    const open = unlockedCups(STADIUM_MAPS, this.store.data.maps);
+    this.container.querySelectorAll<HTMLButtonElement>('[data-map-cup]').forEach(card => {
+      const locked = !open.has(card.dataset.mapCup as CupId);
+      card.disabled = locked;
+      card.classList.toggle('locked', locked);
+      card.querySelector<HTMLElement>('[data-map-lock]')!.hidden = !locked;
+    });
+    this.container.querySelectorAll<HTMLButtonElement>('[data-cup-filter]').forEach(tab => {
+      const id = tab.dataset.cupFilter as CupId;
+      if (id === ('all' as string)) return;
+      tab.classList.toggle('locked', !open.has(id));
+      if (this.knownCups && open.has(id) && !this.knownCups.has(id)) tab.classList.add('new-cup');
+    });
+    this.knownCups = open;
   }
 
   public setMapSelectVisible(visible: boolean, canResume=false): void {
@@ -1942,6 +1961,7 @@ export class StadiumUI {
     this.container.querySelectorAll<HTMLButtonElement>('[data-cup-filter]').forEach(button=>{
       button.addEventListener('click',()=>{
         const filter=button.dataset.cupFilter;
+        button.classList.remove('new-cup');
         this.container.querySelectorAll<HTMLButtonElement>('[data-cup-filter]').forEach(tab=>{
           tab.classList.toggle('active',tab===button);tab.setAttribute('aria-pressed',String(tab===button));
         });
@@ -2313,13 +2333,15 @@ export class StadiumUI {
   }
 
   /** Milestone payout card, sharing the trophy card's slot and timing. */
-  public showMilestone(milestone: MilestoneReward): void {
+  /** `unlockedCup` names a cup this clear just opened. */
+  public showMilestone(milestone: MilestoneReward, unlockedCup?: string): void {
     const card = document.getElementById('capture-trophy')!;
     const ballNames: Record<BallType, string> = { poke: 'POKÉ BALL', great: 'GREAT BALL', ultra: 'ULTRA BALL' };
     const rewards = [
       `<div class="trophy-move"><span>+$${milestone.money}</span><em>PRIZE MONEY</em></div>`,
       ...(Object.entries(milestone.balls) as [BallType, number][]).map(([ball, count]) =>
         `<div class="trophy-move"><span>+${count} ${ballNames[ball]}${count > 1 ? 'S' : ''}</span><em>CAPTURE KIT</em></div>`),
+      ...(unlockedCup ? [`<div class="trophy-move new-cup"><span>${unlockedCup}</span><em>NOW OPEN</em></div>`] : []),
     ].join('');
     this.trophyView.hide();
     card.classList.remove('has-model');

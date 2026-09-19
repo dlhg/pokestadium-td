@@ -9,7 +9,7 @@
 import { RosterModelView } from '../RosterModelView';
 import type { StadiumMap } from '../MapCatalog';
 import { openingThreatTypes } from '../WaveManager';
-import { CUPS } from '../Cups';
+import { CUPS, isEligible, nearOutgrowing, type CupRules } from '../Cups';
 import { MOVES } from '../../stadium/MoveDatabase';
 import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../../stadium/TypeMatrix';
 import { dexNumber, GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
@@ -77,12 +77,25 @@ const BENCH_SORTS: Record<BenchSort, { label: string; compare: (strong: StrongLo
   matchup: { label: 'BEST VS THIS COURSE', compare: strong => (a, b) => strong(b).length - strong(a).length || byLevel(a, b) },
 };
 
-function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[]): string {
+/** The cup's verdict on a card: over the entry limit, or close enough that this may be its last run. */
+function cupTag(pokemon: OwnedPokemon, cup: CupRules | null): string {
+  if (!cup) return '';
+  if (!isEligible(pokemon.level, cup)) {
+    return `<span class="tr-cup-tag out" title="Over ${cup.name}'s LV ${cup.entryMax} entry limit, so it sits this match out">OVER LV ${cup.entryMax} LIMIT</span>`;
+  }
+  return nearOutgrowing(pokemon.level, cup)
+    ? `<span class="tr-cup-tag last" title="Passing LV ${cup.entryMax} graduates it from ${cup.name}. This may be its last run here.">NEAR LV ${cup.entryMax} LIMIT</span>`
+    : '';
+}
+
+function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[], cup: CupRules | null): string {
   const form = formOf(pokemon);
-  return `<div class="tr-card" draggable="true" data-drag-uid="${pokemon.uid}">
-    <button class="tr-card-main" data-toggle="${pokemon.uid}" title="Add to team · drag onto a slot to swap" style="${typeArtStyle(form.type)}">
+  const eligible = !cup || isEligible(pokemon.level, cup);
+  return `<div class="tr-card ${eligible ? '' : 'ineligible'}" draggable="${eligible}" ${eligible ? `data-drag-uid="${pokemon.uid}"` : ''}>
+    <button class="tr-card-main" data-toggle="${pokemon.uid}" ${eligible ? 'title="Add to team · drag onto a slot to swap"' : `disabled title="Over ${cup!.name}'s LV ${cup!.entryMax} entry limit"`} style="${typeArtStyle(form.type)}">
       <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}${pokemon.nickname ? `<small>${form.name.toUpperCase()}</small>` : ''}</span>
       <span class="tr-card-meta">LV ${pokemon.level}</span>
+      ${cupTag(pokemon, cup)}
       <span class="tr-card-types">${typeChips(pokemon)}</span>
       ${strong.length ? `<span class="tr-matchup" title="Strong vs ${strong.join(', ')}">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
     </button>
@@ -245,7 +258,9 @@ export class TrainerScreens {
    * built once so the search box keeps focus while typing.
    */
   public openTeamSelect(options: TeamSelectOptions): void {
-    const threats = options.map ? openingThreatTypes(10, CUPS[options.map.cup].winRound) : [];
+    const cup = options.map ? CUPS[options.map.cup] : null;
+    const threats = cup ? openingThreatTypes(10, cup.winRound) : [];
+    const canEnter = (pokemon: OwnedPokemon) => !cup || isEligible(pokemon.level, cup);
     const filter: BenchFilter = { query: '', sort: 'level', types: new Set(), strongOnly: false };
     const strongCache = new Map<string, PokemonType[]>();
     const strong = (pokemon: OwnedPokemon) => {
@@ -261,12 +276,15 @@ export class TrainerScreens {
       const { data } = this.store;
       const team = data.team.map(uid => (uid ? this.store.get(uid) : null));
       const teamCount = team.filter(Boolean).length;
+      // Only members allowed in this cup take the field; the rest stay on the saved team.
+      const fielded = team.filter((pokemon): pokemon is OwnedPokemon => !!pokemon && canEnter(pokemon)).length;
       this.root.querySelector('.tr-slots')!.innerHTML = team.map((pokemon, slot) => pokemon
-        ? `<div class="tr-slot filled" data-drop-slot="${slot}" data-drag-uid="${pokemon.uid}" draggable="true" style="${typeArtStyle(formOf(pokemon).type)}">
+        ? `<div class="tr-slot filled ${canEnter(pokemon) ? '' : 'ineligible'}" data-drop-slot="${slot}" data-drag-uid="${pokemon.uid}" draggable="true" style="${typeArtStyle(formOf(pokemon).type)}">
             <button class="tr-slot-main" data-slot="${slot}" title="Click to remove · drag to swap">
               <span class="tr-model" data-model="${formOf(pokemon).name}" data-species="${pokemon.speciesId}"></span>
               <span class="tr-slot-name">${escapeHtml(displayName(pokemon).toUpperCase())}</span>
               <span class="tr-slot-meta">LV ${pokemon.level}</span>
+              ${cupTag(pokemon, cup)}
               <span class="tr-slot-types">${typeChips(pokemon)}</span>
               ${xpBar(pokemon)}
             </button>
@@ -274,12 +292,13 @@ export class TrainerScreens {
           </div>`
         : `<div class="tr-slot empty" data-drop-slot="${slot}"><span>SLOT ${slot + 1}</span></div>`).join('');
       this.mountModels(this.root.querySelector('.tr-slots')!);
-      this.root.querySelector('[data-team-count]')!.textContent = `TEAM ${teamCount}/${TEAM_SIZE}`;
+      const sittingOut = teamCount - fielded;
+      this.root.querySelector('[data-team-count]')!.textContent = `TEAM ${teamCount}/${TEAM_SIZE}${sittingOut ? ` · ${sittingOut} SIT${sittingOut === 1 ? 'S' : ''} OUT` : ''}`;
       this.root.querySelector<HTMLButtonElement>('[data-clear-team]')!.disabled = !teamCount;
       const confirm = this.root.querySelector<HTMLButtonElement>('[data-confirm]');
       if (confirm) {
-        confirm.disabled = !teamCount;
-        confirm.textContent = teamCount ? `START MATCH · ${teamCount}/${TEAM_SIZE}` : 'ADD A POKÉMON';
+        confirm.disabled = !fielded;
+        confirm.textContent = fielded ? `START MATCH · ${fielded}/${TEAM_SIZE}` : teamCount ? 'NO ONE ON THE TEAM CAN ENTER' : 'ADD A POKÉMON';
       }
     };
 
@@ -294,10 +313,10 @@ export class TrainerScreens {
         if (query && ![displayName(pokemon), form.name, pokemon.speciesId].some(name => name.toLowerCase().includes(query))) return false;
         if (filter.types.size && !filter.types.has(form.type) && !(form.secondaryType && filter.types.has(form.secondaryType))) return false;
         return !filter.strongOnly || strong(pokemon).length > 0;
-      }).sort(BENCH_SORTS[filter.sort].compare(strong));
+      }).sort((a, b) => Number(canEnter(b)) - Number(canEnter(a)) || BENCH_SORTS[filter.sort].compare(strong)(a, b));
 
       const scroll = list.scrollTop;
-      list.innerHTML = shown.map(pokemon => benchTileHtml(pokemon, strong(pokemon))).join('')
+      list.innerHTML = shown.map(pokemon => benchTileHtml(pokemon, strong(pokemon), cup)).join('')
         || `<p class="tr-empty">${!data.collection.length ? 'No Pokémon yet.' : !bench.length ? 'Everyone you own is already on your team.' : 'No Pokémon match these filters.'}</p>`;
       list.scrollTop = scroll;
 
@@ -331,6 +350,7 @@ export class TrainerScreens {
   /** Static chrome and delegated listeners for team select, built once per opening. */
   private buildTeamShell(options: TeamSelectOptions, threats: PokemonType[], filter: BenchFilter, showBenchIntro: boolean, renderBench: () => void): void {
     this.clearViews();
+    const cup = options.map ? CUPS[options.map.cup] : null;
     const record = options.map ? this.store.data.maps[options.map.id] : undefined;
     this.root.innerHTML = `
         <section class="tr-panel stadium-panel tr-team">
@@ -344,6 +364,7 @@ export class TrainerScreens {
         </div>
         ${options.map ? `<div class="tr-threats"><span>OPENING WAVES</span>${threats.map(typeChip).join('')}
           ${record ? `<span class="tr-record">BEST ROUND ${record.bestRound}${record.cleared ? ' · CLEARED' : ''}</span>` : ''}</div>` : ''}
+        ${cup ? `<p class="tr-cup-rules"><b>${cup.name}</b>${cup.entryMax >= MAX_LEVEL ? 'Pokémon of any level can enter.' : `Pokémon LV ${cup.entryMax} and under can enter.`} Your team can grow to LV ${cup.levelCap} this match.</p>` : ''}
         ${showBenchIntro ? '<p class="tr-intro">Your team is full, so new catches wait on the bench. Click one, or drag it onto a slot, to swap it in.</p>' : ''}
         <div class="tr-team-head">
           <span data-team-count></span>
@@ -383,7 +404,15 @@ export class TrainerScreens {
       const { dataset } = target;
       if (dataset.slot !== undefined) this.store.setTeamSlot(Number(dataset.slot), null);
       else if (dataset.toggle) {
-        if (!this.store.toggleTeam(dataset.toggle)) this.flash('TEAM IS FULL · REMOVE ONE OR DRAG ONTO A SLOT');
+        if (!this.store.toggleTeam(dataset.toggle)) {
+          // A full team can still take a newcomer in place of someone who can't enter this cup.
+          const benched = cup ? this.store.data.team.findIndex(uid => {
+            const member = uid ? this.store.get(uid) : null;
+            return !!member && !isEligible(member.level, cup);
+          }) : -1;
+          if (benched !== -1) this.store.setTeamSlot(benched, dataset.toggle);
+          else this.flash('TEAM IS FULL · REMOVE ONE OR DRAG ONTO A SLOT');
+        }
       } else if (dataset.info) this.openSummary(dataset.info);
       else if (dataset.clearTeam !== undefined) this.store.clearTeam();
       else if (dataset.typeFilter) {
@@ -404,7 +433,7 @@ export class TrainerScreens {
         this.close();
         options.onBack();
       } else if (dataset.confirm !== undefined) {
-        if (!this.store.team.length) return;
+        if (!this.store.team.some(member => !cup || isEligible(member.level, cup))) return;
         this.close();
         options.onConfirm!();
       }

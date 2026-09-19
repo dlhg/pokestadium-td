@@ -17,7 +17,7 @@ const result = await build({
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
       "export { createPokemon, formOf, statsOf, TrainerStore } from './src/td/progression/TrainerStore.ts';",
       "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
-      "export { CUPS, CUP_ORDER } from './src/td/Cups.ts';",
+      "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups } from './src/td/Cups.ts';",
       "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
       "export { getSpecies, SPECIES } from './src/td/progression/Species.ts';",
       "export { HAZARDS } from './src/td/Hazard.ts';",
@@ -38,7 +38,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, STADIUM_MAPS, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Action mode follows the live creep nearest the exit. A knockout hands the
@@ -164,7 +164,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   const game = new StadiumTDGame();
   Object.assign(game, {
     balls: { poke: 0, great: 0, ultra: 0 }, towers: [], map: { id: 'test' },
-    store: { recordMap() {}, commit() {} }, progress: { awardWaveClear: () => [] },
+    store: { data: { maps: {} }, recordMap() {}, commit() {} }, progress: { awardWaveClear: () => [] },
     waveManager: { winRound: 40 }, ui: { showMilestone() {} },
     announcer: { trigger() {} }, audio: { playFanfare() {} }, camera: { shake() {} },
   });
@@ -305,6 +305,27 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   for (const id of CUP_ORDER) {
     assert.ok(STADIUM_MAPS.filter(map => map.cup === id).length >= 2, `${id} offers at least two courses`);
   }
+}
+
+// Entry rules: at or under the limit enters, the top of the window warns, and
+// the top cup never warns because nothing outgrows it.
+{
+  assert.ok(isEligible(CUPS.little.entryMax, CUPS.little), 'the entry limit itself may enter');
+  assert.ok(!isEligible(CUPS.little.entryMax + 1, CUPS.little), 'one level over sits out');
+  assert.ok(nearOutgrowing(CUPS.little.entryMax, CUPS.little), 'the limit level is warned');
+  assert.ok(!nearOutgrowing(5, CUPS.little), 'a fresh starter is not warned');
+  assert.ok(!nearOutgrowing(CUPS.little.entryMax + 1, CUPS.little), 'an ineligible Pokémon is not warned, it sits out');
+  assert.ok(!nearOutgrowing(CUPS.prime.entryMax, CUPS.prime), 'nothing outgrows the top cup');
+}
+
+// Cups open in order: clearing any course in a cup opens the next one only.
+{
+  assert.deepEqual([...unlockedCups(STADIUM_MAPS, {})], ['little'], 'a new trainer starts with the first cup');
+  const little = STADIUM_MAPS.find(map => map.cup === 'little');
+  const poke = STADIUM_MAPS.find(map => map.cup === 'poke');
+  assert.ok(!isCupUnlocked('poke', STADIUM_MAPS, { [little.id]: { cleared: false } }), 'a best round short of a clear opens nothing');
+  assert.deepEqual([...unlockedCups(STADIUM_MAPS, { [little.id]: { cleared: true } })], ['little', 'poke'], 'a Little Cup clear opens the Poké Cup');
+  assert.ok(!isCupUnlocked('prime', STADIUM_MAPS, { [little.id]: { cleared: true }, [poke.id]: { cleared: true } }), 'cups cannot be skipped');
 }
 
 // In-match XP stops at the cup's level cap, evolving on the way; the next

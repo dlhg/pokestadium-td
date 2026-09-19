@@ -32,3 +32,34 @@ export const CUPS: Record<CupId, CupRules> = {
 
 /** Easiest first — the order cups unlock and appear in map select. */
 export const CUP_ORDER: CupId[] = ['little', 'poke', 'great', 'prime'];
+
+/** Team select flags a Pokémon this close to the entry limit: one more run likely graduates it. */
+export const OUTGROW_WARNING_LEVELS = 2;
+
+export function isEligible(level: number, cup: CupRules): boolean {
+  return level <= cup.entryMax;
+}
+
+/** Eligible now, but near enough the limit that this match may be its last in the cup. */
+export function nearOutgrowing(level: number, cup: CupRules): boolean {
+  return cup.entryMax < cup.levelCap && isEligible(level, cup) && cup.entryMax - level < OUTGROW_WARNING_LEVELS;
+}
+
+/** The first cup is always open; each later one opens once any course in the cup below is cleared. */
+export function isCupUnlocked(
+  id: CupId,
+  maps: readonly { id: string; cup: CupId }[],
+  records: Record<string, { cleared: boolean } | undefined>,
+): boolean {
+  const index = CUP_ORDER.indexOf(id);
+  if (index <= 0) return true;
+  const below = CUP_ORDER[index - 1];
+  return maps.some(map => map.cup === below && records[map.id]?.cleared === true);
+}
+
+export function unlockedCups(
+  maps: readonly { id: string; cup: CupId }[],
+  records: Record<string, { cleared: boolean } | undefined>,
+): Set<CupId> {
+  return new Set(CUP_ORDER.filter(id => isCupUnlocked(id, maps, records)));
+}

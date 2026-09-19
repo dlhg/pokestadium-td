@@ -11,18 +11,19 @@ import { Input } from './engine/Input';
 import { Tower, TOWER_BASE_HEIGHT } from './td/Tower';
 import { Creep } from './td/Creep';
 import { STADIUM_MAPS } from './td/MapCatalog';
+import { CUPS } from './td/Cups';
 import { getMilestone } from './td/WaveManager';
 import { createPokemon, freshSave, TrainerStore } from './td/progression/TrainerStore';
 import { DevPanel } from './td/progression/DevPanel';
 import { applyRetroUiCss } from './engine/RetroFX';
 
-/** A fixed trainer for headless shots and `?save=dev`: the classic six, mid-journey. */
+/** A fixed trainer for headless shots and `?save=dev`: the classic six at the Little Cup's entry limit. */
 function devSeed(): TrainerStore {
   const store = new TrainerStore(false, freshSave());
   const origin = { kind: 'dev' as const, at: 0 };
   const dvs = { attack: 8, speed: 8, special: 8 };
   (['pikachu', 'charmander', 'squirtle', 'bulbasaur', 'gastly', 'abra'] as const)
-    .forEach(id => store.add(createPokemon(id, 12, origin, { dvs })));
+    .forEach(id => store.add(createPokemon(id, CUPS.little.entryMax, origin, { dvs })));
   store.data.starterChosen = true;
   store.data.matchesPlayed = 1;
   return store;
@@ -71,6 +72,14 @@ window.addEventListener('DOMContentLoaded', () => {
   if (shot) {
     game.announcer.setVoiceEnabled(false);
     uiContainer.classList.add('shot-mode');
+  }
+  // Team select for the first course, with one member over its entry limit and one about to outgrow it.
+  if (shot === 'team_select') {
+    const [over, last] = store.team;
+    store.setLevel(over, CUPS.little.entryMax + 4);
+    store.setLevel(last, CUPS.little.entryMax - 1);
+    store.data.collection.push(shotPokemon('pidgey', 7), shotPokemon('zubat', 15));
+    document.querySelector<HTMLButtonElement>(`[data-map-id="${STADIUM_MAPS[0].id}"]`)!.click();
   }
   // map_<id> is the tactical course view; map3d_<id> frames the same course from the stands.
   const courseShot = STADIUM_MAPS.find(map => shot === `map_${map.id}` || shot === `map3d_${map.id}` || shot === `battle_${map.id}` || shot === `exit_${map.id}`);
@@ -189,7 +198,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  if (shot && shot !== 'map_select' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
+  if (shot && shot !== 'map_select' && shot !== 'team_select' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

@@ -23,7 +23,7 @@ web/
 ├── docs/                    # Design-rationale docs, updated alongside the features they cover
 │   ├── tower-roles.md       # Tower path/signature design and rationale
 │   ├── trainer-progression.md
-│   └── cup-rules.md         # Cup level brackets (phase 1 in), entry rules and rentals planned
+│   └── cup-rules.md         # Cup level brackets and entry rules (phases 1–2 in), rentals planned
 ├── ROM_ASSETS.md            # Optional, gitignored ROM-extraction workflow
 └── src/
     ├── engine/               # Reusable 3D engine (renderer, camera, audio, input, particles, FX)

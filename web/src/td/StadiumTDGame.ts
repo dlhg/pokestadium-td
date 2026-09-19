@@ -33,8 +33,8 @@ import { WaveManager, getMilestone } from './WaveManager';
 import { MOVES } from '../stadium/MoveDatabase';
 import { TYPE_COLORS } from '../stadium/TypeMatrix';
 import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
-import { DEFAULT_STADIUM_MAP, type StadiumMap } from './MapCatalog';
-import { CUPS } from './Cups';
+import { DEFAULT_STADIUM_MAP, STADIUM_MAPS, type StadiumMap } from './MapCatalog';
+import { CUPS, isEligible, unlockedCups } from './Cups';
 import { BALL_ORDER, BALL_PRICES, BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
@@ -391,7 +391,8 @@ export class StadiumTDGame {
     this.abortCapture();
     this.abortEvolution();
     this.traitsIntroduced.clear();
-    this.roster = [...this.store.team];
+    // Team members over the cup's entry limit sit this match out; they stay on the saved team.
+    this.roster = this.store.team.filter(member => isEligible(member.level, CUPS[this.map.cup]));
     this.guestSlotsUsed = 0;
     this.roster.forEach(member => member.record.matches++);
     this.progress.start(this.roster, CUPS[this.map.cup].levelCap);
@@ -1411,8 +1412,10 @@ export class StadiumTDGame {
     this.towers.forEach(tower => tower.refillPP());
     this.applyXp(this.progress.awardWaveClear(this.towers));
     // Autosave per wave: closing the tab loses at most the wave in progress.
+    const cupsBefore = unlockedCups(STADIUM_MAPS, this.store.data.maps);
     this.store.recordMap(this.map.id, round, round >= this.waveManager.winRound);
     this.store.commit();
+    const newCup = [...unlockedCups(STADIUM_MAPS, this.store.data.maps)].find(id => !cupsBefore.has(id));
 
     // The opening teaches capture with a dependable one-attempt-per-round
     // cadence. Better balls still come from purchases and later milestones.
@@ -1424,7 +1427,7 @@ export class StadiumTDGame {
       for (const [ball, count] of Object.entries(milestone.balls) as [BallType, number][]) {
         this.balls[ball] += count;
       }
-      this.ui.showMilestone(milestone);
+      this.ui.showMilestone(milestone, newCup ? CUPS[newCup].name : undefined);
     }
 
     if (round === this.waveManager.winRound) {

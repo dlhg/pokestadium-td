@@ -5,8 +5,9 @@ can enter only if its level is at or below the cup's entry limit. During the mat
 it levels up, but no higher than the cup's level cap, and that XP is kept.
 Rentals fill team slots when you don't own enough eligible Pokémon.
 
-Status: **phase 1 shipped** (cup data, creep levels, XP cap, catch clamp, map
-select). Phases 2–5 are planned. This extends `trainer-progression.md`. Where the
+Status: **phases 1–2 shipped.** Phase 1 added cup data, creep levels, the XP cap,
+the catch clamp and map select. Phase 2 added entry rules, cup locks and the
+team-select changes. Phases 3–5 are planned. This extends `trainer-progression.md`. Where the
 two disagree, this doc wins.
 
 ## Why
@@ -150,6 +151,10 @@ their meaning.
 - **Wave stage names**: the first ten rounds were labeled "POKE CUP" and "PRIME
   CUP" in the top bar. They're renamed QUALIFIERS and MAIN DRAW so they don't
   clash with the map's cup.
+- **`main.ts`**
+  - The dev seed (`?save=dev` and every headless shot) starts the classic six at
+    the Little Cup's entry limit, so shots on the first course still field a team.
+  - New `team_select` shot, with one member over the limit and one near it.
 - **`DevPanel.ts`**
   - "Fill with rentals" button.
   - Cup override, for testing any map under any cup's rules.
@@ -161,25 +166,32 @@ their meaning.
    - Each card shows "LV ≤ 10 · CAP 20" in place of the difficulty badge.
    - Locked cups show their maps with a padlock and "Clear a LITTLE CUP map to
      unlock." They can't be selected.
-   - A newly unlocked cup gets a "NEW CUP" callout in the match report and a pulse
-     on its tab.
+   - A newly unlocked cup is announced on the STADIUM CHAMPION card, the moment
+     the clear happens, as a "POKÉ CUP · NOW OPEN" row. Its tab pulses in map
+     select until it's clicked. The pulse is tracked for the session only, so
+     nothing new goes in the save.
 2. **Team select** (`TrainerScreens.ts`)
    - A cup rules banner at the top: "LITTLE CUP — Pokémon LV 10 and under. Your
      team can grow to LV 20 this match."
-   - Ineligible collection cards are dimmed with "LV 14 — over the limit." They
-     stay visible so the player understands why.
-   - When a saved team member is ineligible, its slot opens up for this match.
-     The saved team itself isn't changed.
+   - Ineligible bench cards are grayed out with "OVER LV 10 LIMIT", sorted last, and
+     can't be picked or dragged. They stay visible so the player understands why.
+   - A saved team member over the limit stays in its slot, grayed out with the
+     same tag. The header reads "TEAM 6/6 · 1 SITS OUT" and START MATCH counts
+     only eligible members. The saved team isn't changed unless the player swaps
+     someone out. Clicking an eligible bench card when the team is full replaces
+     the first member who sits out.
+   - Team select is skipped for trainers with six or fewer Pokémon only when all
+     of them are eligible.
    - A **Rentals** tab next to the collection. Rental cards look the same, with a
      RENTAL ribbon.
    - **Outgrow warning**: when a Pokémon is within 2 levels of `entryMax`, its
-     card shows "Last runs in LITTLE CUP."
+     card shows "NEAR LV 10 LIMIT". Hovering explains that it may be its last run.
    - Starting with empty slots is allowed. A "Fill with rentals" button fills them.
    - **Veteran notice**: the first time a player opens a cup where nothing they own
      qualifies, a short one-time popup explains the entry rule and points to the
      Rentals tab. Whether it's been shown is remembered in a localStorage key, as
      with the other one-time tips in `StadiumUI.ts`, not in the save.
-3. **Match report**
+3. **Match report** (phase 4)
    - "SPARKY outgrew LITTLE CUP" when a Pokémon passes `entryMax`, together with
      the level-up line.
    - "Now eligible for POKÉ CUP" when this is the first Pokémon to qualify.
