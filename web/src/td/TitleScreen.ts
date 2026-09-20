@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { WORDMARK_TEXEL_COLUMNS, WordmarkCover } from './WordmarkCover';
 import './title-screen.css';
 
 interface StadiumManifest {
@@ -100,8 +101,6 @@ const KNOCK_PER_JOLT = 2;
  * the letters taking the hit without the element looking like it slid.
  */
 const KNOCK_MAX_TEXELS = 3;
-/** Matches the --width the wordmark is baked at; see tools/pixelate_ui_art.py. */
-const WORDMARK_TEXEL_COLUMNS = 288;
 /**
  * Slack enough to hold the text down for about a third of a second before it
  * rides back up. Stiffer than this and the drop is over in four frames, which
@@ -139,15 +138,19 @@ export class TitleScreen {
   private readonly logoPivot = new THREE.Group();
   private readonly punchOffset = new THREE.Vector3();
   private readonly content: HTMLElement;
+  private readonly wordmarkStage: HTMLElement;
+  private readonly cover: WordmarkCover;
   private readonly fallers: Faller[] = [];
   private readonly reducedMotion: boolean;
   private jolt = 0;
   private joltPhase = 0;
   private knock = 0;
   private knockVelocity = 0;
-  /** Wordmark's contact band and the stage's height, in stage CSS pixels. */
+  /** Wordmark's contact band and the stage's box, in stage CSS pixels. */
   private impactLine = Infinity;
   private impactDepth = 0;
+  private impactLeft = 0;
+  private impactWidth = 1;
   private stageHeight = 0;
   private mixer: THREE.AnimationMixer | null = null;
   private logo: THREE.Object3D | null = null;
@@ -176,7 +179,10 @@ export class TitleScreen {
             <span class="title-screen__stadium">STADIUM</span>
           </div>
         </div>
-        <img class="title-screen__wordmark" src="/ui/tower-defense-wordmark.png" alt="Tower Defense" />
+        <div class="title-screen__wordmark-stage">
+          <img class="title-screen__wordmark" src="/ui/tower-defense-wordmark.png" alt="Tower Defense" />
+          <canvas class="title-screen__wordmark-cover" aria-hidden="true"></canvas>
+        </div>
         <button class="title-screen__start" type="button"><span>Start</span></button>
         <p class="title-screen__credit">A fan-made tower defense experiment</p>
       </div>
@@ -186,7 +192,15 @@ export class TitleScreen {
     this.fallback = this.requireElement<HTMLElement>('.title-screen__fallback');
     this.wordmark = this.requireElement<HTMLImageElement>('.title-screen__wordmark');
     this.content = this.requireElement<HTMLElement>('.title-screen__content');
+    this.wordmarkStage = this.requireElement<HTMLElement>('.title-screen__wordmark-stage');
+    this.cover = new WordmarkCover(
+      this.requireElement<HTMLCanvasElement>('.title-screen__wordmark-cover'),
+      this.wordmark,
+    );
     this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    // Everything that would break the cast off is motion. Without it the stone
+    // would simply sit there, so the wordmark starts uncovered instead.
+    if (this.reducedMotion) this.cover.reveal();
     const startButton = this.requireElement<HTMLButtonElement>('.title-screen__start');
 
     for (const child of Array.from(container.children)) {
@@ -253,7 +267,7 @@ export class TitleScreen {
       this.disposeLogo();
       this.renderer.dispose();
       this.content.style.transform = '';
-      this.wordmark.style.transform = '';
+      this.wordmarkStage.style.transform = '';
       for (const [element, inert] of this.previousInert) element.inert = inert;
       this.root.remove();
 
@@ -296,6 +310,8 @@ export class TitleScreen {
         if (settled) {
           this.mixer.setTime(clip.duration);
           action.paused = true;
+          // A held frame skips every landing, so nothing would ever break.
+          this.cover.reveal();
           this.landIntro(true);
         } else {
           this.mixer.addEventListener('finished', this.onIntroFinished);
@@ -308,6 +324,8 @@ export class TitleScreen {
     } catch (error) {
       if (this.closing) return;
       this.disposeLogo();
+      // No logo means no Pokemon to fall out of it and break the cast.
+      this.cover.reveal();
       this.fallback.classList.add('title-screen__fallback--visible');
       console.info('[TitleScreen] Using the built-in logo fallback:', error);
     }
@@ -351,6 +369,9 @@ export class TitleScreen {
     // moves only the wordmark and has to come back out.
     this.impactLine = wordmark.height > 0 ? wordmark.top - this.knock - stage.top : Infinity;
     this.impactDepth = wordmark.height * IMPACT_BAND;
+    this.impactLeft = wordmark.left - stage.left;
+    this.impactWidth = Math.max(1, wordmark.width);
+    this.cover.resize();
   }
 
   /**
@@ -373,6 +394,7 @@ export class TitleScreen {
       faller.cooldown = Math.max(0, faller.cooldown - delta);
       _probe.setFromMatrixPosition(faller.object.matrixWorld).project(this.camera);
       const y = (1 - _probe.y) * 0.5 * this.stageHeight;
+      const x = (_probe.x + 1) * 0.5 * this.canvas.clientWidth;
       if (faller.previous !== null) {
         const descent = (y - faller.previous) / delta;
         if (descent > 0) {
@@ -380,7 +402,7 @@ export class TitleScreen {
         } else {
           const onTheLetters = y >= this.impactLine && y <= this.impactLine + this.impactDepth;
           if (faller.peak > IMPACT_MIN_SPEED && !faller.cooldown && onTheLetters) {
-            this.land(faller.peak);
+            this.land(faller.peak, (x - this.impactLeft) / this.impactWidth);
             faller.cooldown = IMPACT_COOLDOWN;
           }
           faller.peak = 0;
@@ -390,10 +412,11 @@ export class TitleScreen {
     }
   }
 
-  /** One Pokemon touching down: jolt the lockup, and stack up towards a knock. */
-  private land(speed: number): void {
+  /** One Pokemon touching down: jolt the lockup, crack the cast, stack up to a knock. */
+  private land(speed: number, where: number): void {
     this.jolt += speed * speed * JOLT_PER_ENERGY;
     this.joltPhase = 0;
+    this.cover.strike(where, this.jolt);
     if (this.jolt <= KNOCK_THRESHOLD) return;
     this.knock = Math.min(
       this.knock + (this.jolt - KNOCK_THRESHOLD) * KNOCK_PER_JOLT,
@@ -434,7 +457,8 @@ export class TitleScreen {
     const y = Math.round(swing);
     const drop = Math.round(this.knock / this.texel()) * this.texel();
     this.content.style.transform = x || y ? `translate3d(${x}px, ${y}px, 0)` : '';
-    this.wordmark.style.transform = drop ? `translateY(${drop.toFixed(2)}px)` : '';
+    // The stage, not the image: the stone cast has to ride the knock with it.
+    this.wordmarkStage.style.transform = drop ? `translateY(${drop.toFixed(2)}px)` : '';
   }
 
   private prepareMaterials(root: THREE.Object3D): void {
@@ -646,6 +670,7 @@ export class TitleScreen {
   }
 
   private readonly refit = (): void => {
+    this.cover.build();
     this.measureImpactLine();
     if (!this.logo || this.closing || !this.punchLanded || this.punchElapsed !== null) return;
     this.fitLogoToWordmark();
@@ -677,6 +702,7 @@ export class TitleScreen {
       this.logoPivot.updateMatrixWorld(true);
       this.updateImpacts(delta);
       this.updateShake(delta);
+      this.cover.update(delta);
     }
     this.renderer.render(this.scene, this.camera);
   };

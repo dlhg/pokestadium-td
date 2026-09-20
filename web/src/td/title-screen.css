@@ -131,23 +131,41 @@
   text-shadow: 5px 8px 0 #101f37, 9px 14px 0 #050b14;
 }
 
-.title-screen__wordmark {
-  display: block;
-  width: min(72vw, 720px);
-  height: auto;
+/* Holds the art and the stone cast over it as one piece, so the knock from a
+   landing moves both together. */
+.title-screen__wordmark-stage {
+  position: relative;
   margin-top: clamp(-102px, -10vh, -48px);
-  /* Baked to 288 texels wide (web/tools/pixelate_ui_art.py) so the browser
-     blows each texel back up to the ~2.5 display pixels the ROM logo's
-     nearest-filtered 32x32 textures land on. Both titles share one grid. */
-  image-rendering: pixelated;
-  filter: drop-shadow(0 12px 8px rgba(0, 0, 0, 0.48));
   /* `backwards`, not `both`: the arrive keyframes land on the same pose as the
      base style, and dropping the forwards fill hands `transform` back to the
      script afterwards so a Pokemon landing on the text can knock it down. */
   animation: title-wordmark-arrive 700ms 400ms cubic-bezier(0.2, 0.9, 0.2, 1.2) backwards;
 }
 
-.shot-mode .title-screen__wordmark { animation: none; }
+.shot-mode .title-screen__wordmark-stage { animation: none; }
+
+.title-screen__wordmark {
+  display: block;
+  width: min(72vw, 720px);
+  height: auto;
+  /* Baked to 288 texels wide (web/tools/pixelate_ui_art.py) so the browser
+     blows each texel back up to the ~2.5 display pixels the ROM logo's
+     nearest-filtered 32x32 textures land on. Both titles share one grid. */
+  image-rendering: pixelated;
+  filter: drop-shadow(0 12px 8px rgba(0, 0, 0, 0.48));
+}
+
+/* The cast is drawn on the wordmark's own texel grid, and the element runs
+   wider and a long way lower than the art so debris is not clipped as it
+   tumbles. WordmarkCover sizes and places it; only the painting rules live
+   here. It carries no shadow of its own -- it shares the art's silhouette, so
+   the image's shadow already reads as the whole assembly's. */
+.title-screen__wordmark-cover {
+  position: absolute;
+  top: 0;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
 
 .title-screen__start {
   position: relative;
@@ -207,7 +225,8 @@
 
 @media (max-height: 680px) {
   .title-screen__logo-stage { height: 49vh; min-height: 210px; }
-  .title-screen__wordmark { width: min(61vw, 620px); margin-top: -72px; }
+  .title-screen__wordmark { width: min(61vw, 620px); }
+  .title-screen__wordmark-stage { margin-top: -72px; }
   .title-screen__credit { margin-top: 9px; }
 }
 
@@ -219,6 +238,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .title-screen__wordmark,
+  .title-screen__wordmark-stage,
   .title-screen__start { animation: none; }
 }

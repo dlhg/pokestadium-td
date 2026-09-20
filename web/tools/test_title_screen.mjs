@@ -52,6 +52,18 @@ try {
     assert.fail(`Timed out: ${label}`);
   };
   const opacity=selector=>evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(selector)})).opacity`);
+  // Opaque texels left in the stone cast over the wordmark.
+  const standing=()=>evaluate(`(()=>{
+    const canvas=document.querySelector('.title-screen__wordmark-cover');
+    if(!canvas||!canvas.width) return -1;
+    const probe=document.createElement('canvas');
+    probe.width=canvas.width; probe.height=canvas.height;
+    probe.getContext('2d').drawImage(canvas,0,0);
+    const pixels=probe.getContext('2d').getImageData(0,0,probe.width,probe.height).data;
+    let opaque=0;
+    for(let i=3;i<pixels.length;i+=4) if(pixels[i]>128) opaque++;
+    return opaque;
+  })()`);
   const capture=async(name)=>{
     const clip=await evaluate(`(()=>{const r=document.querySelector('.title-screen__logo-stage').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,scale:1}})()`);
     const result=await send('Page.captureScreenshot',{format:'png',clip});
@@ -71,14 +83,18 @@ try {
   // trying to catch them with a screenshot.
   await evaluate(`
     window.__jolts=[];
+    window.__cover=[];
     (function tick(){
       const c=document.querySelector('.title-screen__content');
       const w=document.querySelector('.title-screen__wordmark');
-      if(c&&w) window.__jolts.push([c.getBoundingClientRect().top, w.getBoundingClientRect().top]);
+      const s=document.querySelector('.title-screen__wordmark-stage');
+      if(c&&w&&s) window.__jolts.push([c.getBoundingClientRect().top, s.getBoundingClientRect().top]);
       if(document.querySelector('#title-screen')) requestAnimationFrame(tick);
     })();
   `);
   const first=await capture('start');
+  const cast=await standing();
+  assert.ok(cast>20000,`The wordmark starts under a solid cast (${cast} texels standing)`);
   await delay(2800);
   const middle=await capture('middle');
   assert.notEqual(first,middle,'Original sequence animates');
@@ -106,6 +122,11 @@ try {
   assert.ok(jolts.shake>4,`Landings shake the lockup (travelled ${jolts.shake.toFixed(1)}px)`);
   assert.ok(jolts.knock>3,`The finale knocks the wordmark down (dropped ${jolts.knock.toFixed(1)}px)`);
   assert.ok(jolts.settled,'The wordmark springs all the way back to rest');
+
+  // The stone cast over the wordmark starts solid and is broken off by those
+  // same landings, leaving nothing behind by the time the intro settles.
+  const left=await standing();
+  assert.equal(left,0,`The cast is entirely gone once the intro settles (${left} texels standing)`);
   await send('Input.dispatchKeyEvent',{type:'keyDown',code:'Enter',key:'Enter'});
   await send('Input.dispatchKeyEvent',{type:'keyUp',code:'Enter',key:'Enter'});
   await until(()=>evaluate(`!document.querySelector('#title-screen')`),'Start dismisses title');
@@ -117,7 +138,20 @@ try {
   releaseLogo(); releaseLogo=null;
   await until(async()=>await opacity('.title-screen__fallback')==='1','Fallback appears after failure');
   assert.equal(await opacity('.title-screen__model'),'0','Failed model remains hidden');
-  console.log('PASS: pending/success/failure fallback states, full intro motion, landing shake and wordmark knock, stable final pose, and Enter dismissal.');
+  // No logo means no Pokemon to break the cast, so it must never go up at all
+  // -- otherwise the wordmark stays buried for the life of the title.
+  assert.equal(await standing(),0,'A failed logo leaves the wordmark uncovered');
+
+  // Same again for a visitor who has asked for less motion.
+  failLogo=false;
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  await send('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/?shot=title_screen_live&reduced=1`});
+  await until(()=>!!releaseLogo,'Reduced-motion GLB request');
+  releaseLogo(); releaseLogo=null;
+  await until(async()=>await opacity('.title-screen__model')==='1','Reduced-motion model loads');
+  await delay(2500);
+  assert.equal(await standing(),0,'Reduced motion leaves the wordmark uncovered');
+  console.log('PASS: pending/success/failure fallback states, full intro motion, landing shake, wordmark knock, stone cast broken clear, cast skipped where nothing can break it, stable final pose, and Enter dismissal.');
 } finally {
   releaseLogo?.();
   socket?.close();
