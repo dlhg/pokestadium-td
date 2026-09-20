@@ -66,6 +66,18 @@ try {
   releaseLogo(); releaseLogo=null;
   await until(async()=>await opacity('.title-screen__model')==='1','Loaded model');
   assert.equal(await opacity('.title-screen__fallback'),'0','Successful load never reveals fallback');
+  // Record the lockup's shake and the wordmark's own displacement inside it for
+  // the whole intro. Both are transient, so sample every frame rather than
+  // trying to catch them with a screenshot.
+  await evaluate(`
+    window.__jolts=[];
+    (function tick(){
+      const c=document.querySelector('.title-screen__content');
+      const w=document.querySelector('.title-screen__wordmark');
+      if(c&&w) window.__jolts.push([c.getBoundingClientRect().top, w.getBoundingClientRect().top]);
+      if(document.querySelector('#title-screen')) requestAnimationFrame(tick);
+    })();
+  `);
   const first=await capture('start');
   await delay(2800);
   const middle=await capture('middle');
@@ -75,6 +87,25 @@ try {
   assert.notEqual(middle,end,'Full sequence progresses beyond the old four-second cut');
   await delay(800);
   assert.equal(await capture('held'),end,'Completed intro holds still without a loop or camera jitter');
+
+  // Falling Pokemon land on the wordmark: every landing shakes the lockup, and
+  // the finale drops three at once hard enough to drive the text itself down.
+  const jolts=await evaluate(`(()=>{
+    const rows=window.__jolts;
+    const gaps=rows.map(([c,w])=>w-c).sort((a,b)=>a-b);
+    const rest=gaps[Math.floor(gaps.length/2)];
+    const tops=rows.map(r=>r[0]);
+    return {
+      frames: rows.length,
+      shake: Math.max(...tops)-Math.min(...tops),
+      knock: Math.max(...rows.map(([c,w])=>w-c-rest)),
+      settled: rows.slice(-60).every(([c,w])=>Math.abs(w-c-rest)<0.01),
+    };
+  })()`);
+  assert.ok(jolts.frames>200,`Intro sampled across ${jolts.frames} frames`);
+  assert.ok(jolts.shake>4,`Landings shake the lockup (travelled ${jolts.shake.toFixed(1)}px)`);
+  assert.ok(jolts.knock>3,`The finale knocks the wordmark down (dropped ${jolts.knock.toFixed(1)}px)`);
+  assert.ok(jolts.settled,'The wordmark springs all the way back to rest');
   await send('Input.dispatchKeyEvent',{type:'keyDown',code:'Enter',key:'Enter'});
   await send('Input.dispatchKeyEvent',{type:'keyUp',code:'Enter',key:'Enter'});
   await until(()=>evaluate(`!document.querySelector('#title-screen')`),'Start dismisses title');
@@ -86,7 +117,7 @@ try {
   releaseLogo(); releaseLogo=null;
   await until(async()=>await opacity('.title-screen__fallback')==='1','Fallback appears after failure');
   assert.equal(await opacity('.title-screen__model'),'0','Failed model remains hidden');
-  console.log('PASS: pending/success/failure fallback states, full intro motion, stable final pose, and Enter dismissal.');
+  console.log('PASS: pending/success/failure fallback states, full intro motion, landing shake and wordmark knock, stable final pose, and Enter dismissal.');
 } finally {
   releaseLogo?.();
   socket?.close();

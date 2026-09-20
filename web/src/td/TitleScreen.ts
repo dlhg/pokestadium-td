@@ -39,7 +39,91 @@ const PUNCH_MEASURE_WIDTH = 320;
 const PUNCH_MEASURE_ALPHA = 16;
 const PUNCH_FIT_PASSES = 3;
 
+// The intro rains Pokemon out of the logo down onto the wordmark. Rather than
+// hard-coding the clip's landing times, watch the bones that actually fall and
+// fire on the frame each one reverses from a descent while it is down at the
+// wordmark. Every landing jolts the lockup; the clip's finale drops three at
+// once, and the pile-up is what drives the wordmark itself down.
+
+/** A faller's Y track has to cover this much of the widest one in the clip. */
+const IMPACT_SPAN_FRACTION = 0.4;
+/** Stage px/s of descent under which a reversal is a settle, not a landing. */
+const IMPACT_MIN_SPEED = 120;
+/**
+ * A Pokemon standing on the letters projects its origin into the art's top
+ * half. Higher than that and it is still in the air over the text; lower and it
+ * has fallen past the lockup altogether, which is how the whole cast exits at
+ * the end of the clip -- at 1900-2300 px/s, an order above any real landing.
+ */
+const IMPACT_BAND = 0.5;
+/** Keeps one faller's landing from registering twice on noisy frames. */
+const IMPACT_COOLDOWN = 0.1;
+
+/**
+ * A landing's jolt carries its energy, so the speed counts twice. That is also
+ * what separates the clip's two acts without naming either: the Pokemon
+ * bouncing around mid-sequence come down at 140-555 stage px/s and land one at
+ * a time, the finale's three at 560-675 and together. Squaring, then stacking
+ * what arrives inside the decay, turns that into 15 against 50.
+ */
+const JOLT_PER_ENERGY = 4.6e-5;
+const JOLT_DECAY = 6.5;
+/** Below this the jolt is snapped away, so a finished intro holds still. */
+const JOLT_REST = 0.4;
+
+const SHAKE_MAX = 12;
+/**
+ * How quickly the jolt saturates towards that ceiling, kept well above it so
+ * the curve still has somewhere to go. Tied to the ceiling instead, the single
+ * landings came out at two thirds of the finale's throw and the two acts
+ * stopped reading as different sizes.
+ */
+const SHAKE_KNEE = 30;
+/** Impacts are vertical, so the sideways component stays a fraction of it. */
+const SHAKE_SIDEWAYS = 0.34;
+/** Slow enough that 60Hz still has five samples to draw each cycle with. */
+const SHAKE_FREQUENCY = 12;
+
+/**
+ * Jolt past which the wordmark stops riding it out and gives. The Pokemon
+ * bouncing around on their own top out near 15; the finale stacks three inside
+ * a couple of frames and runs to 50. None of the clip's times are written down
+ * anywhere -- the pile-up is what the threshold is picking out.
+ */
+const KNOCK_THRESHOLD = 24;
+const KNOCK_PER_JOLT = 2;
+/**
+ * The drop is measured in the wordmark's own texels rather than CSS pixels, and
+ * quantised to them on the way out: the art is baked to a texel grid and blown
+ * back up with `image-rendering: pixelated`, so a fractional offset would
+ * resample the very edges the bake exists to keep hard. Three texels reads as
+ * the letters taking the hit without the element looking like it slid.
+ */
+const KNOCK_MAX_TEXELS = 3;
+/** Matches the --width the wordmark is baked at; see tools/pixelate_ui_art.py. */
+const WORDMARK_TEXEL_COLUMNS = 288;
+/**
+ * Slack enough to hold the text down for about a third of a second before it
+ * rides back up. Stiffer than this and the drop is over in four frames, which
+ * registers as a flicker rather than as the letters taking a hit.
+ */
+const KNOCK_STIFFNESS = 90;
+const KNOCK_DAMPING = 11;
+const KNOCK_REST = 0.04;
+
+const TAU = Math.PI * 2;
+
 const _punchOffset = new THREE.Vector3();
+const _probe = new THREE.Vector3();
+
+interface Faller {
+  readonly object: THREE.Object3D;
+  /** Stage-relative screen Y last frame, or null before the first sample. */
+  previous: number | null;
+  /** Fastest descent seen so far in the current fall, in stage px/s. */
+  peak: number;
+  cooldown: number;
+}
 
 export class TitleScreen {
   private readonly root: HTMLElement;
@@ -54,6 +138,17 @@ export class TitleScreen {
   private readonly previousInert = new Map<HTMLElement, boolean>();
   private readonly logoPivot = new THREE.Group();
   private readonly punchOffset = new THREE.Vector3();
+  private readonly content: HTMLElement;
+  private readonly fallers: Faller[] = [];
+  private readonly reducedMotion: boolean;
+  private jolt = 0;
+  private joltPhase = 0;
+  private knock = 0;
+  private knockVelocity = 0;
+  /** Wordmark's contact band and the stage's height, in stage CSS pixels. */
+  private impactLine = Infinity;
+  private impactDepth = 0;
+  private stageHeight = 0;
   private mixer: THREE.AnimationMixer | null = null;
   private logo: THREE.Object3D | null = null;
   private logoSize: THREE.Vector3 | null = null;
@@ -82,7 +177,7 @@ export class TitleScreen {
           </div>
         </div>
         <img class="title-screen__wordmark" src="/ui/tower-defense-wordmark.png" alt="Tower Defense" />
-        <button class="title-screen__start" type="button"><span>Press Start</span></button>
+        <button class="title-screen__start" type="button"><span>Start</span></button>
         <p class="title-screen__credit">A fan-made tower defense experiment</p>
       </div>
     `;
@@ -90,6 +185,8 @@ export class TitleScreen {
     this.canvas = this.requireElement<HTMLCanvasElement>('.title-screen__model');
     this.fallback = this.requireElement<HTMLElement>('.title-screen__fallback');
     this.wordmark = this.requireElement<HTMLImageElement>('.title-screen__wordmark');
+    this.content = this.requireElement<HTMLElement>('.title-screen__content');
+    this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     const startButton = this.requireElement<HTMLButtonElement>('.title-screen__start');
 
     for (const child of Array.from(container.children)) {
@@ -155,6 +252,8 @@ export class TitleScreen {
       this.clock.stop();
       this.disposeLogo();
       this.renderer.dispose();
+      this.content.style.transform = '';
+      this.wordmark.style.transform = '';
       for (const [element, inert] of this.previousInert) element.inert = inert;
       this.root.remove();
 
@@ -188,6 +287,7 @@ export class TitleScreen {
 
       const clip = gltf.animations[0];
       if (clip) {
+        this.collectFallers(clip);
         this.mixer = new THREE.AnimationMixer(this.logo);
         const action = this.mixer.clipAction(clip);
         action.setLoop(THREE.LoopOnce, 1);
@@ -211,6 +311,130 @@ export class TitleScreen {
       this.fallback.classList.add('title-screen__fallback--visible');
       console.info('[TitleScreen] Using the built-in logo fallback:', error);
     }
+  }
+
+  /**
+   * Pick out the bones the intro actually drops. Every bone in the clip carries
+   * a position track, but the Pokemon that fall out of the logo travel an order
+   * of magnitude further down it than the letters do, so the widest Y spans in
+   * the clip name themselves without any hard-coded bone list.
+   */
+  private collectFallers(clip: THREE.AnimationClip): void {
+    const spans: Array<{ name: string; span: number }> = [];
+    for (const track of clip.tracks) {
+      if (!(track instanceof THREE.VectorKeyframeTrack) || !track.name.endsWith('.position')) continue;
+      let low = Infinity;
+      let high = -Infinity;
+      for (let i = 1; i < track.values.length; i += 3) {
+        const y = track.values[i];
+        if (y < low) low = y;
+        if (y > high) high = y;
+      }
+      if (high > low) spans.push({ name: track.name.slice(0, -'.position'.length), span: high - low });
+    }
+    if (!spans.length) return;
+
+    const widest = spans.reduce((best, entry) => Math.max(best, entry.span), 0);
+    for (const entry of spans) {
+      if (entry.span < widest * IMPACT_SPAN_FRACTION) continue;
+      const object = this.logo?.getObjectByName(entry.name);
+      if (object) this.fallers.push({ object, previous: null, peak: 0, cooldown: 0 });
+    }
+  }
+
+  /** Where the wordmark's contact band sits, in the stage's own CSS pixels. */
+  private measureImpactLine(): void {
+    const stage = this.canvas.getBoundingClientRect();
+    const wordmark = this.wordmark.getBoundingClientRect();
+    this.stageHeight = stage.height;
+    // The shake moves stage and wordmark together, so it cancels; the knock
+    // moves only the wordmark and has to come back out.
+    this.impactLine = wordmark.height > 0 ? wordmark.top - this.knock - stage.top : Infinity;
+    this.impactDepth = wordmark.height * IMPACT_BAND;
+  }
+
+  /**
+   * Fire an impact on the frame a faller stops descending while it is down at
+   * the wordmark. A bounce and a dead stop both read as the descent ending,
+   * which is what makes this work for the clip's bouncing middle as well as
+   * its finale.
+   *
+   * The landing is rated by the fastest frame of the whole descent rather than
+   * the last one before the reversal. Differencing a single frame across the
+   * turn puts the answer at the mercy of where the frame boundary happened to
+   * fall, which moved measured speeds by up to 2x between runs -- and the jolt
+   * squares that.
+   */
+  private updateImpacts(delta: number): void {
+    // Landings belong to the intro. Once it has handed over, the cast is on its
+    // way out of frame and the punch is throwing the logo around.
+    if (!this.fallers.length || delta <= 0 || this.punchLanded) return;
+    for (const faller of this.fallers) {
+      faller.cooldown = Math.max(0, faller.cooldown - delta);
+      _probe.setFromMatrixPosition(faller.object.matrixWorld).project(this.camera);
+      const y = (1 - _probe.y) * 0.5 * this.stageHeight;
+      if (faller.previous !== null) {
+        const descent = (y - faller.previous) / delta;
+        if (descent > 0) {
+          faller.peak = Math.max(faller.peak, descent);
+        } else {
+          const onTheLetters = y >= this.impactLine && y <= this.impactLine + this.impactDepth;
+          if (faller.peak > IMPACT_MIN_SPEED && !faller.cooldown && onTheLetters) {
+            this.land(faller.peak);
+            faller.cooldown = IMPACT_COOLDOWN;
+          }
+          faller.peak = 0;
+        }
+      }
+      faller.previous = y;
+    }
+  }
+
+  /** One Pokemon touching down: jolt the lockup, and stack up towards a knock. */
+  private land(speed: number): void {
+    this.jolt += speed * speed * JOLT_PER_ENERGY;
+    this.joltPhase = 0;
+    if (this.jolt <= KNOCK_THRESHOLD) return;
+    this.knock = Math.min(
+      this.knock + (this.jolt - KNOCK_THRESHOLD) * KNOCK_PER_JOLT,
+      this.texel() * KNOCK_MAX_TEXELS,
+    );
+  }
+
+  /** One texel of the baked wordmark, in CSS pixels. */
+  private texel(): number {
+    return this.wordmark.clientWidth / WORDMARK_TEXEL_COLUMNS;
+  }
+
+  private updateShake(delta: number): void {
+    if (!this.jolt && !this.knock && !this.knockVelocity) return;
+
+    this.joltPhase += delta;
+    this.jolt *= Math.exp(-JOLT_DECAY * delta);
+    if (this.jolt < JOLT_REST) {
+      this.jolt = 0;
+      this.joltPhase = 0;
+    }
+
+    // The wordmark rides back up on a spring rather than a curve, so a second
+    // hit while it is still recovering pushes off wherever it currently is.
+    this.knockVelocity += (-KNOCK_STIFFNESS * this.knock - KNOCK_DAMPING * this.knockVelocity) * delta;
+    this.knock += this.knockVelocity * delta;
+    if (Math.abs(this.knock) < KNOCK_REST && Math.abs(this.knockVelocity) < 1) {
+      this.knock = 0;
+      this.knockVelocity = 0;
+    }
+
+    // The jolt saturates into the shake rather than clipping, so a pile-up
+    // still reads as bigger than a single landing once both are past the knee.
+    // Cosine, not sine: an impact is at full throw on its very first frame.
+    const amplitude = SHAKE_MAX * (1 - Math.exp(-this.jolt / SHAKE_KNEE));
+    const swing = amplitude * Math.cos(TAU * SHAKE_FREQUENCY * this.joltPhase);
+    const x = Math.round(swing * SHAKE_SIDEWAYS);
+    const y = Math.round(swing);
+    const drop = Math.round(this.knock / this.texel()) * this.texel();
+    this.content.style.transform = x || y ? `translate3d(${x}px, ${y}px, 0)` : '';
+    this.wordmark.style.transform = drop ? `translateY(${drop.toFixed(2)}px)` : '';
   }
 
   private prepareMaterials(root: THREE.Object3D): void {
@@ -279,7 +503,8 @@ export class TitleScreen {
     const wordmark = this.wordmark.getBoundingClientRect();
     if (stage.width < 1 || stage.height < 1) return;
 
-    const bandBottom = Math.min(stage.bottom, wordmark.top - PUNCH_WORDMARK_GAP);
+    // A knock in progress has the wordmark displaced; fit against its rest pose.
+    const bandBottom = Math.min(stage.bottom, wordmark.top - this.knock - PUNCH_WORDMARK_GAP);
     const maxHeight = Math.max((bandBottom - stage.top) * PUNCH_BAND_MARGIN, stage.height * 0.25);
     const maxWidth = Math.min(stage.width * PUNCH_STAGE_MARGIN, wordmark.width * PUNCH_WORDMARK_MATCH);
     const targetX = stage.width * 0.5;
@@ -421,6 +646,7 @@ export class TitleScreen {
   }
 
   private readonly refit = (): void => {
+    this.measureImpactLine();
     if (!this.logo || this.closing || !this.punchLanded || this.punchElapsed !== null) return;
     this.fitLogoToWordmark();
     this.settlePunch();
@@ -435,6 +661,7 @@ export class TitleScreen {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.frameLogo();
+    this.measureImpactLine();
     // A new stage size changes how much room the punched-up logo has.
     this.refit();
   };
@@ -444,6 +671,13 @@ export class TitleScreen {
     const delta = Math.min(this.clock.getDelta(), 0.1);
     this.mixer?.update(delta);
     this.updatePunch(delta);
+    if (!this.reducedMotion && !this.closing) {
+      // The renderer resolves world matrices itself, but the impact probe reads
+      // them before it runs and would otherwise trail a frame behind the pose.
+      this.logoPivot.updateMatrixWorld(true);
+      this.updateImpacts(delta);
+      this.updateShake(delta);
+    }
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -457,6 +691,7 @@ export class TitleScreen {
     this.scene.remove(this.logoPivot);
     this.logo = null;
     this.mixer = null;
+    this.fallers.length = 0;
     this.punchElapsed = null;
     this.measureTarget?.dispose();
     this.measureTarget = null;
