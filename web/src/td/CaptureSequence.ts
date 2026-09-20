@@ -224,6 +224,7 @@ export class CaptureSequence {
 
     stage.camera.beginCinematic(this.restPos, 9.5, 3.2, 0.3, this.clearestAngle());
     stage.arena.setCrowdMood(-1);
+    stage.arena.setCrowdTension?.(true);
     stage.audio.duckCrowd(0.25, 0.5);
     stage.audio.playCaptureWindup();
   }
@@ -502,6 +503,7 @@ export class CaptureSequence {
       this.stage.audio.duckCrowd(this.success ? 1.9 : 1.1, 0.25);
       // The stands erupt on a catch and deflate into a murmur on a break.
       this.stage.arena.setCrowdMood(this.success ? 1 : -0.35);
+      this.stage.arena.setCrowdTension?.(false);
       if (this.success) {
         this.stage.audio.playCaptureLock();
         this.stage.particles.emitRing(this.restPos, 0xffe46b, 4.2, 0.8);
@@ -634,6 +636,7 @@ export class CaptureSequence {
     this.stage.camera.releaseCinematic();
     this.stage.audio.duckCrowd(1, 1.2);
     this.stage.arena.setCrowdMood(0);
+    this.stage.arena.setCrowdTension?.(false);
     this.target.group.rotation.z = 0;
     this.target.group.position.y = this.targetBaseY;
     scene.remove(this.group);

@@ -34,6 +34,7 @@ const EMPTY_SEAT_RATE_MAX = 0.15;
 
 type CrowdBatch = {
   atlasCell: THREE.InstancedBufferAttribute;
+  tension: THREE.InstancedBufferAttribute;
   mesh: THREE.InstancedMesh;
   members: CrowdMember[];
 };
@@ -67,6 +68,7 @@ export class StadiumArena {
   private crowdMaterial: THREE.ShaderMaterial | null = null;
   private crowdMood: number = 0;
   private targetCrowdMood: number = 0;
+  private crowdTension = false;
   private crowdBatches: CrowdBatch[] = [];
   private groundPropMask = '';
   /** Re-rolled per arena instance so empty seats land somewhere new each level. */
@@ -299,6 +301,7 @@ export class StadiumArena {
     const cheerPhase = new Float32Array(crowdCount);
     const tint = new Float32Array(crowdCount * 3);
     const atlasSet = new Float32Array(crowdCount);
+    const tension = new Float32Array(crowdCount);
     const members: CrowdMember[] = [];
     const mesh = new THREE.InstancedMesh(geometry, this.getCrowdMaterial(), crowdCount);
     const dummy = new THREE.Object3D();
@@ -347,9 +350,15 @@ export class StadiumArena {
     geometry.setAttribute('cheerPhase', new THREE.InstancedBufferAttribute(cheerPhase, 1));
     geometry.setAttribute('crowdTint', new THREE.InstancedBufferAttribute(tint, 3));
     geometry.setAttribute('atlasSet', new THREE.InstancedBufferAttribute(atlasSet, 1));
+    geometry.setAttribute('crowdTension', new THREE.InstancedBufferAttribute(tension, 1));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.name = 'instanced-sprite-crowd';
-    this.crowdBatches.push({ atlasCell: geometry.getAttribute('atlasCell') as THREE.InstancedBufferAttribute, mesh, members });
+    this.crowdBatches.push({
+      atlasCell: geometry.getAttribute('atlasCell') as THREE.InstancedBufferAttribute,
+      tension: geometry.getAttribute('crowdTension') as THREE.InstancedBufferAttribute,
+      mesh,
+      members,
+    });
     this.environmentGroup.add(mesh);
   }
 
@@ -367,10 +376,16 @@ export class StadiumArena {
       atlas.generateMipmaps = false;
       return atlas;
     });
+    const tensionAtlas = loader.load('/crowd/turnaround-crowd-tension.png');
+    tensionAtlas.colorSpace = THREE.SRGBColorSpace;
+    tensionAtlas.magFilter = THREE.NearestFilter;
+    tensionAtlas.minFilter = THREE.NearestFilter;
+    tensionAtlas.generateMipmaps = false;
     this.crowdMaterial = new THREE.ShaderMaterial({
       uniforms: {
         atlas0: { value: atlases[0] }, atlas1: { value: atlases[1] }, atlas2: { value: atlases[2] },
-        atlas3: { value: atlases[3] }, atlas4: { value: atlases[4] }, time: { value: 0 },
+        atlas3: { value: atlases[3] }, atlas4: { value: atlases[4] },
+        tensionAtlas: { value: tensionAtlas }, time: { value: 0 },
         // -1 hushes the stands to stillness, +1 whips them into a roar.
         mood: { value: 0 },
       },
@@ -379,11 +394,14 @@ export class StadiumArena {
         attribute float cheerPhase;
         attribute vec3 crowdTint;
         attribute float atlasSet;
+        attribute float crowdTension;
         uniform float time;
         uniform float mood;
         varying vec2 vAtlasUv;
+        varying vec2 vTensionUv;
         varying vec3 vTint;
         varying float vAtlasSet;
+        varying float vCrowdTension;
         void main() {
           vec3 animatedPosition = position;
           // Keep the waist planted behind the fascia while the shoulders and
@@ -400,8 +418,17 @@ export class StadiumArena {
           vec2 cellSize = vec2(1.0 / 8.0, 1.0 / 4.0);
           vec2 inset = vec2(4.0 / 1774.0, 4.0 / 887.0);
           vAtlasUv = atlasCell * cellSize + inset + uv * (cellSize - 2.0 * inset);
+          // The tension texture is a single 20 x 4 sheet: atlas set chooses
+          // one 4-column band, while the old cell position supplies view and
+          // character. Its Y coordinate follows the same flipped WebGL layout.
+          float characterRow = 3.0 - atlasCell.y + floor(atlasCell.x / 4.0);
+          vec2 tensionCell = vec2(atlasSet * 4.0 + mod(atlasCell.x, 4.0), 3.0 - characterRow);
+          vec2 tensionCellSize = vec2(1.0 / 20.0, 1.0 / 4.0);
+          vec2 tensionInset = vec2(4.0 / 4000.0, 4.0 / 800.0);
+          vTensionUv = tensionCell * tensionCellSize + tensionInset + uv * (tensionCellSize - 2.0 * tensionInset);
           vTint = crowdTint;
           vAtlasSet = atlasSet;
+          vCrowdTension = crowdTension;
           vec4 worldPosition = modelMatrix * instanceMatrix * vec4(animatedPosition, 1.0);
           gl_Position = projectionMatrix * viewMatrix * worldPosition;
         }
@@ -412,15 +439,21 @@ export class StadiumArena {
         uniform sampler2D atlas2;
         uniform sampler2D atlas3;
         uniform sampler2D atlas4;
+        uniform sampler2D tensionAtlas;
         varying vec2 vAtlasUv;
+        varying vec2 vTensionUv;
         varying vec3 vTint;
         varying float vAtlasSet;
+        varying float vCrowdTension;
         void main() {
           vec4 sprite = texture2D(atlas0, vAtlasUv);
           if (vAtlasSet > 0.5 && vAtlasSet < 1.5) sprite = texture2D(atlas1, vAtlasUv);
           if (vAtlasSet > 1.5 && vAtlasSet < 2.5) sprite = texture2D(atlas2, vAtlasUv);
           if (vAtlasSet > 2.5 && vAtlasSet < 3.5) sprite = texture2D(atlas3, vAtlasUv);
           if (vAtlasSet > 3.5) sprite = texture2D(atlas4, vAtlasUv);
+          if (vCrowdTension > 0.5) {
+            sprite = texture2D(tensionAtlas, vTensionUv);
+          }
           if (sprite.a < 0.18) discard;
           gl_FragColor = vec4(sprite.rgb * vTint, sprite.a);
         }
@@ -450,6 +483,11 @@ export class StadiumArena {
     this.targetCrowdMood = THREE.MathUtils.clamp(mood, -1, 1);
   }
 
+  /** Capture-only reaction: tense, clenched hands rather than idle or cheering. */
+  public setCrowdTension(active: boolean): void {
+    this.crowdTension = active;
+  }
+
   public update(time: number, cameraPosition: THREE.Vector3, dt: number = 0.016): void {
     this.backdrop.update(time);
     this.crowdMood = THREE.MathUtils.damp(this.crowdMood, this.targetCrowdMood, 5, dt);
@@ -459,7 +497,7 @@ export class StadiumArena {
     }
     // A hush leaves almost everyone seated; a roar puts the whole stand up.
     const cheerThreshold = 0.42 - this.crowdMood * 0.95;
-    this.crowdBatches.forEach(({ atlasCell, mesh, members }) => {
+    this.crowdBatches.forEach(({ atlasCell, tension, mesh, members }) => {
       const dummy = new THREE.Object3D();
       members.forEach((member, index) => {
         const viewAngle = Math.atan2(cameraPosition.x - member.position.x, cameraPosition.z - member.position.z);
@@ -469,8 +507,11 @@ export class StadiumArena {
         // column rather than making spectators turn away from the match.
         const direction = Math.abs(relative) > Math.PI * 0.75 ? 2 : relative > Math.PI * 0.25 ? 3 : relative < -Math.PI * 0.25 ? 1 : 0;
         const cheering = Math.sin(time * 2.2 + member.phase) > cheerThreshold ? 1 : 0;
-        const rowFromTop = Math.floor(member.character / 2) * 2 + cheering;
+        // Tension sprites occupy the idle row for each character pair in their
+        // parallel atlas, so their direction selection stays identical.
+        const rowFromTop = Math.floor(member.character / 2) * 2 + (this.crowdTension ? 0 : cheering);
         atlasCell.setXY(index, (member.character % 2) * 4 + direction, 3 - rowFromTop);
+        tension.setX(index, this.crowdTension ? 1 : 0);
 
         // One-sided card: yaw it towards the viewer, then select the art that
         // matches the viewer's angle around the fixed pitch-facing spectator.
@@ -481,6 +522,7 @@ export class StadiumArena {
         mesh.setMatrixAt(index, dummy.matrix);
       });
       atlasCell.needsUpdate = true;
+      tension.needsUpdate = true;
       mesh.instanceMatrix.needsUpdate = true;
     });
   }

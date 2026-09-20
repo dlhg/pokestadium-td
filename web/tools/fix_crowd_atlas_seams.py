@@ -86,6 +86,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="*", help="Atlas PNGs to fix (default: all crowd atlases)")
     parser.add_argument("--dry-run", action="store_true", help="Report without writing")
+    parser.add_argument("--cols", type=int, default=8, help="Atlas column count (default: 8)")
+    parser.add_argument("--rows", type=int, default=4, help="Atlas row count (default: 4)")
     args = parser.parse_args()
 
     paths = [pathlib.Path(p) for p in args.paths] or sorted(DEFAULT_DIR.glob(DEFAULT_GLOB))
@@ -94,7 +96,7 @@ def main():
         return 1
 
     for path in paths:
-        fixed, changed, per_row = process_atlas(path)
+        fixed, changed, per_row = process_atlas(path, args.cols, args.rows)
         summary = ", ".join(
             f"row{r}: {len(v)} cols, max {max(v)}px" for r, v in sorted(per_row.items())
         )
