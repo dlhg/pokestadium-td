@@ -23,6 +23,7 @@ import rom  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = ROOT / 'web/public/generated/stadium'
+ASSET_SET_VERSION = 2
 ARCHIVES = {
     'battle_portraits': (0x535260, 54),
     'stadium_models': (0x56FF10, 18),
@@ -196,12 +197,11 @@ def main() -> int:
     # A smoke test must not replace the live 151-species manifest with its
     # one-species result. Keep its output in a separate generated subtree.
     output = args.out / 'smoke/pikachu' if args.only_pikachu else args.out
-    # 174 is the "Run! Rattata, Run!" minigame's own Rattata rig (see
-    # stadium_pipeline/build.py's EXTRA_NAMES) -- the only extra model the web
-    # player actually uses, for its run cycle.
-    model_args = [f'--rom={args.rom}', f'--out={output}', '--no-js', '--no-effects', '--pokemon-only', '--also=174']
+    # The full extraction includes the 64 post-Pokédex slots: trophies,
+    # minigame actors and props used by the local asset viewer and scenery.
+    model_args = [f'--rom={args.rom}', f'--out={output}', '--no-js', '--no-effects']
     if args.only_pikachu:
-        model_args.append('--only=24')
+        model_args.extend(('--pokemon-only', '--only=24'))
     build.main(model_args)
 
     output.mkdir(parents=True, exist_ok=True)
@@ -213,6 +213,7 @@ def main() -> int:
 
     manifest_path = output / 'manifest.json'
     manifest = json.loads(manifest_path.read_text())
+    manifest['assetSetVersion'] = ASSET_SET_VERSION
     manifest['validation'] = report
     manifest['typeBadges'] = type_badges
     manifest['arenas'] = [{

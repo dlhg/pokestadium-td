@@ -70,8 +70,9 @@ From `web/`, run:
 npm run extract:stadium
 ```
 
-This validates all three Rev 2 archives, exports all 151 Pokémon as textured,
-skinned GLBs with the original 30 fps skeletal clips, writes a data-derived
+This validates all three Rev 2 archives, exports all 151 Pokémon plus the 64
+post-Pokédex prop, trophy, minigame, and cinematic slots as textured, skinned
+GLBs with their original 30 fps skeletal clips, writes a data-derived
 animation-role and move manifest, exports the 15 original 20×20 type badges
 from the common menu UI bank, and converts member 7 of `stadium_models`
 (Brock's Gym Leader Castle room) to the compact `SNA2` browser cache.
@@ -92,6 +93,22 @@ manifest used by the game.
 
 Use `--validate-only` to inspect archive counts, bounds, compression wrappers,
 and representative identities without writing derived assets.
+
+### Asset viewer
+
+After extraction, start the normal development server and open:
+
+```text
+http://localhost:3004/asset-viewer.html
+```
+
+The viewer lists every exported Pokémon and extra model. It supports search,
+group filters, orbit/pan/zoom, animation selection, playback and scrubbing,
+speed and loop controls, turntable mode, wireframe mode, and archive metadata.
+Choose a model to put its slug in the URL, making a particular asset easy to
+bookmark or share with another local development session. Extra-slot names are
+research labels where an identity is visually clear; unidentified slots retain
+their archive number.
 
 ## Verified Rev 2 layout
 

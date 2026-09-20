@@ -33,7 +33,24 @@ import rom as rom_mod
 
 N_POKEMON = 151
 EXTRA_NAMES = {
+    151: 'Substitute Doll',
     152: 'Surfing Pikachu',
+    154: 'Kakuna (minigame)',
+    155: 'Boulder',
+    157: 'Metapod (minigame)',
+    158: 'Ekans (minigame)',
+    159: 'Lickitung (minigame)',
+    160: 'Sandshrew (minigame)',
+    162: 'Diglett Hole',
+    163: 'Diglett (minigame)',
+    164: 'Lidded Cup Trophy',
+    165: 'Cup Trophy',
+    166: 'Poké Ball Display A',
+    167: 'Poké Ball Display B',
+    168: 'Poké Ball Display C',
+    169: 'Master Ball Display',
+    171: 'Boulder (minigame)',
+    172: 'Magikarp (minigame)',
     # Identified by byte-for-byte matching texture 00 (the body material) against
     # 019_rattata's own: both average to RGB (156, 106, 197), and the teeth strip
     # (a distinctive 3-tooth cutout) is pixel-identical too. This is the separate,
@@ -41,6 +58,14 @@ EXTRA_NAMES = {
     # fragment8's minigame -- that code is still mostly un-decompiled, so this ID
     # rests on the texture match plus anim 1's motion (see EXTRA_ANIM_NAMES below).
     174: 'Rattata (Run! Rattata, Run! minigame)',
+    176: 'Clefairy Student',
+    177: 'Clefairy Teacher',
+    178: 'Clefairy Says Classroom',
+    194: 'Fishing Line',
+    195: 'Drowzee (minigame)',
+    196: 'Pikachu (minigame)',
+    197: 'Voltorb (minigame)',
+    213: 'Mewtwo (cinematic)',
 }
 # Per-extra-model animation names, keyed by the model's own local anim index.
 # Only clip 1 here is confidently identified: it is the sole anim with the 0x8

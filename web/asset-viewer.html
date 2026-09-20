@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokémon Stadium Asset Viewer</title>
+</head>
+<body>
+  <div id="asset-viewer">
+    <header class="viewer-header">
+      <div>
+        <p class="eyebrow">ROM RESEARCH TERMINAL</p>
+        <h1>STADIUM ASSET VIEWER</h1>
+      </div>
+      <div class="header-actions">
+        <span id="asset-count">LOADING MANIFEST…</span>
+        <a href="/">RETURN TO GAME</a>
+      </div>
+    </header>
+
+    <aside class="asset-browser" aria-label="Extracted model browser">
+      <label class="search-label" for="asset-search">SEARCH MODELS</label>
+      <input id="asset-search" type="search" placeholder="Name, slot, species…" autocomplete="off">
+      <div class="filter-tabs" role="group" aria-label="Model group">
+        <button type="button" data-group="extra" class="active">EXTRAS</button>
+        <button type="button" data-group="pokemon">POKÉMON</button>
+        <button type="button" data-group="all">ALL</button>
+      </div>
+      <div id="asset-list" class="asset-list"></div>
+    </aside>
+
+    <main class="model-stage">
+      <canvas id="asset-canvas"></canvas>
+      <div class="stage-plate"><span id="stage-name">NO MODEL</span><small id="stage-slot"></small></div>
+      <div id="loading-state" class="loading-state">READING STADIUM ARCHIVE…</div>
+      <div class="camera-help">DRAG: ORBIT · RIGHT DRAG: PAN · WHEEL: ZOOM · SPACE: PLAY/PAUSE</div>
+    </main>
+
+    <aside class="asset-inspector" aria-label="Model and animation controls">
+      <section>
+        <p class="section-label">MODEL DATA</p>
+        <dl id="model-metadata" class="metadata"></dl>
+      </section>
+      <section class="animation-panel">
+        <label class="section-label" for="animation-select">ANIMATION</label>
+        <select id="animation-select"></select>
+        <div class="transport">
+          <button id="restart-animation" type="button" aria-label="Restart animation">↺</button>
+          <button id="toggle-animation" type="button">PAUSE</button>
+          <label><input id="loop-animation" type="checkbox" checked> LOOP</label>
+        </div>
+        <input id="animation-time" type="range" min="0" max="1" step="0.001" value="0">
+        <div class="time-row"><span id="current-time">0.00</span><span id="duration-time">0.00 SEC</span></div>
+        <label class="speed-row" for="animation-speed">SPEED <input id="animation-speed" type="range" min="0.1" max="2" step="0.1" value="1"><output id="speed-value">1.0×</output></label>
+      </section>
+      <section class="display-panel">
+        <p class="section-label">DISPLAY</p>
+        <label><input id="auto-rotate" type="checkbox"> TURNTABLE</label>
+        <label><input id="wireframe" type="checkbox"> WIREFRAME</label>
+        <button id="reset-camera" type="button">RESET CAMERA</button>
+      </section>
+      <section class="notes-panel">
+        <p class="section-label">NOTES</p>
+        <p>Extra-slot names are research labels. Unidentified entries retain their archive number.</p>
+        <p>All models are generated locally from the player-supplied USA Rev 2 ROM and remain gitignored.</p>
+      </section>
+    </aside>
+  </div>
+  <script type="module" src="/src/asset-viewer.ts"></script>
+</body>
+</html>

@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / 'web/tools/stadium_pipeline'))
 from rom import Rom, find_rom, n64_images  # noqa: E402
 
 MANIFEST = ROOT / 'web/public/generated/stadium/manifest.json'
+ASSET_SET_VERSION = 2
 # pret/pokestadium's build target (baseroms/us/checksum.md5), a common mix-up.
 KNOWN_MD5 = {'ed1378bc12115f71209a77844965ba50': 'Pokémon Stadium (USA) Rev 0'}
 
@@ -84,7 +85,8 @@ def main() -> int:
         return 0
 
     try:
-        extracted_md5 = json.loads(MANIFEST.read_text()).get('romMd5')
+        manifest = json.loads(MANIFEST.read_text())
+        extracted_md5 = manifest.get('romMd5')
     except (OSError, ValueError) as error:
         say([f'{MANIFEST} is unreadable ({error}).', 'Re-run from web/:  npm run extract:stadium'])
         return 0
@@ -94,6 +96,16 @@ def main() -> int:
             return 0
         say([
             f'{MANIFEST.name} was generated from a different ROM (MD5 {extracted_md5}).',
+            'Re-run from web/:  npm run extract:stadium',
+        ])
+        return 0
+
+    if manifest.get('assetSetVersion') != ASSET_SET_VERSION:
+        if args.extract_if_missing:
+            extract('Extracted model set is out of date', rom_path)
+            return 0
+        say([
+            'Extracted model set is out of date -- the asset viewer may be incomplete.',
             'Re-run from web/:  npm run extract:stadium',
         ])
         return 0
