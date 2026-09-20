@@ -31,6 +31,7 @@ import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, statsOf, T
 import { isRental } from './progression/Rentals';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import { VARIANTS } from './progression/Variants';
+import { dexNumber } from './progression/Species';
 import type { MatchReportEntry } from './progression/MatchProgress';
 import './map-select.css';
 import stadiumThemeUrl from './stadium-ui-theme.css?url';
@@ -329,7 +330,10 @@ export class StadiumUI {
         #storage-confirm[hidden] { display: none; }
         #storage-confirm .storage-confirm-card {
           width: min(330px, 84vw); padding: 20px 24px; text-align: center;
-          transform: skew(-6deg); background: linear-gradient(180deg, #16305a 0%, #07142a 100%);
+          transform: skew(-6deg);
+          background-image: linear-gradient(180deg, rgba(22,48,90,.68) 0%, rgba(7,20,42,.92) 100%), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          background-blend-mode: normal, soft-light;
           border: 3px solid var(--broadcast-gold, #f6c437);
           box-shadow: 0 10px 0 rgba(3,7,16,.8), 0 0 42px rgba(246,196,55,.4);
         }
@@ -446,7 +450,9 @@ export class StadiumUI {
         #cine-card {
           position:absolute; left:50%; top:calc(13vh + 22px); transform:translateX(-50%) skew(-7deg);
           display:flex; align-items:center; gap:12px; padding:8px 18px 8px 12px;
-          background:linear-gradient(180deg,#16305a 0%,#07142a 100%);
+          background-image: linear-gradient(180deg, rgba(22,48,90,.68) 0%, rgba(7,20,42,.92) 100%), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          background-blend-mode: normal, soft-light;
           border:2px solid #f6c437; border-left:6px solid #f6c437;
           box-shadow:0 6px 0 rgba(3,7,16,.75), 0 0 26px rgba(246,196,55,.35);
         }
@@ -512,7 +518,9 @@ export class StadiumUI {
         #capture-trophy {
           position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) skew(-6deg) scale(.85);
           z-index:62; min-width:330px; padding:16px 22px; opacity:0; pointer-events:none;
-          background:linear-gradient(180deg,#16305a 0%,#07142a 100%);
+          background-image: linear-gradient(180deg, rgba(22,48,90,.68) 0%, rgba(7,20,42,.92) 100%), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          background-blend-mode: normal, soft-light;
           border:3px solid #f6c437; box-shadow:0 10px 0 rgba(3,7,16,.8), 0 0 54px rgba(246,196,55,.5);
           transition:opacity .25s ease, transform .35s cubic-bezier(.16,1.3,.5,1);
         }
@@ -549,7 +557,9 @@ export class StadiumUI {
         #defeat-screen[hidden] { display:none; }
         #defeat-screen .defeat-card {
           min-width:340px; padding:22px 30px; text-align:center; transform:skew(-6deg);
-          background:linear-gradient(180deg,#16305a 0%,#07142a 100%);
+          background-image: linear-gradient(180deg, rgba(22,48,90,.68) 0%, rgba(7,20,42,.92) 100%), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          background-blend-mode: normal, soft-light;
           border:3px solid #d90429; box-shadow:0 10px 0 rgba(3,7,16,.8), 0 0 54px rgba(217,4,41,.45);
         }
         #defeat-screen .defeat-kicker { font-size:11px; font-weight:800; letter-spacing:3px; color:#ff6b7d; }
@@ -584,7 +594,10 @@ export class StadiumUI {
         .sig-btn {
           position:relative; display:grid; grid-template-columns:30px auto; align-items:center; gap:2px 7px;
           min-width:118px; padding:5px 9px 5px 6px; border:2px solid #b9d1e2; border-radius:0;
-          background:linear-gradient(180deg,#3b75aa,#11345f); color:#fff; cursor:pointer; text-align:left;
+          background-image: linear-gradient(180deg, rgba(59,117,170,.62) 0%, rgba(17,52,95,.88) 100%), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          background-blend-mode: normal, soft-light;
+          color:#fff; cursor:pointer; text-align:left;
           box-shadow:2px 2px 0 rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.28);
           font-family:'Teko','Impact',sans-serif;
         }
@@ -622,15 +635,19 @@ export class StadiumUI {
         #sig-tooltip .sigt-desc { margin-top:5px; font-size:14px; line-height:1.4; color:#e7f1fb; }
         #sig-tooltip .sigt-pp { margin-top:6px; font-size:11px; letter-spacing:.6px; color:#9fc4e8; }
         /* The roster card trims name/level/stats to fit; the ? icon opens this
-           richer readout instead. No portrait here — the card right next to it
-           already shows one, live. */
+           richer readout instead. */
         #roster-info-tip {
           position:fixed; z-index:70; width:220px; pointer-events:none;
           background:rgba(6,16,33,.97); border:2px solid #ffd700; border-radius:8px;
           padding:10px 12px; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,.6);
         }
         #roster-info-tip[hidden] { display:none; }
-        .rit-header { display:flex; align-items:baseline; gap:6px; }
+        .rit-portrait {
+          flex:0 0 auto; width:28px; height:28px; object-fit:contain;
+          image-rendering:pixelated; image-rendering:crisp-edges;
+          filter:drop-shadow(0 2px 2px rgba(0,0,0,.5));
+        }
+        .rit-header { display:flex; align-items:center; gap:6px; }
         .rit-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Teko','Impact',sans-serif; font-size:20px; letter-spacing:.5px; color:#ffd700; }
         .rit-type { flex:0 0 auto; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:800; letter-spacing:.6px; color:#07162f; }
         .rit-variant { flex:0 0 auto; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:800; letter-spacing:.6px; color:#07162f; }
@@ -656,8 +673,19 @@ export class StadiumUI {
         .capture-kit-header .col-select { text-align:center; }
         .capture-kit-header .col-buy { min-width:58px; text-align:center; }
         .capture-row { display:grid; grid-template-columns:1fr auto; gap:5px; }
-        .ball-stock { display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px; min-width:118px; padding:4px 8px 4px 6px; border:2px solid transparent; border-radius:6px; background:#07182f; color:#fff; cursor:pointer; text-align:left; font-family:'Teko','Impact',sans-serif; font-size:17px; letter-spacing:.6px; }
-        .ball-stock:hover:not(:disabled) { border-color:#7fa6c9; background:#123766; }
+        .ball-stock {
+          display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px; min-width:118px; padding:4px 8px 4px 6px; border:2px solid transparent; border-radius:6px;
+          background-image: linear-gradient(180deg, rgba(7,24,47,.78) 0%, rgba(4,14,28,.92) 100%), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          background-blend-mode: normal, soft-light;
+          color:#fff; cursor:pointer; text-align:left; font-family:'Teko','Impact',sans-serif; font-size:17px; letter-spacing:.6px;
+        }
+        .ball-stock:hover:not(:disabled) {
+          border-color:#7fa6c9;
+          background-image: linear-gradient(180deg, rgba(18,55,102,.7) 0%, rgba(9,32,66,.9) 100%), url('/ui/cobalt-plastic.png');
+          background-size: auto, 150px 150px;
+          background-blend-mode: normal, soft-light;
+        }
         .ball-stock.selected { border-color:#ffe766; background:linear-gradient(180deg,#765a0d,#302205); box-shadow:0 0 10px rgba(255,215,0,.4); }
         .ball-stock.selected::after { content:'READY'; grid-column:1 / -1; color:#ffe766; font-size:11px; line-height:.7; letter-spacing:1.4px; text-align:center; }
         .ball-stock.selected.empty::after { content:'EMPTY'; color:#ff9b8e; }
@@ -2745,6 +2773,7 @@ export class StadiumUI {
     const stats = statsOf(member);
     const move = MOVES[species.basicAttack];
     const typeCol = TYPE_COLORS[form.type]?.hex || '#fff';
+    const portraitUrl = `/generated/stadium/icons/${String(dexNumber(member.speciesId, member.stage)).padStart(3, '0')}.png`;
     const variant = member.variant ? VARIANTS[member.variant.kind] : null;
     const statBar = (label: string, value: number) => `
       <div class="rit-stat">
@@ -2754,6 +2783,7 @@ export class StadiumUI {
       </div>`;
     this.rosterInfoTipEl.innerHTML = `
       <div class="rit-header">
+        <img class="rit-portrait" src="${portraitUrl}" alt="" onerror="this.remove()">
         <span class="rit-name">${escapeHtml(displayName(member))}</span>
         <span class="rit-type" style="background:${typeCol}">${form.type.toUpperCase()}</span>
         ${variant ? `<span class="rit-variant" style="background:${variant.accentColor}">${variant.label}</span>` : ''}

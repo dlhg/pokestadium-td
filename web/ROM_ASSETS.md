@@ -130,6 +130,16 @@ converts the mapped Brock stage as a relocatable `FRAGMENT`.
   Original menu/move SFX and sequence music use a separate N64 bank renderer;
   they remain procedural until that decoder and the cue map are implemented.
 
+- The same commands also check for locally generated Pokémon icon portraits.
+  If absent and the ROM is present, `tools/extract_stadium_icons.py` slices
+  149 of the 151 species portraits out of the uncompressed icon table at ROM
+  offset `0x820000` (documented in `yamls/us/rom.yaml`) into
+  `web/public/generated/stadium/icons/{dex}.png`. The table has no in-ROM
+  index of which icon is which species; the order was recovered by hand (see
+  the script's docstring) and two slots — Ivysaur and Venusaur — never
+  decoded to a recognizable sprite, so the roster info card falls back to no
+  portrait for those two forms. A missing ROM just leaves the portrait off.
+
 The tower-defense layer uses a separately authored perimeter route over the
 native room. Build pads are selected deterministically with at least 4.7 arena
 units of lane clearance and 5.4 units between pad centers. Enemy definitions
