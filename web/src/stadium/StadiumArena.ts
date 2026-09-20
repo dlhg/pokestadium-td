@@ -68,6 +68,8 @@ export class StadiumArena {
   private crowdMaterial: THREE.ShaderMaterial | null = null;
   private crowdMood: number = 0;
   private targetCrowdMood: number = 0;
+  /** Crowd reactions stay cinematic-speed even when the battle is sped up. */
+  private crowdTime = 0;
   private crowdTension = false;
   private crowdBatches: CrowdBatch[] = [];
   private groundPropMask = '';
@@ -488,11 +490,19 @@ export class StadiumArena {
     this.crowdTension = active;
   }
 
-  public update(time: number, cameraPosition: THREE.Vector3, dt: number = 0.016): void {
+  public update(
+    time: number,
+    cameraPosition: THREE.Vector3,
+    dt: number = 0.016,
+    realDt: number = dt,
+  ): void {
     this.backdrop.update(time);
+    // Do not use the simulation clock for this: it includes the player's
+    // 0.5x–4x game-speed setting and makes a successful catch look frantic.
+    this.crowdTime += Math.max(0, realDt);
     this.crowdMood = THREE.MathUtils.damp(this.crowdMood, this.targetCrowdMood, 5, dt);
     if (this.crowdMaterial) {
-      this.crowdMaterial.uniforms.time.value = time;
+      this.crowdMaterial.uniforms.time.value = this.crowdTime;
       this.crowdMaterial.uniforms.mood.value = this.crowdMood;
     }
     // A hush leaves almost everyone seated; a roar puts the whole stand up.
@@ -506,7 +516,7 @@ export class StadiumArena {
         // this pitch-facing coordinate system, so select the opposite side
         // column rather than making spectators turn away from the match.
         const direction = Math.abs(relative) > Math.PI * 0.75 ? 2 : relative > Math.PI * 0.25 ? 3 : relative < -Math.PI * 0.25 ? 1 : 0;
-        const cheering = Math.sin(time * 2.2 + member.phase) > cheerThreshold ? 1 : 0;
+        const cheering = Math.sin(this.crowdTime * 2.2 + member.phase) > cheerThreshold ? 1 : 0;
         // Tension sprites occupy the idle row for each character pair in their
         // parallel atlas, so their direction selection stays identical.
         const rowFromTop = Math.floor(member.character / 2) * 2 + (this.crowdTension ? 0 : cheering);

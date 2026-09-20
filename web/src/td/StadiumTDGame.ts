@@ -1191,7 +1191,7 @@ export class StadiumTDGame {
     this.camera.update(realDt);
     this.jumbotronCamera.setActionTarget(actionLeader?.id ?? null, actionLeader?.position ?? null);
     this.jumbotronCamera.update(realDt);
-    this.arena.update(this.arenaTime, this.camera.camera.position, dt);
+    this.arena.update(this.arenaTime, this.camera.camera.position, dt, realDt);
     this.renderer.update(realDt, this.waveManager.inWave ? 0.8 : 0.0);
 
     // Update Jumbotron display with current wave
