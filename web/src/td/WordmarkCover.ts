@@ -39,14 +39,21 @@ const DAMAGE_REACH_FLOOR = 0.09;
 const STRENGTH_MIN = 0.72;
 const STRENGTH_MAX = 1.5;
 /**
- * A cast that has shed this much of itself has nothing left to hang from and
- * drops whole. The Pokemon only ever land across the middle quarter of the word
- * -- measured, every one of them between 0.38 and 0.63 across -- so damage
- * alone never reaches the T or the last E and they would sit there stranded.
- * Losing the middle is what brings the ends down, which is also how a real
- * facade goes.
+ * Jolt at which whatever is still attached lets go at once.
+ *
+ * The Pokemon only ever land across the middle quarter of the word -- measured,
+ * every one of them between 0.38 and 0.63 across -- so damage alone never
+ * reaches the T or the last E and they would sit there stranded. Something has
+ * to bring the ends down, and the finale's cluster is the blow that does it.
+ *
+ * Keyed to the jolt rather than to how much has already come away. The fraction
+ * lost only tells you what the last blow did, so gating on it landed the
+ * collapse a hit or two early in two runs out of five -- the cast dropping
+ * while Pokemon were still coming down on it. The jolt climbs through a cluster
+ * instead, so this fires on its hardest blow every time: the bouncing landings
+ * never carry more than 20 on their own, and the finale's third hit runs 45-55.
  */
-const COLLAPSE_FRACTION = 0.55;
+const COLLAPSE_JOLT = 42;
 
 /**
  * Room around the slab for debris to tumble through, in texels. The canvas is
@@ -325,8 +332,7 @@ export class WordmarkCover {
       this.slabDirty = true;
     }
 
-    const lost = this.shards.filter((shard) => shard.debris || shard.damage >= shard.strength).length;
-    if (lost >= this.shards.length * COLLAPSE_FRACTION) this.collapse(where);
+    if (jolt >= COLLAPSE_JOLT) this.collapse(where);
   }
 
   /** Everything still attached lets go at once. */
