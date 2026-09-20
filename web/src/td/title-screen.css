@@ -9,8 +9,6 @@
   background:
     radial-gradient(ellipse at 50% 38%, rgba(32, 75, 126, 0.48) 0%, rgba(6, 21, 40, 0.78) 42%, #020b17 78%),
     linear-gradient(180deg, #07182b 0%, #020812 100%);
-  opacity: 1;
-  transition: opacity 450ms ease, filter 450ms ease;
   isolation: isolate;
   /* The lamp glows and beam origins below are placed in the backdrop's own
      percentage coordinates, so they have to track exactly where `cover` puts
@@ -21,9 +19,75 @@
 }
 
 #title-screen.title-screen--leaving {
-  opacity: 0;
-  filter: brightness(1.8);
   pointer-events: none;
+  /* The doors carry the picture out; whatever the root painted behind them
+     would otherwise stay put and fill the gap they open. The plate is opaque,
+     so the halves lose nothing by leaving the wash behind. */
+  background: none;
+}
+
+/* Everything behind the lockup, grouped so the exit can cut it in half as one
+   slab. It paints nothing itself -- an empty wrapper costs the idle screen no
+   compositing, which is what keeps the intro's frames byte-stable. */
+.title-screen__backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+/* Each door holds its own full-width copy of the backdrop and shows one half of
+   it, so the two read as a single picture right up until they part. */
+.title-screen__door {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  overflow: hidden;
+}
+
+.title-screen__door--left { left: 0; }
+.title-screen__door--right { left: 50%; }
+.title-screen__door--left .title-screen__backdrop { right: -100%; }
+.title-screen__door--right .title-screen__backdrop { left: -100%; }
+
+/* The crack, then the sweep: the first fifth of the run opens barely more than
+   a hairline, which is what separates the split from the slide the way a pair
+   of doors giving way would. */
+.title-screen--leaving .title-screen__door--left {
+  animation: title-door-left 590ms cubic-bezier(0.35, 0, 0.3, 1) both;
+}
+
+.title-screen--leaving .title-screen__door--right {
+  animation: title-door-right 590ms cubic-bezier(0.35, 0, 0.3, 1) both;
+}
+
+/* Light off the course select spilling through the seam as it opens. */
+.title-screen--leaving .title-screen__door::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(198, 233, 255, 0.9) 16%,
+    #ffffff 50%,
+    rgba(198, 233, 255, 0.9) 84%,
+    transparent 100%
+  );
+  box-shadow: 0 0 26px 7px rgba(126, 198, 255, 0.55);
+  animation: title-seam-flash 430ms ease-out both;
+}
+
+.title-screen--leaving .title-screen__door--left::after { right: 0; }
+.title-screen--leaving .title-screen__door--right::after { left: 0; }
+
+/* The lockup does not ride the doors -- it lifts clear just ahead of them, so
+   the logo stays whole and readable instead of being cut down its middle. */
+.title-screen--leaving .title-screen__content {
+  opacity: 0;
+  transform: translateY(-34px) scale(0.965);
+  transition: opacity 230ms ease-in, transform 330ms cubic-bezier(0.45, 0, 0.75, 0);
 }
 
 /* The backdrop, sized the way `background-size: cover` would size it, so its
@@ -332,6 +396,24 @@
   text-transform: uppercase;
 }
 
+@keyframes title-door-left {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-1.1%); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes title-door-right {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(1.1%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes title-seam-flash {
+  0% { opacity: 0; }
+  18% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Every cycle below passes through the element's own base pose at 0%, so a
    frozen shot and a reduced-motion session hold the same neutral frame. */
 @keyframes title-arena-drift {
@@ -385,8 +467,12 @@
   .title-screen__start { width: min(68vw, 256px); }
 }
 
-/* The room stays lit; nothing in it moves. */
+/* The room stays lit; nothing in it moves, and the exit is a plain fade --
+   `splitBackdrop` does not run at all, so there are no doors to animate. */
 @media (prefers-reduced-motion: reduce) {
+  #title-screen.title-screen--leaving { opacity: 0; transition: opacity 150ms linear; }
+  .title-screen--leaving .title-screen__content { transition: none; }
+
   .title-screen__wordmark-stage,
   .title-screen__start,
   .title-screen__arena,

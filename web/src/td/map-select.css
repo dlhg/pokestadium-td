@@ -73,3 +73,52 @@
 .map-filter.locked { opacity: .55; }
 .map-filter.new-cup { animation: new-cup-pulse 1.1s ease-in-out infinite; }
 @keyframes new-cup-pulse { 50% { box-shadow: 0 0 0 3px #ffe082, 0 0 18px #ffe082; } }
+
+/* Arrival behind the title screen's opening doors: the venue pushes in while
+   the board settles up into place a beat later. The class is hung on the UI
+   container by TitleScreen for the length of its exit.
+
+   `overflow` is pinned shut for the duration because the venue overscales past
+   the padding box on its way in, and #map-select is a scroll container -- left
+   as `auto` it would flash a scrollbar mid-push on any viewport the board
+   already fills. It goes back to `auto` with the class. */
+.battlefield-arriving #map-select { overflow: hidden; }
+
+/* Exists only while the arrival runs. It carries the theme's own venue layers,
+   so it lands on the copy underneath exactly as it reaches scale 1 and leaves
+   nothing to see when it goes. Boxed out of the grid so it fills the screen
+   behind the board rather than laying out as an item beside it. */
+.battlefield-arriving #map-select::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* Paced to settle just after the doors finish clearing, rather than ahead of
+     them: a curve that front-loads the scale has the room already at rest while
+     the halves are still on screen, and the push stops registering at all. */
+  animation: map-select-push 600ms 70ms cubic-bezier(0.34, 0.18, 0.24, 1) both;
+}
+
+/* Lifted over the venue copy for the length of the arrival only. Left unscoped
+   this would make the board a stacking context for good, and anything inside it
+   that needs to escape -- a popover, a drag layer -- would find itself trapped. */
+.battlefield-arriving .map-select-panel {
+  position: relative;
+  z-index: 1;
+  animation: map-select-settle 400ms 200ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+@keyframes map-select-push {
+  from { transform: scale(1.08); }
+  to { transform: scale(1); }
+}
+
+@keyframes map-select-settle {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battlefield-arriving #map-select::before,
+  .battlefield-arriving .map-select-panel { animation: none; }
+}

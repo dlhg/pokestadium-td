@@ -725,8 +725,13 @@
   cursor: pointer;
 }
 
-/* Course selection: illustrated venue backdrop behind the tournament board panel. */
-#map-select {
+/* Course selection: illustrated venue backdrop behind the tournament board panel.
+   The venue stays on the screen itself, where it holds still while a tall board
+   scrolls past it. The title screen's exit needs to push it in without dragging
+   the board's type along, so for the length of that arrival only, a copy of it
+   rides the layer in map-select.css and scales there instead. */
+#map-select,
+.battlefield-arriving #map-select::before {
   background-image:
     linear-gradient(180deg, rgba(5, 13, 43, .22), rgba(3, 8, 28, .78)),
     url('/ui/course-select-stadium.jpg');

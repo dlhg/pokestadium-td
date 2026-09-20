@@ -34,7 +34,19 @@ const PUNCH_SQUASH_BALANCE = 0.88;
 const PUNCH_WORDMARK_MATCH = 1.02;
 const PUNCH_STAGE_MARGIN = 0.94;
 const PUNCH_BAND_MARGIN = 0.96;
-const PUNCH_WORDMARK_GAP = 10;
+/**
+ * Clear air left between the logo and the wordmark's letters, as a fraction of
+ * the wordmark's drawn height, so the lockup holds its proportions at any
+ * viewport size.
+ */
+const PUNCH_WORDMARK_GAP = 0.06;
+/**
+ * Where the logo seats in the band above the wordmark once the width caps its
+ * growth and leaves slack: 0 centres it, 1 sits it right on the gap. Held near
+ * the bottom so the two titles read as one lockup, with the room the logo does
+ * not need left overhead rather than driven between them.
+ */
+const PUNCH_BAND_ANCHOR = 1;
 /** Off-screen resolution used to measure the drawn logo. */
 const PUNCH_MEASURE_WIDTH = 320;
 const PUNCH_MEASURE_ALPHA = 16;
@@ -110,6 +122,16 @@ const KNOCK_STIFFNESS = 90;
 const KNOCK_DAMPING = 11;
 const KNOCK_REST = 0.04;
 
+/**
+ * The course select has been mounted behind this screen since the UI was built,
+ * so the exit has nothing to reveal but itself: cut the backdrop down the middle
+ * and drive the halves off either side. Long enough to read as a set piece, and
+ * short enough not to wear out -- it plays on every launch.
+ */
+const EXIT_DURATION = 700;
+/** No doors to wait on, so reduced motion only needs the fade out of the way. */
+const EXIT_DURATION_REDUCED = 160;
+
 const TAU = Math.PI * 2;
 
 const _punchOffset = new THREE.Vector3();
@@ -135,6 +157,7 @@ export class TitleScreen {
   private readonly clock = new THREE.Clock();
   private readonly resizeObserver: ResizeObserver;
   private readonly previousInert = new Map<HTMLElement, boolean>();
+  private readonly container: HTMLElement;
   private readonly logoPivot = new THREE.Group();
   private readonly punchOffset = new THREE.Vector3();
   private readonly content: HTMLElement;
@@ -168,18 +191,20 @@ export class TitleScreen {
     this.root.className = 'interactive';
     this.root.setAttribute('aria-labelledby', 'title-screen-name');
     this.root.innerHTML = `
-      <div class="title-screen__arena" aria-hidden="true">
-        <div class="title-screen__lamps title-screen__lamps--warm"></div>
-        <div class="title-screen__lamps title-screen__lamps--cool"></div>
-        <div class="title-screen__beam title-screen__beam--a"></div>
-        <div class="title-screen__beam title-screen__beam--b"></div>
-        <div class="title-screen__beam title-screen__beam--c"></div>
+      <div class="title-screen__backdrop" aria-hidden="true">
+        <div class="title-screen__arena">
+          <div class="title-screen__lamps title-screen__lamps--warm"></div>
+          <div class="title-screen__lamps title-screen__lamps--cool"></div>
+          <div class="title-screen__beam title-screen__beam--a"></div>
+          <div class="title-screen__beam title-screen__beam--b"></div>
+          <div class="title-screen__beam title-screen__beam--c"></div>
+        </div>
+        <div class="title-screen__haze">
+          <div class="title-screen__motes title-screen__motes--near"></div>
+          <div class="title-screen__motes title-screen__motes--far"></div>
+        </div>
+        <div class="title-screen__grid"></div>
       </div>
-      <div class="title-screen__haze" aria-hidden="true">
-        <div class="title-screen__motes title-screen__motes--near"></div>
-        <div class="title-screen__motes title-screen__motes--far"></div>
-      </div>
-      <div class="title-screen__grid" aria-hidden="true"></div>
       <div class="title-screen__content">
         <h1 id="title-screen-name" class="title-screen__accessible-name">Pokémon Stadium Tower Defense</h1>
         <div class="title-screen__logo-stage">
@@ -213,6 +238,7 @@ export class TitleScreen {
     if (this.reducedMotion) this.cover.reveal();
     const startButton = this.requireElement<HTMLButtonElement>('.title-screen__start');
 
+    this.container = container;
     for (const child of Array.from(container.children)) {
       if (!(child instanceof HTMLElement)) continue;
       this.previousInert.set(child, child.inert);
@@ -267,7 +293,16 @@ export class TitleScreen {
   private readonly dismiss = (): void => {
     if (this.closing) return;
     this.closing = true;
+    // The shake and the knock drive these through inline transforms, which
+    // would outrank the exit's own. They are at rest by now unless a landing is
+    // still ringing, so clearing them costs nothing and hands the exit control.
+    this.content.style.transform = '';
+    this.wordmarkStage.style.transform = '';
+    if (!this.reducedMotion) this.splitBackdrop();
     this.root.classList.add('title-screen--leaving');
+    // Whatever is waiting back there -- the course select, or starter select on
+    // a first run -- pushes in behind the doors as they part.
+    this.container.classList.add('battlefield-arriving');
 
     window.setTimeout(() => {
       window.removeEventListener('keydown', this.onKeyDown, true);
@@ -276,16 +311,52 @@ export class TitleScreen {
       this.clock.stop();
       this.disposeLogo();
       this.renderer.dispose();
-      this.content.style.transform = '';
-      this.wordmarkStage.style.transform = '';
+      this.container.classList.remove('battlefield-arriving');
       for (const [element, inert] of this.previousInert) element.inert = inert;
       this.root.remove();
 
       document.querySelector<HTMLElement>(
         '#trainer-screen:not([hidden]) button, #map-select:not([hidden]) button:not([disabled])',
       )?.focus({ preventScroll: true });
-    }, 480);
+    }, this.reducedMotion ? EXIT_DURATION_REDUCED : EXIT_DURATION);
   };
+
+  /**
+   * Swap the backdrop for two clipped copies of it, one per half. Each copy is
+   * full width and its door shows only its own side, so the pair reads as one
+   * picture until they part.
+   */
+  private splitBackdrop(): void {
+    const backdrop = this.root.querySelector<HTMLElement>('.title-screen__backdrop');
+    if (!backdrop) return;
+    for (const side of ['left', 'right'] as const) {
+      const door = document.createElement('div');
+      door.className = `title-screen__door title-screen__door--${side}`;
+      door.setAttribute('aria-hidden', 'true');
+      door.appendChild(this.freezeCopy(backdrop));
+      this.root.insertBefore(door, backdrop);
+    }
+    backdrop.remove();
+  }
+
+  /**
+   * Copy a subtree and pin every layer to the pose it is holding this frame.
+   * A clone restarts its animations from their first keyframe, which would snap
+   * the beams upright and the lamps to base brightness on the exit's opening
+   * frame; and a slab on its way off screen has no reason to keep sweeping.
+   */
+  private freezeCopy(source: HTMLElement): HTMLElement {
+    const copy = source.cloneNode(true) as HTMLElement;
+    const live = [source, ...source.querySelectorAll<HTMLElement>('*')];
+    const frozen = [copy, ...copy.querySelectorAll<HTMLElement>('*')];
+    for (let i = 0; i < live.length; i++) {
+      const pose = getComputedStyle(live[i]);
+      frozen[i].style.animation = 'none';
+      frozen[i].style.transform = pose.transform;
+      frozen[i].style.opacity = pose.opacity;
+    }
+    return copy;
+  }
 
   private async loadLogo(settled: boolean): Promise<void> {
     try {
@@ -537,12 +608,15 @@ export class TitleScreen {
     const wordmark = this.wordmark.getBoundingClientRect();
     if (stage.width < 1 || stage.height < 1) return;
 
-    // A knock in progress has the wordmark displaced; fit against its rest pose.
-    const bandBottom = Math.min(stage.bottom, wordmark.top - this.knock - PUNCH_WORDMARK_GAP);
+    // The art is baked with headroom over the letters for the Pokemon to land
+    // in, so the band ends at the ink, not at the element. A knock in progress
+    // has the wordmark displaced; fit against its rest pose.
+    const inkTop = wordmark.top + wordmark.height * this.cover.inkTop - this.knock;
+    const bandBottom = Math.min(stage.bottom, inkTop - wordmark.height * PUNCH_WORDMARK_GAP);
     const maxHeight = Math.max((bandBottom - stage.top) * PUNCH_BAND_MARGIN, stage.height * 0.25);
     const maxWidth = Math.min(stage.width * PUNCH_STAGE_MARGIN, wordmark.width * PUNCH_WORDMARK_MATCH);
     const targetX = stage.width * 0.5;
-    const targetY = (bandBottom - stage.top) * 0.5;
+    const band = bandBottom - stage.top;
     const worldPerPixel =
       (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * this.camera.position.z) / stage.height;
 
@@ -556,11 +630,16 @@ export class TitleScreen {
         offset.set(0, 0, 0);
         break;
       }
-      scale = THREE.MathUtils.clamp(
+      const grown = THREE.MathUtils.clamp(
         scale * Math.min(maxWidth / drawn.width, maxHeight / drawn.height),
         1,
         PUNCH_MAX_SCALE,
       );
+      // Seat the box the next pass will draw rather than the one just
+      // measured, so the anchor lands on the size the logo ends up at.
+      const height = drawn.height * (grown / scale);
+      const targetY = height * 0.5 + Math.max(band - height, 0) * PUNCH_BAND_ANCHOR;
+      scale = grown;
       offset.x += (targetX - drawn.centerX) * worldPerPixel;
       offset.y += (drawn.centerY - targetY) * worldPerPixel;
     }
@@ -601,6 +680,21 @@ export class TitleScreen {
       }
     }
     if (maxX < 0) return null;
+    {
+      const prof: string[] = [];
+      for (let row = height - 1; row >= 0; row--) {
+        let a = 0; let lum = 0; let bright = 0;
+        for (let column = 0; column < width; column++) {
+          const i = (row * width + column) * 4;
+          if (pixels[i + 3] >= PUNCH_MEASURE_ALPHA) a++;
+          const l = pixels[i] * 0.3 + pixels[i + 1] * 0.6 + pixels[i + 2] * 0.1;
+          if (pixels[i + 3] >= PUNCH_MEASURE_ALPHA && l > 40) bright++;
+          lum = Math.max(lum, l);
+        }
+        if (a) prof.push(`${height - 1 - row}:a${a}/b${bright}/l${Math.round(lum)}`);
+      }
+      console.log('ROWPROF', height, prof.join(' '));
+    }
 
     // readRenderTargetPixels hands back rows bottom-up.
     const scaleX = cssWidth / width;
