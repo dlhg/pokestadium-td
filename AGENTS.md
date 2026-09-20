@@ -24,6 +24,7 @@ web/
 │   ├── tower-roles.md       # Tower path/signature design and rationale
 │   ├── trainer-progression.md
 │   ├── capture-sequence.md  # The catch set piece's anime beat sheet and per-beat shots
+│   ├── summon-sequence.md   # The send-out set piece and its reversed energy conversion
 │   └── cup-rules.md         # Cup level brackets, entry rules, rentals (phases 1–4 in; tuning next)
 ├── ROM_ASSETS.md            # Optional, gitignored ROM-extraction workflow
 └── src/

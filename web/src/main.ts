@@ -208,7 +208,8 @@ window.addEventListener('DOMContentLoaded', () => {
       const step = (frames: number) => { for (let i = 0; i < frames; i++) game.update(1 / 60, input); };
       if (shot === 'summon_throw') step(28);
       else if (shot === 'summon_burst') step(48);
-      else if (shot === 'summon_reveal') step(98);
+      else if (shot === 'summon_reveal') step(70);
+      else if (shot === 'summon_materialize') step(98);
       else step(126);
       frozenShot = true;
     }, 1200);
