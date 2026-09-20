@@ -4,6 +4,8 @@ import { sampleMapRoutes } from './MapGeometry';
 const PREVIEW_COLORS: Record<ObstacleStyle,[string,string]> = {
   tree:['#365e3d','#8bbb6e'], pine:['#24462f','#4f8b5c'], rock:['#776770','#b5a092'], boulder:['#6f665e','#a99d91'],
   generator:['#253a50','#73d9e6'], pillar:['#8a5f2c','#f2c65a'], brick:['#6e3f2b','#b0674a'], center:['#f3efe6','#d9453b'],
+  'ancient-tree':['#345d38','#78a85b'], 'rest-nook':['#6a5639','#d4a75f'], 'garden-pond':['#467c72','#66bed0'],
+  'flower-emblem':['#f0e4ba','#d94b52'], 'bug-habitat':['#4a6336','#9a6d42'],
 };
 
 /** Higher terraces are lighter, with a dark cliff line, so elevation reads at card size. */

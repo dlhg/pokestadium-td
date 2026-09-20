@@ -5,10 +5,12 @@ import type { PokemonType } from '../stadium/TypeMatrix';
 export type MapPoint = readonly [x: number, z: number];
 /** A route control point. Height defaults to the terrace beneath it; give one to pin a stair landing. */
 export type RoutePoint = readonly [x: number, z: number, y?: number];
-export type ObstacleStyle = 'rock' | 'tree' | 'generator' | 'pine' | 'boulder' | 'pillar' | 'brick' | 'center';
+export type ObstacleStyle =
+  | 'rock' | 'tree' | 'generator' | 'pine' | 'boulder' | 'pillar' | 'brick' | 'center'
+  | 'ancient-tree' | 'rest-nook' | 'garden-pond' | 'flower-emblem' | 'bug-habitat';
 
 export interface MapObstacle {
-  x: number; z: number; radius: number; label: string; style: ObstacleStyle;
+  x: number; z: number; radius: number; label: string; style: ObstacleStyle; angle?: number;
 }
 /** Water surface sits at `height` (default 0), so springs can pool on a terrace. */
 export interface WaterRegion { points: MapPoint[]; height?: number; }
@@ -78,11 +80,11 @@ export const STADIUM_MAPS: StadiumMap[] = [
     buildableRadius: 31, laneWidth: 3.2,
     routes: [[[-30,-12],[-24,-12],[-20,-21],[-9,-21],[-5,-13],[-11,-7],[-19,-1],[-17,9],[-7,13],[1,8],[3,-3],[9,-13],[20,-13],[23,-3],[17,7],[10,15],[10,23],[20,22],[29,13]]],
     obstacles: [
-      { x:-14, z:-15, radius:2.7, label:'Old-growth grove', style:'tree' },
-      { x:-10, z:3, radius:2.5, label:'Old-growth grove', style:'tree' },
-      { x:14, z:-4, radius:2.8, label:'Old-growth grove', style:'tree' },
-      { x:-3, z:23, radius:3, label:'Old-growth grove', style:'tree' },
-      { x:6, z:-23, radius:2.5, label:'Old-growth grove', style:'tree' },
+      { x:-14, z:-15, radius:2.7, label:'Viridian elder tree', style:'ancient-tree', angle:0.35 },
+      { x:-10, z:3, radius:2.5, label:'Trainer rest nook', style:'rest-nook', angle:-0.55 },
+      { x:14, z:-4, radius:2.8, label:'Poliwag pond', style:'garden-pond' },
+      { x:-3, z:23, radius:3, label:'Poké Ball flowerbed', style:'flower-emblem', angle:0.2 },
+      { x:6, z:-23, radius:2.5, label:'Bug Catcher habitat', style:'bug-habitat', angle:-0.4 },
     ], water: [], bridges: [],
   },
   {
