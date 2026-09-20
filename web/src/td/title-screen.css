@@ -7,6 +7,7 @@
   overflow: hidden;
   color: #fff;
   background:
+    url('/ui/title-screen-bg.png') center / cover no-repeat,
     radial-gradient(ellipse at 50% 38%, rgba(32, 75, 126, 0.48) 0%, rgba(6, 21, 40, 0.78) 42%, #020b17 78%),
     linear-gradient(180deg, #07182b 0%, #020812 100%);
   opacity: 1;
@@ -135,6 +136,10 @@
   width: min(72vw, 720px);
   height: auto;
   margin-top: clamp(-102px, -10vh, -48px);
+  /* Baked to 288 texels wide (web/tools/pixelate_ui_art.py) so the browser
+     blows each texel back up to the ~2.5 display pixels the ROM logo's
+     nearest-filtered 32x32 textures land on. Both titles share one grid. */
+  image-rendering: pixelated;
   filter: drop-shadow(0 12px 8px rgba(0, 0, 0, 0.48));
   animation: title-wordmark-arrive 700ms 400ms cubic-bezier(0.2, 0.9, 0.2, 1.2) both;
 }
