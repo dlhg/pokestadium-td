@@ -247,6 +247,16 @@ export class StadiumCamera {
     this.cinematic.height = height;
   }
 
+  /**
+   * Slides a live cinematic onto a new subject without restarting its orbit,
+   * for a set piece whose subject moves — a capture beam's attention travels
+   * from the Pokémon to the ball that is drinking it in.
+   */
+  public setCinematicFocus(focus: THREE.Vector3, blend: number = 1): void {
+    if (!this.cinematic) return;
+    this.cinematic.focus.lerp(focus, THREE.MathUtils.clamp(blend, 0, 1));
+  }
+
   /** Turns a live cinematic onto an exact subject angle and optionally holds it there. */
   public setCinematicAngle(angle: number, orbitSpeed: number = 0): void {
     if (!this.cinematic) return;

@@ -1051,9 +1051,12 @@ export class StadiumUI {
     bars[0].style.transform = `translateY(${(cinema.letterbox - 1) * 100}%)`;
     bars[1].style.transform = `translateY(${(1 - cinema.letterbox) * 100}%)`;
     this.cinemaEl.querySelector<HTMLElement>('#cine-vignette')!.style.opacity = `${0.35 + cinema.tension * 0.65}`;
-    // A pale flare rides the tension so the near-frozen wobble beats still breathe.
+    // A pale flare rides the tension so the near-frozen beats still breathe:
+    // the wobble, and the held freeze while the ball drinks its quarry in.
+    const frozen = cinema.phase === 'wobble' || cinema.phase === 'hang'
+      || cinema.phase === 'absorb' || cinema.phase === 'snap';
     this.cinemaEl.querySelector<HTMLElement>('#cine-flare')!.style.opacity =
-      cinema.phase === 'wobble' ? `${0.04 + Math.abs(Math.sin(performance.now() * 0.006)) * 0.05 * cinema.tension}` : '0';
+      frozen ? `${0.04 + Math.abs(Math.sin(performance.now() * 0.006)) * 0.05 * cinema.tension}` : '0';
 
     this.cinemaEl.querySelector<HTMLElement>('#cine-orb')!.className = `cine-orb ${cinema.ballType}`;
     const timerRing = this.cinemaEl.querySelector<SVGElement>('#cine-timer-ring')!;

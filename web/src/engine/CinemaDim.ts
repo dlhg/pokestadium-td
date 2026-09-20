@@ -10,6 +10,7 @@
  * readable health bar on a bystander is exactly the distraction we are killing.
  */
 import * as THREE from 'three';
+import { ENERGY_FORM_FLAG } from './EnergyForm';
 
 const SHADOW = new THREE.Color(0x05070d);
 const BASE_COLOR = '__cinemaBaseColor';
@@ -37,6 +38,10 @@ export function setCinemaDim(root: THREE.Object3D, dim: number, fade: number = 0
   root.traverse(object => {
     const holder = object as THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
     if (!holder.material) return;
+    // A model mid-conversion into energy is wearing a borrowed material that
+    // its own set piece animates every frame. Dimming would fight it for the
+    // colour, and the restore below would stamp the glow on as its base.
+    if (object.userData[ENERGY_FORM_FLAG]) return;
     // Skinned GLB clones share materials across every model of a species, so
     // darkening one bystander in place would darken the capture target too.
     // Give each object its own copy the first time it is dimmed.

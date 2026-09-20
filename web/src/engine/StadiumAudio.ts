@@ -597,6 +597,41 @@ export class StadiumAudio {
     this.noiseBurst(0.34, 1800, 320, 0.26);
   }
 
+  /** The ball actually hitting the body: a hard thunk, then the shell cracking. */
+  public playCaptureStrike(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_strike')) return;
+    this.tone('triangle', 260, 90, 0.14, 0.3);
+    this.noiseBurst(0.1, 1400, 400, 0.24);
+    // The hinge letting go, a beat after the impact that caused it.
+    this.tone('square', 1500, 720, 0.07, 0.14, 0.07);
+    this.noiseBurst(0.18, 600, 3400, 0.12, 0.08);
+  }
+
+  /** The tether snapping onto the target: crackle over a held tone. */
+  public playCaptureBeam(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_beam')) return;
+    this.tone('sawtooth', 180, 1500, 0.16, 0.18);
+    this.noiseBurst(0.42, 3200, 900, 0.14);
+    // Three ragged spits so the bolt reads as unstable rather than a laser.
+    [0.06, 0.17, 0.29].forEach((delay, idx) => {
+      this.noiseBurst(0.05, 5200 - idx * 900, 1800, 0.1, delay);
+    });
+  }
+
+  /** Shell halves slamming home and the latch catching. */
+  public playCaptureSnap(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('capture_snap')) return;
+    this.tone('square', 1700, 520, 0.06, 0.24);
+    this.tone('triangle', 420, 160, 0.12, 0.2, 0.02);
+    this.noiseBurst(0.08, 2600, 700, 0.16);
+  }
+
   /** Bright suck-in shimmer as the target streams into the ball. */
   public playCaptureAbsorb(): void {
     this.initContext();
@@ -605,14 +640,6 @@ export class StadiumAudio {
     this.tone('sawtooth', 1400, 180, 0.5, 0.2);
     this.tone('sine', 900, 240, 0.45, 0.14, 0.04);
     this.noiseBurst(0.4, 2400, 260, 0.18);
-  }
-
-  public playCaptureLand(): void {
-    this.initContext();
-    if (!this.ctx || !this.enabled) return;
-    if (this.playNative('capture_land')) return;
-    this.tone('triangle', 180, 70, 0.18, 0.24);
-    this.noiseBurst(0.16, 900, 200, 0.12);
   }
 
   /** Mechanical click per wobble, pitched up so the tension escalates. */

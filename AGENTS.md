@@ -23,6 +23,7 @@ web/
 ├── docs/                    # Design-rationale docs, updated alongside the features they cover
 │   ├── tower-roles.md       # Tower path/signature design and rationale
 │   ├── trainer-progression.md
+│   ├── capture-sequence.md  # The catch set piece's anime beat sheet and per-beat shots
 │   └── cup-rules.md         # Cup level brackets, entry rules, rentals (phases 1–4 in; tuning next)
 ├── ROM_ASSETS.md            # Optional, gitignored ROM-extraction workflow
 └── src/
@@ -44,6 +45,7 @@ The full, current file list always wins over any summary here — see the source
 - **`td/TowerAttack.ts`, `Signatures.ts`, `Hazard.ts`** — *Tower Roles.* Each tower fires one basic attack that the paths it buys reshape through tier effects (swaps, chains, crits, rage, auras, lane hazards, knockback, multishot, spin-up...). Paths cap at 3-2-0; tier 3 unlocks a PP-limited signature move called from the signature bar (1–9). Creeps carry Airborne / Phantom / Armored traits from their types. Design and rationale: `docs/tower-roles.md`.
 - **`stadium/Announcer.ts`** — *Dynamic Stadium Announcer.* Real-time reactive commentary with 3D banner overlays and synthesized speech.
 - **`engine/StadiumCamera.ts`** — *Cinematic Multi-Angle Director.* Smooth transitions between Tactical Top-Down, Stadium Isometric, and Dramatic Action Battle Cams.
+- **`td/CaptureSequence.ts`, `engine/EnergyForm.ts`, `engine/JaggedBeam.ts`** — *The Catch Set Piece.* Staged the way the anime does it: the ball strikes the Pokémon and rebounds open, freezes mid-air, converts the body to light (`EnergyForm` swaps material references, so shared GLB materials are safe), drags it down a crackling tether (`JaggedBeam`, reusable for electric moves), snaps shut, and ticks there suspended with the centre button flashing. The ball never touches the pitch: a catch lifts away from mid-air, a break bursts where it hangs. Beat sheet, timing budget and per-beat screenshots: `docs/capture-sequence.md`.
 - **`td/StadiumUI.ts`** — *90s Stadium Presentation.* Catch tags over weakened creeps with a ball picker, tower path shop, signature bar, metallic tournament headers, 3D floating HP bars, and the team roster deck.
 - **`td/progression/`** — *Trainer Progression.* Persistent collection and team of six (`TrainerStore`, localStorage), species data, roles, paths and evolution lines (`Species`), Gen 1-style stats and XP curve (`Stats`), per-match XP splitting (`MatchProgress`), starter/team/summary/report screens (`TrainerScreens`), and a dev panel toggled with the backquote key (`DevPanel`, dev builds or `?dev`). Design and rationale: `docs/trainer-progression.md`.
 

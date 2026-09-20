@@ -376,13 +376,36 @@ window.addEventListener('DOMContentLoaded', () => {
           if (shot === 'capture_aim') {
             step(40);
           } else {
-            step(26); // Let the marker sweep partway before releasing.
+            // Sit in the aim window long enough for the cinematic camera to
+            // actually arrive on its hero shot — it damps in at ~3/s, so a
+            // shot that released immediately would judge every later beat's
+            // framing from a camera still in transit.
+            step(90);
             const realRandom = Math.random;
-            const forceCatch = shot === 'capture_gotcha' || shot === 'capture_trophy';
+            const forceCatch = shot === 'capture_gotcha' || shot === 'capture_trophy'
+              || shot === 'capture_lock';
             if (forceCatch) Math.random = () => 0; // Force the roll to succeed.
+            // A break needs the opposite, and a high roll also picks the
+            // late-wobble escape, which is the version worth looking at.
+            if (shot === 'capture_break') Math.random = () => 0.99;
             game.activeCapture?.release();
             Math.random = realRandom;
-            step(shot === 'capture_trophy' ? 460 : forceCatch ? 310 : 150);
+            // Frames past the release, one per beat of the anime sheet: the
+            // hit, the mid-air freeze, the tether drinking it in, the shell
+            // slamming, the fall, then the wobble everything else waits on.
+            const BEAT_FRAMES: Record<string, number> = {
+              capture_strike: 28,
+              capture_hang: 38,
+              capture_beam: 57,
+              capture_snap: 71,
+              capture_suspend: 80,
+              capture_break: 216,
+              // The click itself, while the star is still on screen.
+              capture_lock: 256,
+              capture_gotcha: 292,
+              capture_trophy: 460,
+            };
+            step(BEAT_FRAMES[shot!] ?? 150);
           }
           frozenShot = true;
         }, 1200);
