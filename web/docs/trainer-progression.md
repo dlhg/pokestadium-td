@@ -27,6 +27,16 @@ higher move tiers. Tiers are still bought with prize money during the match.
   individual or sent to the Professor for species-specific Research Data. Research
   Data is persistent, does not refund the ball or award prize money, and is reserved
   for future collection upgrades.
+- **Storage holds 1000 Pokémon** (`STORAGE_MAX`). The save lives in `localStorage`,
+  which fails silently once it fills, so the collection has a stated ceiling well
+  under that. At the cap the trophy card drops its keep options and offers only
+  Research Data, whatever the species. A save that arrives over the cap is left
+  intact — only new additions are refused.
+- **Release for research.** Any benched Pokémon can be sent to the Professor from
+  MY POKÉMON: it leaves the collection for good and its species banks Research Data
+  on the same sliding scale as a duplicate catch (3 for the last copy parted with,
+  2 for the next, 1 thereafter). It asks first, and the last Pokémon you own can
+  never be released.
 - **Defeat keeps XP and catches.** Nothing is lost; losing just means less XP.
 - **Cups bound levels.** Every course belongs to a cup with an entry limit and a
   level cap. Team members over the limit sit the match out, XP stops at the cap,
@@ -126,7 +136,7 @@ export interface TrainerSave {
   team: (string | null)[];       // 6 uids
   maps: Record<string, { cleared: boolean; bestRound: number }>;
   pokedex: { seen: string[]; caught: string[] };
-  research: Record<string, number>; // duplicate-catch Research Data by species
+  research: Record<string, number>; // Research Data by species, from duplicates and releases
   captureLuck: number;           // failed attempts since the last catch
   unlocks: string[];             // e.g. 'exp_all'; empty in v1
 }

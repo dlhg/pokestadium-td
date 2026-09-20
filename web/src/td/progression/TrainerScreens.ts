@@ -15,7 +15,8 @@ import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../../stadiu
 import { dexNumber, GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
 import { levelProgress, MAX_DV, MAX_LEVEL, STAT_KEYS, xpForLevel } from './Stats';
 import {
-  displayName, formOf, NICKNAME_MAX, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore,
+  displayName, formOf, NICKNAME_MAX, OwnedPokemon, researchPointsFor, speciesOf, statsOf, STORAGE_MAX,
+  TEAM_SIZE, TrainerStore,
 } from './TrainerStore';
 import type { MatchReportEntry } from './MatchProgress';
 import { createRental, RENTALS, rentalLevel } from './Rentals';
@@ -105,9 +106,13 @@ function cupTag(pokemon: OwnedPokemon, cup: CupRules | null): string {
     : '';
 }
 
-function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[], cup: CupRules | null): string {
+/** `researchPoints` is what releasing this one pays, or null when it cannot be released. */
+function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[], cup: CupRules | null, researchPoints: number | null): string {
   const form = formOf(pokemon);
   const eligible = !cup || isEligible(pokemon.level, cup);
+  const release = researchPoints === null
+    ? '<button class="tr-release stadium-btn" disabled title="Your last Pokémon stays with you">RELEASE</button>'
+    : `<button class="tr-release stadium-btn" data-release="${pokemon.uid}" title="Send to the Professor for +${researchPoints} research data. This cannot be undone.">RELEASE · +${researchPoints} DATA</button>`;
   return `<div class="tr-card ${eligible ? '' : 'ineligible'}" draggable="${eligible}" ${eligible ? `data-drag-uid="${pokemon.uid}"` : ''}>
     <button class="tr-card-main" data-toggle="${pokemon.uid}" ${eligible ? 'title="Add to team · drag onto a slot to swap"' : `disabled title="Over ${cup!.name}'s LV ${cup!.entryMax} entry limit"`} style="${typeArtStyle(form.type)}">
       ${pokemonIcon(pokemon)}
@@ -120,6 +125,7 @@ function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[], cup: CupRul
       </span>
     </button>
     <button class="tr-info stadium-btn" data-info="${pokemon.uid}" title="Summary">INFO</button>
+    ${release}
   </div>`;
 }
 
@@ -181,6 +187,7 @@ interface TeamSelectOptions {
 export class TrainerScreens {
   private root: HTMLElement;
   private summaryRoot: HTMLElement;
+  private releaseRoot: HTMLElement;
   private views: RosterModelView[] = [];
   private summaryView: RosterModelView | null = null;
   private rerender: (() => void) | null = null;
@@ -194,7 +201,20 @@ export class TrainerScreens {
     this.summaryRoot.id = 'trainer-summary';
     this.summaryRoot.className = 'interactive';
     this.summaryRoot.hidden = true;
-    container.append(this.root, this.summaryRoot);
+    this.releaseRoot = document.createElement('div');
+    this.releaseRoot.id = 'trainer-release';
+    this.releaseRoot.className = 'interactive';
+    this.releaseRoot.hidden = true;
+    container.append(this.root, this.summaryRoot, this.releaseRoot);
+    // Bound once: the dialog's own markup is rebuilt on every open.
+    this.releaseRoot.addEventListener('click', (event) => {
+      if (event.target === this.releaseRoot) this.closeReleaseConfirm();
+    });
+    this.releaseRoot.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      this.closeReleaseConfirm();
+    });
 
     store.subscribe(() => this.rerender?.());
   }
@@ -216,6 +236,7 @@ export class TrainerScreens {
     this.root.hidden = true;
     this.root.innerHTML = '';
     this.closeSummary();
+    this.closeReleaseConfirm();
     this.container.classList.remove('trainer-open');
   }
 
@@ -419,8 +440,17 @@ export class TrainerScreens {
         return !filter.strongOnly || strong(pokemon).length > 0;
       }).sort((a, b) => Number(canEnter(b)) - Number(canEnter(a)) || BENCH_SORTS[filter.sort].compare(strong)(a, b));
 
+      // Counted once per render: every card shows what parting with it pays.
+      const copies = new Map<string, number>();
+      for (const owned of data.collection) copies.set(owned.speciesId, (copies.get(owned.speciesId) ?? 0) + 1);
+      const releasePoints = (pokemon: OwnedPokemon) => data.collection.length > 1
+        ? researchPointsFor((copies.get(pokemon.speciesId) ?? 1) - 1)
+        : null;
+
       const scroll = list.scrollTop;
-      list.innerHTML = shown.map(pokemon => renting ? rentalTileHtml(pokemon, strong(pokemon)) : benchTileHtml(pokemon, strong(pokemon), cup)).join('')
+      list.innerHTML = shown.map(pokemon => renting
+        ? rentalTileHtml(pokemon, strong(pokemon))
+        : benchTileHtml(pokemon, strong(pokemon), cup, releasePoints(pokemon))).join('')
         || `<p class="tr-empty">${renting ? (!bench.length ? 'Every rental is already on loan.' : 'No rentals match these filters.')
           : !data.collection.length ? 'No Pokémon yet.' : !bench.length ? 'Everyone you own is already on your team.' : 'No Pokémon match these filters.'}</p>`;
       list.scrollTop = scroll;
@@ -428,9 +458,13 @@ export class TrainerScreens {
       const filtering = !!query || filter.types.size > 0 || filter.strongOnly;
       const researchTotal = Object.values(data.research).reduce((total, points) => total + points, 0);
       const shownCount = filtering ? `SHOWING ${shown.length} OF ${bench.length}` : `${bench.length}`;
+      const storage = `${data.collection.length}/${STORAGE_MAX} STORED`
+        + (this.store.isStorageFull ? ' · FULL, RELEASE ONE TO CATCH MORE' : '');
       this.root.querySelector('[data-bench-count]')!.textContent = renting
         ? `${shownCount} RENTALS AT LV ${rentalLevel(cup!.id)} · ${desk.picks.length} ON LOAN · RETURNED AFTER THE MATCH`
-        : `${shownCount} ON BENCH · ${data.collection.length} OWNED · ${data.pokedex.caught.length} SPECIES CAUGHT · ${researchTotal} RESEARCH DATA`;
+        : `${shownCount} ON BENCH · ${storage} · ${data.pokedex.caught.length} SPECIES CAUGHT · ${researchTotal} RESEARCH DATA`;
+      this.root.querySelector<HTMLElement>('[data-bench-count]')!.classList.toggle('full', !renting && this.store.isStorageFull);
+      list.classList.toggle('storage-full', !renting && this.store.isStorageFull);
       this.root.querySelectorAll<HTMLButtonElement>('[data-bench-mode]').forEach(tab => {
         tab.setAttribute('aria-pressed', String((tab.dataset.benchMode === 'rentals') === renting));
       });
@@ -542,6 +576,7 @@ export class TrainerScreens {
           else this.flash('TEAM IS FULL · REMOVE ONE OR DRAG ONTO A SLOT');
         }
       } else if (dataset.info) this.openSummary(dataset.info);
+      else if (dataset.release) this.openReleaseConfirm(dataset.release, target);
       else if (dataset.clearTeam !== undefined) this.store.clearTeam();
       else if (dataset.typeFilter) {
         const type = dataset.typeFilter as PokemonType;
@@ -621,15 +656,63 @@ export class TrainerScreens {
     });
   }
 
-  private flash(message: string): void {
+  private flash(message: string, tone: 'warn' | 'good' = 'warn'): void {
     const footer = this.root.querySelector('.tr-footer');
     if (!footer) return;
     const note = document.createElement('span');
-    note.className = 'tr-flash';
+    note.className = `tr-flash ${tone}`;
     note.textContent = message;
     footer.prepend(note);
     window.setTimeout(() => note.remove(), 1800);
   }
+
+  // ---- Release ------------------------------------------------------------
+
+  /**
+   * Releasing is permanent and the only way to free a storage slot, so it asks
+   * first and names what the trade pays.
+   */
+  private openReleaseConfirm(uid: string, source: HTMLElement | null = null): void {
+    const pokemon = this.store.get(uid);
+    if (!pokemon || !this.store.canRelease(uid)) return;
+    this.releaseSource = source;
+    const name = displayName(pokemon).toUpperCase();
+    const points = this.store.researchValue(uid);
+    const copies = this.store.data.collection.filter(other => other.speciesId === pokemon.speciesId).length;
+    this.releaseRoot.innerHTML = `
+      <section class="tr-dialog stadium-panel" role="dialog" aria-modal="true" aria-labelledby="tr-release-title">
+        <div class="tr-eyebrow">SEND TO RESEARCH?</div>
+        <h2 class="tr-title" id="tr-release-title">${escapeHtml(name)}</h2>
+        <p class="tr-dialog-copy">
+          LV ${pokemon.level} ${escapeHtml(formOf(pokemon).name.toUpperCase())} · ${pokemon.record.knockouts} KOs · ${pokemon.record.matches} matches<br>
+          The Professor keeps it for good. Its species banks
+          <b>+${points} research data</b>${copies > 1 ? `, and you keep ${copies - 1} other${copies === 2 ? '' : 's'}` : ' — this is your only one'}.
+        </p>
+        <p class="tr-dialog-warn">This cannot be undone.</p>
+        <div class="tr-footer">
+          <button class="stadium-btn" type="button" data-release-cancel>CANCEL</button>
+          <button class="stadium-btn active" type="button" data-release-confirm>SEND TO RESEARCH</button>
+        </div>
+      </section>`;
+    this.releaseRoot.hidden = false;
+    this.releaseRoot.querySelector<HTMLButtonElement>('[data-release-confirm]')!.focus();
+    this.releaseRoot.querySelector('[data-release-cancel]')!.addEventListener('click', () => this.closeReleaseConfirm());
+    this.releaseRoot.querySelector('[data-release-confirm]')!.addEventListener('click', () => {
+      const earned = this.store.releaseForResearch(uid);
+      this.closeReleaseConfirm();
+      if (earned !== null) this.flash(`${name} SENT TO RESEARCH · +${earned} DATA`, 'good');
+    });
+  }
+
+  private closeReleaseConfirm(): void {
+    this.releaseRoot.hidden = true;
+    this.releaseRoot.innerHTML = '';
+    const previous = this.releaseSource;
+    this.releaseSource = null;
+    if (previous?.isConnected) previous.focus();
+  }
+
+  private releaseSource: HTMLElement | null = null;
 
   // ---- Summary -------------------------------------------------------------
 

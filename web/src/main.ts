@@ -18,6 +18,7 @@ import { DevPanel } from './td/progression/DevPanel';
 import { MatchProgress } from './td/progression/MatchProgress';
 import { xpForLevel } from './td/progression/Stats';
 import { applyRetroUiCss } from './engine/RetroFX';
+import { TitleScreen } from './td/TitleScreen';
 
 /** A fixed trainer for headless shots and `?save=dev`: the classic six at the Little Cup's entry limit. */
 function devSeed(): TrainerStore {
@@ -49,6 +50,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Automated Headless Setup for Visual Verification
   const urlParams = new URLSearchParams(window.location.search);
   const shot = urlParams.get('shot');
+  const titleShot = shot === 'title_screen' || shot === 'title_screen_live';
 
   // Shots always start from the same trainer; everyone else gets their own save.
   const store = shot || urlParams.get('save') === 'dev' ? devSeed() : new TrainerStore();
@@ -212,7 +214,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && shot !== 'pokemon_summary' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
+  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && shot !== 'pokemon_summary' && !titleShot && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);
@@ -385,6 +387,10 @@ window.addEventListener('DOMContentLoaded', () => {
           frozenShot = true;
         }, 1200);
       }
+  }
+
+  if (!shot || titleShot) {
+    new TitleScreen(uiContainer, { settled: shot === 'title_screen' });
   }
 
   let lastTime = performance.now();

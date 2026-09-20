@@ -27,7 +27,7 @@ import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
 import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
-import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, statsOf, STORAGE_MAX, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { isRental } from './progression/Rentals';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import { VARIANTS } from './progression/Variants';
@@ -1206,11 +1206,10 @@ export class StadiumUI {
    */
   public showCaptureTrophy(
     pokemon: OwnedPokemon,
-    duplicate: boolean,
-    openTeamSlot: boolean,
-    guestSlotsLeft: number,
+    options: { duplicate: boolean; openTeamSlot: boolean; guestSlotsLeft: number; storageFull: boolean },
     onNamed: (name: string | null, destination: 'match' | 'storage' | 'research') => void,
   ): void {
+    const { duplicate, openTeamSlot, guestSlotsLeft, storageFull } = options;
     const card = document.getElementById('capture-trophy')!;
     const species = speciesOf(pokemon);
     const form = formOf(pokemon);
@@ -1221,30 +1220,37 @@ export class StadiumUI {
     ).join('');
     // An open team slot is a permanent add, not a temporary match guest, so
     // it gets its own label rather than borrowing the guest-slot language.
-    const noteTail = openTeamSlot
+    const noteTail = storageFull
+      ? `STORAGE FULL AT ${STORAGE_MAX} · RELEASE ONE IN MY POKÉMON TO MAKE ROOM`
+      : openTeamSlot
       ? 'TEAM: OPEN SLOT'
       : guestSlotsLeft ? `MATCH GUESTS: ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT` : 'MATCH GUESTS FULL';
-    const addButton = openTeamSlot
+    const addButton = storageFull ? ''
+      : openTeamSlot
       ? '<button class="stadium-btn active" type="submit">ADD TO TEAM</button>'
       : guestSlotsLeft ? `<button class="stadium-btn active" type="submit">ADD TO MATCH · ${guestSlotsLeft} SLOT${guestSlotsLeft === 1 ? '' : 'S'} LEFT</button>` : '';
+    // With nowhere to put it, research is the only way off this card.
+    const researchButton = storageFull
+      ? '<button class="stadium-btn active" type="button" data-research>SEND TO RESEARCH</button>'
+      : duplicate ? '<button class="stadium-btn" type="button" data-research>SEND TO RESEARCH</button>' : '';
     card.classList.toggle('has-variant', !!variant);
     if (variant) card.style.setProperty('--variant-color', variant.accentColor);
     card.innerHTML = `
       <div class="trophy-stage"></div>
       <div class="trophy-copy">
-        <div class="trophy-kicker">${duplicate ? 'DUPLICATE ENCOUNTER' : 'POKÉMON CAUGHT'}</div>
+        <div class="trophy-kicker">${storageFull ? 'STORAGE FULL' : duplicate ? 'DUPLICATE ENCOUNTER' : 'POKÉMON CAUGHT'}</div>
         <div class="trophy-name">${form.name.toUpperCase()} <small>LV ${pokemon.level}</small></div>
         <div class="trophy-type" style="background:${typeColor}">${form.type.toUpperCase()}</div>
         ${variant ? `<span class="trophy-variant">${variant.label}</span>` : ''}
         <div class="trophy-moves">${moves}</div>
-        <div class="trophy-duplicate-note">${duplicate ? 'You already own this species.' : 'Choose where this Pokémon goes.'} ${noteTail}</div>
+        <div class="trophy-duplicate-note">${storageFull ? `You already own ${STORAGE_MAX} Pokémon.` : duplicate ? 'You already own this species.' : 'Choose where this Pokémon goes.'} ${noteTail}</div>
         <form class="trophy-nickname">
-          <label for="trophy-nickname-input">GIVE A NICKNAME TO ${form.name.toUpperCase()}?</label>
+          <label for="trophy-nickname-input" ${storageFull ? 'hidden' : ''}>GIVE A NICKNAME TO ${form.name.toUpperCase()}?</label>
           <div class="trophy-nickname-row">
-            <input id="trophy-nickname-input" maxlength="10" autocomplete="off" placeholder="${form.name}">
+            <input id="trophy-nickname-input" maxlength="10" autocomplete="off" placeholder="${form.name}" ${storageFull ? 'hidden' : ''}>
             ${addButton}
-            <button class="stadium-btn" type="button" data-storage>SEND TO STORAGE</button>
-            ${duplicate ? '<button class="stadium-btn" type="button" data-research>SEND TO RESEARCH</button>' : ''}
+            ${storageFull ? '' : '<button class="stadium-btn" type="button" data-storage>SEND TO STORAGE</button>'}
+            ${researchButton}
           </div>
         </form>
       </div>
@@ -1268,13 +1274,22 @@ export class StadiumUI {
       event.preventDefault();
       if (openTeamSlot || guestSlotsLeft) finish(input.value.trim() || null, 'match');
     });
-    card.querySelector('[data-storage]')!.addEventListener('click', () => finish(input.value.trim() || null, 'storage'));
+    card.querySelector('[data-storage]')?.addEventListener('click', () => finish(input.value.trim() || null, 'storage'));
     card.querySelector('[data-research]')?.addEventListener('click', () => finish(null, 'research'));
     input.addEventListener('keydown', (event) => {
       event.stopPropagation();
       if (event.key === 'Escape') finish(null, 'storage');
     });
-    window.setTimeout(() => input.focus(), 50);
+    // With no nickname to type, the card's own key handling takes Escape and
+    // focus goes to the one button that can close it.
+    const dismiss = storageFull ? card.querySelector<HTMLButtonElement>('[data-research]')! : input;
+    if (storageFull) {
+      card.addEventListener('keydown', (event) => {
+        event.stopPropagation();
+        if (event.key === 'Escape') finish(null, 'research');
+      });
+    }
+    window.setTimeout(() => dismiss.focus(), 50);
   }
 
   /** The end-of-match card when a player quits: who grew, who evolved, who was caught. */

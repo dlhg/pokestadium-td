@@ -747,9 +747,14 @@ export class StadiumTDGame {
     // full team never gets mistaken for "no roster space" (round 2 feedback #23).
     const openTeamSlot = this.store.team.length < TEAM_SIZE;
     const guestSlotsLeft = Math.max(0, MATCH_GUEST_SLOTS - this.guestSlotsUsed);
-    this.ui.showCaptureTrophy(pokemon, duplicate, openTeamSlot, guestSlotsLeft, (name, destination) => {
-      if (destination === 'match' || destination === 'storage') {
-        this.store.add(pokemon, destination === 'match' && openTeamSlot);
+    // A full collection leaves research as the only destination, so the card
+    // drops the keep options rather than offering a slot that cannot be filled.
+    const storageFull = this.store.isStorageFull;
+    const options = { duplicate, openTeamSlot, guestSlotsLeft, storageFull };
+    this.ui.showCaptureTrophy(pokemon, options, (name, destination) => {
+      const kept = (destination === 'match' || destination === 'storage')
+        && this.store.add(pokemon, destination === 'match' && openTeamSlot);
+      if (kept) {
         if (destination === 'match') {
           if (!openTeamSlot) this.guestSlotsUsed++;
           this.roster.push(pokemon);

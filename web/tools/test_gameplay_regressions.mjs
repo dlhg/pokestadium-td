@@ -17,7 +17,7 @@ const result = await build({
       "export { Projectile } from './src/td/Projectile.ts';",
       "export { resolveMoveHit, collectVictims, hitDamage, strikeCreeps } from './src/td/MoveDelivery.ts';",
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
-      "export { createPokemon, formOf, statsOf, TrainerStore } from './src/td/progression/TrainerStore.ts';",
+      "export { createPokemon, formOf, statsOf, TrainerStore, STORAGE_MAX } from './src/td/progression/TrainerStore.ts';",
       "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
       "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups } from './src/td/Cups.ts';",
       "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
@@ -42,7 +42,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep, Tower, rankTargets, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, formOf, statsOf, TrainerStore, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Losing browser focus clears held keys, and touch distinguishes a camera
@@ -360,6 +360,45 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   assert.equal(store.team[0].stage, 1, 'invalid evolution stage is clamped');
   if (previousStorage === undefined) delete globalThis.localStorage;
   else Object.defineProperty(globalThis, 'localStorage', previousStorage);
+}
+
+// Storage has a ceiling: at the cap nothing more is kept, and releasing one
+// for research both banks points and frees the slot it took.
+{
+  const store = new TrainerStore(false);
+  const origin = { kind: 'caught', at: 0 };
+  for (let i = 0; i < STORAGE_MAX; i++) store.add(createPokemon('rattata', 5, origin), false);
+  assert.equal(store.storageUsed, STORAGE_MAX, 'storage fills to the cap');
+  assert.equal(store.isStorageFull, true, 'the cap reports full');
+  assert.equal(store.add(createPokemon('pikachu', 5, origin), false), false, 'a full collection refuses a catch');
+  assert.equal(store.storageUsed, STORAGE_MAX, 'the refused catch is not stored');
+  assert.equal(store.data.pokedex.caught.includes('pikachu'), false, 'a refused catch is not marked caught');
+
+  const doomed = store.data.collection[0].uid;
+  const earned = store.releaseForResearch(doomed);
+  assert.equal(earned, 1, 'releasing one of many copies pays the smallest award');
+  assert.equal(store.data.research.rattata, 1, 'research banks against the species');
+  assert.equal(store.get(doomed), null, 'the released Pokémon leaves the collection');
+  assert.equal(store.storageSpace, 1, 'the release frees a storage slot');
+  assert.equal(store.add(createPokemon('pikachu', 5, origin), false), true, 'the freed slot takes the next catch');
+}
+
+// The last Pokémon can never be released, and a release clears its team slot.
+{
+  const store = new TrainerStore(false);
+  const origin = { kind: 'caught', at: 0 };
+  const first = createPokemon('bulbasaur', 5, origin);
+  store.add(first);
+  assert.equal(store.canRelease(first.uid), false, 'a lone Pokémon cannot be released');
+  assert.equal(store.releaseForResearch(first.uid), null, 'the refused release returns null');
+
+  const second = createPokemon('bulbasaur', 5, origin);
+  store.add(second);
+  assert.equal(store.researchValue(second.uid), 3, 'parting with a second copy pays the top award');
+  assert.equal(store.data.team.includes(second.uid), true, 'the catch took an open team slot');
+  assert.equal(store.releaseForResearch(second.uid), 3, 'a second copy can be released');
+  assert.equal(store.data.team.includes(second.uid), false, 'a released Pokémon leaves the team');
+  assert.equal(store.data.pokedex.caught.includes('bulbasaur'), true, 'releasing keeps the Pokédex entry');
 }
 
 // A wild Pokemon keeps the form that was caught even when its wild level is
@@ -897,4 +936,4 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   assert.deepEqual(hits, [['grunt', 30], ['titan', 22]], 'boss bonus and percent shares apply by threat');
 }
 
-console.log('PASS: gameplay timing, capture, summon, defeat, save repair, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, bonus damage, and cup rules regressions.');
+console.log('PASS: gameplay timing, capture, summon, defeat, save repair, storage cap, release, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, bonus damage, and cup rules regressions.');

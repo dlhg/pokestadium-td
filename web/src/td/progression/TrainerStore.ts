@@ -24,7 +24,24 @@ export const GUARANTEED_CATCH_BELOW = 4;
 export const CAPTURE_MISS_PENALTY_STEP = 0.05;
 /** Number of caught Pokémon that may join the current match beyond the team. */
 export const MATCH_GUEST_SLOTS = 3;
+/**
+ * Hard ceiling on owned Pokémon. The save lives in localStorage, which fails
+ * silently once it fills, so the collection gets a stated limit well under
+ * that: at the cap, catches can still be converted to research, and the
+ * collection screen offers release. A save that arrives over the cap (an old
+ * save, or the dev panel) is left intact — only new additions are refused.
+ */
+export const STORAGE_MAX = 1000;
 const STORAGE_KEY = 'pokestadium-td/save';
+
+/**
+ * Research earned by parting with one Pokémon, given how many copies of that
+ * species are kept. Rarer species are worth more, so the first duplicate pays
+ * best and a hoard of the same species pays least.
+ */
+export function researchPointsFor(copiesKept: number): number {
+  return copiesKept <= 1 ? 3 : copiesKept === 2 ? 2 : 1;
+}
 
 export interface OwnedPokemon {
   uid: string;
@@ -298,14 +315,33 @@ export class TrainerStore {
     return this.data.team.map(uid => (uid ? this.get(uid) : null)).filter((p): p is OwnedPokemon => p !== null);
   }
 
-  /** Adds to the collection and drops into the first open team slot, if there is one. */
-  public add(pokemon: OwnedPokemon, addToTeam = true): void {
+  /** Owned Pokémon against the storage ceiling. */
+  public get storageUsed(): number {
+    return this.data.collection.length;
+  }
+
+  public get storageSpace(): number {
+    return Math.max(0, STORAGE_MAX - this.data.collection.length);
+  }
+
+  public get isStorageFull(): boolean {
+    return this.storageSpace === 0;
+  }
+
+  /**
+   * Adds to the collection and drops into the first open team slot, if there
+   * is one. Returns false when storage is full and nothing was kept — callers
+   * offer research instead.
+   */
+  public add(pokemon: OwnedPokemon, addToTeam = true): boolean {
+    if (this.isStorageFull) return false;
     this.data.collection.push(pokemon);
     if (addToTeam) {
       const open = this.data.team.indexOf(null);
       if (open !== -1) this.data.team[open] = pokemon.uid;
     }
     this.markCaught(pokemon.speciesId);
+    return true;
   }
 
   public hasSpecies(speciesId: string): boolean {
@@ -314,11 +350,41 @@ export class TrainerStore {
 
   /** Duplicate catches grant diminishing species-specific research. */
   public convertDuplicate(speciesId: string): number {
-    const prior = this.data.research[speciesId] ?? 0;
-    const ownedCopies = this.data.collection.filter(pokemon => pokemon.speciesId === speciesId).length;
-    const points = ownedCopies === 1 ? 3 : ownedCopies === 2 ? 2 : 1;
-    this.data.research[speciesId] = prior + points;
+    return this.awardResearch(speciesId, this.copiesOf(speciesId));
+  }
+
+  private copiesOf(speciesId: string): number {
+    return this.data.collection.filter(pokemon => pokemon.speciesId === speciesId).length;
+  }
+
+  private awardResearch(speciesId: string, copiesKept: number): number {
+    const points = researchPointsFor(copiesKept);
+    this.data.research[speciesId] = (this.data.research[speciesId] ?? 0) + points;
     this.markCaught(speciesId);
+    return points;
+  }
+
+  /** What releasing this Pokémon would pay, so a card can show it before asking. */
+  public researchValue(uid: string): number {
+    const pokemon = this.get(uid);
+    return pokemon ? researchPointsFor(this.copiesOf(pokemon.speciesId) - 1) : 0;
+  }
+
+  /** The last Pokémon standing can't be released — that would strand the trainer. */
+  public canRelease(uid: string): boolean {
+    return this.data.collection.length > 1 && !!this.get(uid);
+  }
+
+  /**
+   * Sends an owned Pokémon to the Professor: it leaves the collection (and any
+   * team slot) for good and its species banks research. Returns the points
+   * earned, or null when the release was refused.
+   */
+  public releaseForResearch(uid: string): number | null {
+    const pokemon = this.get(uid);
+    if (!pokemon || !this.canRelease(uid)) return null;
+    const points = this.awardResearch(pokemon.speciesId, this.copiesOf(pokemon.speciesId) - 1);
+    this.release(uid);
     return points;
   }
 
