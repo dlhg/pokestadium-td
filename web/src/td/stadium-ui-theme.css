@@ -341,14 +341,14 @@
 
 .tower-card .card-info-btn {
   position: absolute;
-  top: 7px;
-  left: 65px;
+  bottom: 5px;
+  right: 5px;
   margin: 0;
 }
 
 .tower-card .card-cost {
   position: absolute;
-  inset: 0 7px 0 65px;
+  inset: 0 7px 0 25px;
   display: flex;
   align-items: center;
   justify-content: center;
