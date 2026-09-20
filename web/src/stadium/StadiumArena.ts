@@ -410,9 +410,10 @@ export class StadiumArena {
           // head carry the cheer motion. This removes the sliding paper-card
           // seam where the artwork meets the seat.
           float upperBody = smoothstep(-0.82, 0.28, position.y);
-          // A hush stills the stands; a roar makes them bounce out of their seats.
+          // A hush stills the stands; a roar makes them bounce farther without
+          // accelerating the cadence into a frantic flicker during cinematics.
           float energy = clamp(1.0 + mood, 0.06, 2.6);
-          float rate = 5.0 + mood * 3.0;
+          float rate = 5.0;
           animatedPosition.y += sin(time * rate + cheerPhase) * 0.065 * upperBody * energy;
           animatedPosition.x += sin(time * 2.5 + cheerPhase) * 0.016 * upperBody * energy;
           // Four pixel inset inside each 224px cell prevents transparent-edge
