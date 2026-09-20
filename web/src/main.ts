@@ -89,6 +89,7 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelector<HTMLButtonElement>(`[data-map-id="${STADIUM_MAPS[0].id}"]`)!.click();
     document.querySelector<HTMLButtonElement>('[data-fill-rentals]')!.click();
   }
+  if (shot === 'pokemon_summary') game.ui.trainer.openSummary(store.team[0].uid);
   // The in-match roster with three members sitting out and three rentals in their places.
   if (shot === 'roster_rentals') {
     store.team.slice(0, 3).forEach(member => store.setLevel(member, CUPS.little.entryMax + 6));
@@ -211,7 +212,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
+  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && shot !== 'pokemon_summary' && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

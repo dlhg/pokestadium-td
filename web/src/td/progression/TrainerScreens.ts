@@ -13,7 +13,7 @@ import { CUPS, isEligible, nearOutgrowing, type CupRules } from '../Cups';
 import { MOVES } from '../../stadium/MoveDatabase';
 import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../../stadium/TypeMatrix';
 import { dexNumber, GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
-import { levelProgress, MAX_DV, MAX_LEVEL, STAT_KEYS, towerModifiers, xpForLevel } from './Stats';
+import { levelProgress, MAX_DV, MAX_LEVEL, STAT_KEYS, xpForLevel } from './Stats';
 import {
   displayName, formOf, NICKNAME_MAX, OwnedPokemon, speciesOf, statsOf, TEAM_SIZE, TrainerStore,
 } from './TrainerStore';
@@ -42,6 +42,12 @@ function typeChips(pokemon: OwnedPokemon): string {
 
 function xpBar(pokemon: OwnedPokemon): string {
   return `<span class="tr-xp"><i style="width:${levelProgress(pokemon.xp, pokemon.level) * 100}%"></i></span>`;
+}
+
+/** Extracted Stadium party icon for the Pokemon's current evolutionary form. */
+function pokemonIcon(pokemon: OwnedPokemon): string {
+  const number = String(dexNumber(pokemon.speciesId, pokemon.stage)).padStart(3, '0');
+  return `<img class="tr-card-icon" src="/generated/stadium/icons/${number}.png" alt="" onerror="this.remove()">`;
 }
 
 /** Threat types this Pokémon hits super-effectively with moves it can already buy. */
@@ -104,11 +110,14 @@ function benchTileHtml(pokemon: OwnedPokemon, strong: PokemonType[], cup: CupRul
   const eligible = !cup || isEligible(pokemon.level, cup);
   return `<div class="tr-card ${eligible ? '' : 'ineligible'}" draggable="${eligible}" ${eligible ? `data-drag-uid="${pokemon.uid}"` : ''}>
     <button class="tr-card-main" data-toggle="${pokemon.uid}" ${eligible ? 'title="Add to team · drag onto a slot to swap"' : `disabled title="Over ${cup!.name}'s LV ${cup!.entryMax} entry limit"`} style="${typeArtStyle(form.type)}">
-      <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}${pokemon.nickname ? `<small>${form.name.toUpperCase()}</small>` : ''}</span>
-      <span class="tr-card-meta">LV ${pokemon.level}</span>
-      ${cupTag(pokemon, cup)}
-      <span class="tr-card-types">${typeChips(pokemon)}</span>
-      ${strong.length ? `<span class="tr-matchup" title="Strong vs ${strong.join(', ')}">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
+      ${pokemonIcon(pokemon)}
+      <span class="tr-card-copy">
+        <span class="tr-card-name">${escapeHtml(displayName(pokemon).toUpperCase())}${pokemon.nickname ? `<small>${form.name.toUpperCase()}</small>` : ''}</span>
+        <span class="tr-card-meta">LV ${pokemon.level}</span>
+        ${cupTag(pokemon, cup)}
+        <span class="tr-card-types">${typeChips(pokemon)}</span>
+        ${strong.length ? `<span class="tr-matchup" title="Strong vs ${strong.join(', ')}">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
+      </span>
     </button>
     <button class="tr-info stadium-btn" data-info="${pokemon.uid}" title="Summary">INFO</button>
   </div>`;
@@ -119,10 +128,13 @@ function rentalTileHtml(pokemon: OwnedPokemon, strong: PokemonType[]): string {
   const form = formOf(pokemon);
   return `<div class="tr-card rental">
     <button class="tr-card-main" data-rent="${pokemon.speciesId}" title="Rent for this match" style="${typeArtStyle(form.type)}">
-      <span class="tr-card-name">${escapeHtml(form.name.toUpperCase())}</span>
-      <span class="tr-card-meta">LV ${pokemon.level}</span>
-      <span class="tr-card-types">${typeChips(pokemon)}</span>
-      ${strong.length ? `<span class="tr-matchup" title="Strong vs ${strong.join(', ')}">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
+      ${pokemonIcon(pokemon)}
+      <span class="tr-card-copy">
+        <span class="tr-card-name">${escapeHtml(form.name.toUpperCase())}</span>
+        <span class="tr-card-meta">LV ${pokemon.level}</span>
+        <span class="tr-card-types">${typeChips(pokemon)}</span>
+        ${strong.length ? `<span class="tr-matchup" title="Strong vs ${strong.join(', ')}">STRONG VS ${strong.slice(0, 3).join(' · ').toUpperCase()}</span>` : ''}
+      </span>
     </button>
   </div>`;
 }
@@ -631,9 +643,7 @@ export class TrainerScreens {
       const species = speciesOf(pokemon);
       const form = formOf(pokemon);
       const stats = statsOf(pokemon);
-      const mods = towerModifiers(stats, pokemon.level);
-      const effect = { attack: `${Math.round((mods.damage - 1) * 100)}% DMG`, speed: `${Math.round((mods.rate - 1) * 100)}% RATE`, special: `${Math.round((mods.status - 1) * 100)}% STATUS` };
-      const signed = (text: string) => (text.startsWith('-') ? text : `+${text}`);
+      const effect = { attack: 'MOVE DAMAGE', speed: 'ATTACK SPEED', special: 'STATUS EFFECTS' };
       const origin = pokemon.origin.kind === 'caught'
         ? `Caught at round ${pokemon.origin.round ?? '?'} with a ${(pokemon.origin.ball ?? 'poke').toUpperCase()} BALL`
         : pokemon.origin.kind === 'starter' ? 'Your first partner' : pokemon.origin.kind === 'gift' ? 'A gift from the stadium' : 'Granted from the dev panel';
@@ -657,11 +667,15 @@ export class TrainerScreens {
           <div class="tr-summary-grid">
             <div>
               <h3>STATS</h3>
+              <p class="tr-stat-note">Stats grow with level. Natural talent is unique to each Pokémon and never changes.</p>
+              <div class="tr-stat tr-stat-head" aria-hidden="true">
+                <span>STAT</span><span>NOW</span><span>NATURAL TALENT</span><span>AFFECTS</span>
+              </div>
               ${STAT_KEYS.map(key => `<div class="tr-stat">
                 <span class="tr-stat-name">${key.toUpperCase()}</span>
                 <span class="tr-stat-value">${stats[key]}</span>
-                <span class="tr-stars" title="DV ${pokemon.dvs[key]} / ${MAX_DV}">${'★'.repeat(Math.round(pokemon.dvs[key] / 3))}${'☆'.repeat(5 - Math.round(pokemon.dvs[key] / 3))}</span>
-                <span class="tr-stat-effect ${effect[key].startsWith('-') ? 'down' : ''}">${signed(effect[key])}</span>
+                <span class="tr-stars" title="Natural talent ${pokemon.dvs[key]} / ${MAX_DV} · fixed when caught">${'★'.repeat(Math.round(pokemon.dvs[key] / 3))}${'☆'.repeat(5 - Math.round(pokemon.dvs[key] / 3))}</span>
+                <span class="tr-stat-effect">${effect[key]}</span>
               </div>`).join('')}
               <h3>EVOLUTION</h3>
               <div class="tr-evo">${species.forms.map((f, i) => `<span class="${i === pokemon.stage ? 'current' : i < pokemon.stage ? 'past' : ''}">${f.name}${f.atLevel ? ` <small>LV ${f.atLevel}</small>` : ''}</span>`).join('<b>→</b>')}</div>
