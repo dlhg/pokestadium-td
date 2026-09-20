@@ -10,7 +10,9 @@ const result = await build({
       "export { StadiumTDGame } from './src/td/StadiumTDGame.ts';",
       "export { leadingActionCreep } from './src/td/StadiumTDGame.ts';",
       "export { StadiumCamera } from './src/engine/StadiumCamera.ts';",
-      "export { Tower } from './src/td/Tower.ts';",
+      "export { Input } from './src/engine/Input.ts';",
+      "export { canUseSavedTeam } from './src/td/StadiumUI.ts';",
+      "export { Tower, rankTargets } from './src/td/Tower.ts';",
       "export { Creep } from './src/td/Creep.ts';",
       "export { Projectile } from './src/td/Projectile.ts';",
       "export { resolveMoveHit, collectVictims, hitDamage, strikeCreeps } from './src/td/MoveDelivery.ts';",
@@ -39,9 +41,61 @@ const result = await build({
   loader: { '.css': 'empty' },
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
-const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
+const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep, Tower, rankTargets, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
   createPokemon, formOf, statsOf, TrainerStore, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
+
+// Losing browser focus clears held keys, and touch distinguishes a camera
+// drag from a world tap instead of firing on touchstart.
+{
+  const descriptors = Object.fromEntries(['window', 'document', 'Element', 'HTMLElement'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const windowHandlers = {};
+  const documentHandlers = {};
+  class FakeElement {}
+  Object.defineProperty(globalThis, 'Element', { configurable: true, value: FakeElement });
+  Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: FakeElement });
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    innerWidth: 1000, innerHeight: 500,
+    addEventListener: (name, callback) => { windowHandlers[name] = callback; },
+  } });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+    hidden: false,
+    addEventListener: (name, callback) => { documentHandlers[name] = callback; },
+  } });
+  const input = new Input({ addEventListener() {} });
+  windowHandlers.keydown({ code: 'KeyW', target: null });
+  assert.equal(input.isKeyDown('KeyW'), true, 'keydown is held');
+  windowHandlers.blur();
+  assert.equal(input.isKeyDown('KeyW'), false, 'blur releases held keys');
+
+  const touch = (identifier, clientX, clientY) => ({ identifier, clientX, clientY, target: null });
+  const event = list => ({ changedTouches: list, touches: list, preventDefault() {} });
+  windowHandlers.touchstart(event([touch(7, 100, 100)]));
+  assert.equal(input.clicked, false, 'touchstart does not click');
+  windowHandlers.touchmove({ touches: [touch(7, 125, 110)], preventDefault() {} });
+  assert.ok(input.dragDelta.lengthSq() > 0, 'touch movement feeds camera drag');
+  windowHandlers.touchend(event([touch(7, 125, 110)]));
+  assert.equal(input.clicked, false, 'touch drag does not click on release');
+  windowHandlers.touchstart(event([touch(8, 200, 200)]));
+  windowHandlers.touchend(event([touch(8, 200, 200)]));
+  assert.equal(input.clicked, true, 'stationary touch clicks on release');
+
+  for (const key of ['window', 'document', 'Element', 'HTMLElement']) {
+    if (descriptors[key] === undefined) delete globalThis[key];
+    else Object.defineProperty(globalThis, key, descriptors[key]);
+  }
+}
+
+// A deliberately benched collection member must force team select rather
+// than being silently restored to an open slot.
+{
+  const pikachu = createPokemon('pikachu', 5, { kind: 'dev', at: 0 });
+  const bulbasaur = createPokemon('bulbasaur', 5, { kind: 'dev', at: 0 });
+  assert.equal(canUseSavedTeam([pikachu, bulbasaur], [pikachu.uid, null, null, null, null, null], 'poke'), false,
+    'a benched Pokémon prevents the course fast path');
+  assert.equal(canUseSavedTeam([pikachu, bulbasaur], [pikachu.uid, bulbasaur.uid, null, null, null, null], 'poke'), true,
+    'a complete eligible saved team can skip team select');
+}
 
 // Action mode follows the live creep nearest the exit. A knockout hands the
 // shot off through an eased focus move instead of teleporting to the runner-up.
@@ -123,6 +177,41 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   game.ui.onStartWave();
   assert.equal(starts, 1, 'next match starts');
   assert.equal(game.isPaused, false, 'starting a match releases keyboard pause');
+}
+
+// Capture naming owns the pause and all gameplay input until its modal closes.
+{
+  const game = new StadiumTDGame();
+  game.ui = { setPauseVisible() {} };
+  game.audio = { playSelect() {} };
+  game.bindUIEvents();
+  game.namingHold = true;
+  game.isPaused = true;
+  game.pauseMenuOpen = true;
+  game.ui.onResumeGame();
+  assert.equal(game.isPaused, true, 'pause resume cannot release a naming hold');
+  game.pauseMenuOpen = false;
+  game.handleInput({
+    isKeyJustPressed: code => code === 'Escape', rightClicked: false,
+  });
+  assert.equal(game.pauseMenuOpen, false, 'Escape is ignored while the trophy card owns input');
+}
+
+// Disabled roster members never arm a placement preview.
+{
+  const member = createPokemon('pikachu', 5, { kind: 'dev', at: 0 });
+  const game = new StadiumTDGame();
+  game.ui = {};
+  game.audio = { playSelect() {} };
+  game.bindUIEvents();
+  game.money = 9999;
+  game.towers = [{ pokemon: member }];
+  game.ui.onSelectMember(member);
+  assert.equal(game.selectedMember, null, 'deployed member cannot enter placement mode');
+  game.towers = [];
+  game.money = 0;
+  game.ui.onSelectMember(member);
+  assert.equal(game.selectedMember, null, 'unaffordable member cannot enter placement mode');
 }
 
 // Poké Ball entrances default on and the pause-menu toggle persists an opt-out.
@@ -415,6 +504,16 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   assert.equal(game.activeCapture, null, 'fainted target does not start capture');
 }
 
+// A roster/database mismatch cannot consume a ball or delete an uncatalogued
+// creep through a successful capture with no Pokémon to award.
+{
+  const game = new StadiumTDGame();
+  game.balls = { poke: 2, great: 0, ultra: 0 };
+  game.tryCapture({ catchable: true, name: 'Definitely Not A Species' }, 'poke');
+  assert.equal(game.balls.poke, 2, 'unmapped creep does not consume a ball');
+  assert.equal(game.activeCapture, null, 'unmapped creep does not start capture');
+}
+
 // Catch controls throw in one click with the ball selected in the capture kit.
 {
   const game = new StadiumTDGame();
@@ -556,7 +655,7 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
     hasTrait: trait => trait === 'airborne' };
   const tower = (seesPhantoms) => ({ position: new THREE.Vector3(), targetPriority: 'first', seesPhantoms,
     reachAgainst: range => range });
-  const find = (t, move, creeps) => Tower.prototype.findTarget.call(t, creeps, move);
+  const find = (t, move, creeps) => rankTargets(t, creeps, move, 1)[0] ?? null;
   assert.equal(find(tower(false), MOVES.ember, [ghost]), null, 'phantom is untargetable');
   assert.equal(find(tower(true), MOVES.ember, [ghost]), ghost, 'psychic and ghost towers see phantoms');
   assert.equal(find(tower(false), { ...MOVES.ember, delivery: 'aura' }, [ghost]), ghost, 'auras reach phantoms');
@@ -593,6 +692,27 @@ const { StadiumTDGame, StadiumCamera, leadingActionCreep, Tower, Creep, Projecti
   Creep.prototype.applyStatus.call(titan, 'stun', 4);
   assert.deepEqual([titan.movementStatus.effect, titan.movementStatus.timer], ['freeze', 2],
     'titans are slowed, briefly, instead of stopped');
+}
+
+// Paralysis stutter follows simulation time, including speed scaling, and
+// does not jump forward during a paused (zero-delta) update.
+{
+  const creep = {
+    simulationTime: 0, alive: true, captureLocked: false, threatAura: null,
+    captureRing: { visible: false }, baseSpeed: 10, damageStatus: null,
+    movementStatus: { effect: 'paralyze', timer: 10 }, auraSlow: 0,
+    waypoints: [], currentWpIdx: 0, position: new THREE.Vector3(),
+    group: { position: new THREE.Vector3() }, gait: { update() {} },
+    animPokemon: { mesh: {}, update() {} }, lastPosition: new THREE.Vector3(),
+    entranceTimer: 0, hitAnimationTimer: 0,
+  };
+  Creep.prototype.update.call(creep, 0.01, () => {});
+  assert.equal(creep.speed, 6, 'early paralysis phase permits slowed movement');
+  Creep.prototype.update.call(creep, 0.1, () => {});
+  assert.equal(creep.speed, 0, 'scaled simulation delta advances paralysis stutter');
+  const pausedAt = creep.simulationTime;
+  Creep.prototype.update.call(creep, 0, () => {});
+  assert.equal(creep.simulationTime, pausedAt, 'pause freezes paralysis phase');
 }
 
 // Paths cap at 3-2-0: a second path closes the third, and only one path

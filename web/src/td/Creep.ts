@@ -114,6 +114,8 @@ export class Creep {
   private lifts: number[];
   private currentWpIdx: number = 0;
   private remainingAtWaypoint: number[];
+  /** Local simulation clock used by animation and status phases. */
+  private simulationTime = 0;
   /** Negative distance to the exit: comparable even on routes of different lengths. */
   public pathProgress: number = 0;
 
@@ -452,7 +454,8 @@ export class Creep {
     // Do not advance paths, status ticks, or faint timers while paused.
     if (dt <= 0) return;
 
-    const time = performance.now() * 0.001;
+    this.simulationTime += dt;
+    const time = this.simulationTime;
     if (this.threatAura) {
       const pulse = 1 + Math.sin(time * (this.threat === 'titan' ? 4 : 3)) * 0.12;
       this.threatAura.scale.setScalar(pulse);

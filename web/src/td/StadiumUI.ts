@@ -80,6 +80,14 @@ function defensiveNotes(types: PokemonType[], includeWeaknesses: boolean): strin
  *  back to 1x: never, only for species not yet in the collection, or always. */
 export type CatchSlowMoMode = 'off' | 'new' | 'always';
 
+/** Whether course selection can safely bypass team select without changing it. */
+export function canUseSavedTeam(collection: OwnedPokemon[], team: (string | null)[], cup: CupId): boolean {
+  return collection.length > 0
+    && collection.length <= TEAM_SIZE
+    && collection.every(pokemon => isEligible(pokemon.level, CUPS[cup]))
+    && collection.every(pokemon => team.includes(pokemon.uid));
+}
+
 /** What the roster hint says about the spot the cursor is currently over. */
 export interface PlacementStatus {
   valid: boolean;
@@ -542,11 +550,10 @@ export class StadiumUI {
         const map = STADIUM_MAPS.find(candidate => candidate.id === button.dataset.mapId);
         if (!map) return;
         this.setMapSelectVisible(false);
-        // With six or fewer Pokémon, all allowed in this cup, everyone plays, so there is nothing to pick.
-        const { collection } = this.store.data;
-        const everyoneEligible = collection.every(pokemon => isEligible(pokemon.level, CUPS[map.cup]));
-        if (collection.length > 0 && collection.length <= TEAM_SIZE && everyoneEligible) {
-          this.store.fillTeam();
+        // Skip team select only when every eligible collection member is
+        // already on the saved team. Empty slots may be an intentional bench.
+        const { collection, team } = this.store.data;
+        if (canUseSavedTeam(collection, team, map.cup)) {
           this.store.rentalPicks = [];
           this.onSelectMap(map);
           return;
@@ -657,7 +664,9 @@ export class StadiumUI {
         ${rental ? '<span class="card-rental">RENTAL</span>' : ''}
       `;
 
-      const select = () => this.onSelectMember(member);
+      const select = () => {
+        if (!card.classList.contains('disabled')) this.onSelectMember(member);
+      };
       card.addEventListener('click', select);
       card.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -1278,6 +1287,8 @@ export class StadiumUI {
   private nextCatchId = 1;
   private catchCreeps = new Map<number, Creep>();
   private catchTags = new Map<number, HTMLButtonElement>();
+  /** Measured once when a tag is created; its fixed content widths do not change afterward. */
+  private catchTagWidths = new Map<number, number>();
   private catchTrayKey = '';
 
   private catchId(creep: Creep): number {
@@ -1323,6 +1334,7 @@ export class StadiumUI {
       if (!this.catchCreeps.has(id)) {
         tag.remove();
         this.catchTags.delete(id);
+        this.catchTagWidths.delete(id);
       }
     }
     const placed: { left: number; right: number; top: number; bottom: number }[] = [];
@@ -1355,7 +1367,11 @@ export class StadiumUI {
       tag.querySelector<HTMLElement>('.catch-label')!.textContent = `CATCH ${slot.creep.name.replace(/^Titan /, '').toUpperCase()}`;
       tag.querySelector<HTMLElement>('.catch-odds')!.textContent = `${Math.round(slot.odds[state.selectedBall] * 100)}%`;
       shown.add(id);
-      const w = tag.offsetWidth;
+      let w = this.catchTagWidths.get(id);
+      if (w === undefined) {
+        w = tag.offsetWidth;
+        this.catchTagWidths.set(id, w);
+      }
       // Renderer coordinates are physical viewport pixels; this layer lives in
       // the scaled HUD's logical coordinate space.
       const x = slot.x / this.uiScale;
@@ -1714,6 +1730,7 @@ export class StadiumUI {
       const deployed = state.deployed.has(member.uid);
       el.classList.toggle('deployed', deployed);
       el.classList.toggle('disabled', deployed || state.money < speciesOf(member).deployCost);
+      el.setAttribute('aria-disabled', String(deployed || state.money < speciesOf(member).deployCost));
       el.classList.toggle('selected', state.selectedMember?.uid === member.uid);
       const storageButton = el.querySelector<HTMLButtonElement>('[data-store-member]')!;
       storageButton.disabled = deployed;

@@ -157,6 +157,8 @@ export class StadiumTDGame {
   private evolutionQueue: { tower: Tower; fromName: string; toName: string }[] = [];
   private traitsIntroduced = new Set<CreepTrait>();
   private cinemaDim = 0;
+  /** Simulation clock: advances with game speed and freezes with the match. */
+  private arenaTime = 0;
   private cinemaDimApplied = false;
   private cinemaFades = new Map<THREE.Object3D, number>();
   private readonly shotBounds = new THREE.Box3();
@@ -224,7 +226,7 @@ export class StadiumTDGame {
     this.ui.onMenuShown = () => this.audio.playMusic(MENU_MUSIC);
     this.ui.onResumeGame = () => {
       this.pauseMenuOpen = false;
-      this.isPaused = false;
+      this.isPaused = this.namingHold;
       this.ui.setPauseVisible(false);
       this.audio.playSelect();
     };
@@ -274,6 +276,12 @@ export class StadiumTDGame {
     };
     this.ui.onCastSignature = (tower, signatureId) => this.requestSignature(tower, signatureId);
     this.ui.onSelectMember = (member) => {
+      if (!member) {
+        this.clearSelection();
+        return;
+      }
+      // Disabled roster cards are informative, not placement toggles.
+      if (this.isDeployed(member) || this.money < speciesOf(member).deployCost) return;
       if (this.selectedTower) {
         this.selectedTower.setSelected(false);
         this.selectedTower = null;
@@ -415,6 +423,7 @@ export class StadiumTDGame {
     this.isPaused = false;
     this.isChoosingMap = false;
     this.gameSpeed = 1;
+    this.arenaTime = 0;
     this.camera.setMode('tactical');
     this.particles.update(60);
     this.ui.setMapSelectVisible(false);
@@ -453,6 +462,8 @@ export class StadiumTDGame {
   }
 
   public handleInput(input: Input): void {
+    // The capture trophy owns the keyboard until its callback closes it.
+    if (this.namingHold) return;
     // Hotkeys: C cycles the camera, Q catches the nearest-to-exit catchable
     // Pokémon with the selected ball, and 1–9 call signature moves in bar order.
     if (input.isKeyJustPressed('KeyC')) {
@@ -637,7 +648,9 @@ export class StadiumTDGame {
 
   /** Weakened, free Pokémon a ball can be thrown at, nearest the exit first. */
   private catchableCreeps(): Creep[] {
-    return this.creeps.filter(creep => creep.catchable).sort((a, b) => b.pathProgress - a.pathProgress);
+    return this.creeps
+      .filter(creep => creep.catchable && speciesForCreepName(creep.name) !== null)
+      .sort((a, b) => b.pathProgress - a.pathProgress);
   }
 
   /** Whether this creep's species isn't in the collection yet — used by
@@ -664,7 +677,7 @@ export class StadiumTDGame {
   public tryCapture(target: Creep | null, ball: BallType): void {
     // A fainted Pokemon remains in the scene for its defeat animation, but it
     // is no longer a legal capture target and must not consume a ball.
-    if (!target?.catchable || this.balls[ball] <= 0) return;
+    if (!target?.catchable || !speciesForCreepName(target.name) || this.balls[ball] <= 0) return;
     if (this.capture || this.evolution || this.summon) return;
     this.balls[ball]--;
     const chance = this.captureChance(target, ball);
@@ -992,7 +1005,7 @@ export class StadiumTDGame {
         // verdict beat, same skip inputs as the deployment cinematic above.
         this.capture.sequence.skip();
       }
-    } else if (!this.evolution) {
+    } else if (!this.evolution && !this.namingHold) {
       this.handleInput(input);
     }
 
@@ -1017,11 +1030,12 @@ export class StadiumTDGame {
     // length constant no matter the speed setting (round 2 feedback #13).
     // Player-tunable via CATCH SLOW-MO: off, new species only, or always.
     const catchableScale = this.catchSlowMoMode !== 'off' && !this.capture && this.gameSpeed > 1
-      && this.creeps.some(creep => creep.catchable
+      && this.creeps.some(creep => creep.catchable && speciesForCreepName(creep.name) !== null
         && (this.catchSlowMoMode === 'always' || this.isUncaughtSpecies(creep)))
       ? 1 / this.gameSpeed
       : 1;
     const dt = this.isPaused ? 0 : realDt * this.gameSpeed * catchableScale * captureScale * evolutionScale * summonScale;
+    this.arenaTime += dt;
 
     // Update Wave Manager
     if (dt > 0) this.waveManager.update(
@@ -1172,7 +1186,7 @@ export class StadiumTDGame {
     this.camera.update(realDt);
     this.jumbotronCamera.setActionTarget(actionLeader?.id ?? null, actionLeader?.position ?? null);
     this.jumbotronCamera.update(realDt);
-    this.arena.update(performance.now() * 0.001, this.camera.camera.position, realDt);
+    this.arena.update(this.arenaTime, this.camera.camera.position, dt);
     this.renderer.update(realDt, this.waveManager.inWave ? 0.8 : 0.0);
 
     // Update Jumbotron display with current wave

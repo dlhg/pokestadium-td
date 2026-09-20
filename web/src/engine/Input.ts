@@ -28,6 +28,7 @@ export class Input {
   private canvas: HTMLCanvasElement;
   private pointerDownScreen: THREE.Vector2 = new THREE.Vector2();
   private pointerStartedOnUI: boolean = false;
+  private activeTouchId: number | null = null;
 
   // Keyboard state
   public keysJustPressed: Set<string> = new Set();
@@ -91,17 +92,54 @@ export class Input {
       e.preventDefault();
     });
 
-    // Touch support
+    // Touch mirrors the mouse gesture: movement drags the camera, while only a
+    // release that stayed within the click threshold can select something.
     window.addEventListener('touchstart', (e) => {
-      if (e.touches.length > 0) {
-        const touch = e.touches[0];
-        this.mouseScreen.set(touch.clientX, touch.clientY);
-        this.mouseNDC.x = (touch.clientX / window.innerWidth) * 2 - 1;
-        this.mouseNDC.y = -(touch.clientY / window.innerHeight) * 2 + 1;
-        this.clicked = true;
-        this.clickedOnUI = touch.target instanceof Element && touch.target.closest('.interactive') !== null;
+      if (this.activeTouchId !== null || e.changedTouches.length === 0) return;
+      const touch = e.changedTouches[0];
+      this.activeTouchId = touch.identifier;
+      this.updatePointer(touch.clientX, touch.clientY);
+      this.isMouseDown = true;
+      this.isDragging = false;
+      this.dragDelta.set(0, 0);
+      this.pointerDownScreen.set(touch.clientX, touch.clientY);
+      this.pointerStartedOnUI = touch.target instanceof Element && touch.target.closest('.interactive') !== null;
+      this.clickedOnUI = this.pointerStartedOnUI;
+      if (!this.pointerStartedOnUI) e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      const touch = this.activeTouch(e.touches);
+      if (!touch) return;
+      const previousX = this.mouseScreen.x;
+      const previousY = this.mouseScreen.y;
+      this.updatePointer(touch.clientX, touch.clientY);
+      if (!this.pointerStartedOnUI) {
+        const moved = Math.hypot(touch.clientX - this.pointerDownScreen.x, touch.clientY - this.pointerDownScreen.y);
+        if (moved > 5) this.isDragging = true;
+        if (this.isDragging) {
+          this.dragDelta.x += touch.clientX - previousX;
+          this.dragDelta.y += touch.clientY - previousY;
+        }
+        e.preventDefault();
       }
     }, { passive: false });
+
+    window.addEventListener('touchend', (e) => {
+      const touch = this.activeTouch(e.changedTouches);
+      if (!touch) return;
+      this.updatePointer(touch.clientX, touch.clientY);
+      if (!this.isDragging) {
+        this.clicked = true;
+        this.clickedOnUI = this.pointerStartedOnUI;
+      }
+      if (!this.pointerStartedOnUI) e.preventDefault();
+      this.finishPointerGesture();
+    }, { passive: false });
+
+    window.addEventListener('touchcancel', (e) => {
+      if (this.activeTouch(e.changedTouches)) this.finishPointerGesture();
+    });
 
     // Keyboard
     window.addEventListener('keydown', (e) => {
@@ -116,6 +154,42 @@ export class Input {
     window.addEventListener('keyup', (e) => {
       this.keysDown.delete(e.code);
     });
+
+    // Browsers do not dispatch keyup/mouseup for every gesture when focus
+    // leaves the tab (for example, Cmd-Tab while holding W).
+    window.addEventListener('blur', () => this.resetHeldInput());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.resetHeldInput();
+    });
+  }
+
+  private updatePointer(x: number, y: number): void {
+    this.mouseScreen.set(x, y);
+    this.mouseNDC.x = (x / window.innerWidth) * 2 - 1;
+    this.mouseNDC.y = -(y / window.innerHeight) * 2 + 1;
+  }
+
+  private activeTouch(list: TouchList): Touch | null {
+    if (this.activeTouchId === null) return null;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].identifier === this.activeTouchId) return list[i];
+    }
+    return null;
+  }
+
+  private finishPointerGesture(): void {
+    this.isMouseDown = false;
+    this.isDragging = false;
+    this.activeTouchId = null;
+  }
+
+  private resetHeldInput(): void {
+    this.keysDown.clear();
+    this.keysJustPressed.clear();
+    this.clicked = false;
+    this.rightClicked = false;
+    this.dragDelta.set(0, 0);
+    this.finishPointerGesture();
   }
 
   public raycast(camera: THREE.Camera, objects: THREE.Object3D[]): THREE.Intersection[] {

@@ -172,7 +172,7 @@ export class Tower {
 
     // Range Ring Visual Indicator (Hidden until selected)
     const range = this.getMaxRange();
-    const ringGeo = new THREE.RingGeometry(range - 0.15, range, 48);
+    const ringGeo = new THREE.RingGeometry(Math.max(0, range - 0.2), range, 48);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00f0ff,
       side: THREE.DoubleSide,
@@ -609,9 +609,6 @@ export class Tower {
     };
   }
 
-  private findTarget(creeps: Creep[], move: MoveDefinition): Creep | null {
-    return rankTargets(this, creeps, move, 1)[0] ?? null;
-  }
 }
 
 /**
@@ -619,7 +616,7 @@ export class Tower {
  * priority. Fields and auras don't aim, so a Phantom can set them off;
  * ground-only moves pass under Airborne creeps, so they never trigger one.
  */
-function rankTargets(
+export function rankTargets(
   tower: Pick<Tower, 'position' | 'targetPriority' | 'seesPhantoms' | 'reachAgainst'>,
   creeps: Creep[],
   move: MoveDefinition,
