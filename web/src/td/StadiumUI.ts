@@ -337,7 +337,7 @@ export class StadiumUI {
           border: 3px solid var(--broadcast-gold, #f6c437);
           box-shadow: 0 10px 0 rgba(3,7,16,.8), 0 0 42px rgba(246,196,55,.4);
         }
-        #storage-confirm .storage-confirm-kicker { color: #f6c437; font-size: 11px; font-weight: 800; letter-spacing: 2px; }
+        #storage-confirm .storage-confirm-kicker { color: #f6c437; font: 700 28px/1.1 'Teko','Impact',sans-serif; letter-spacing: 1.5px; }
         #storage-confirm .storage-confirm-title { margin: 4px 0 8px; color: #fff; font: 38px/1 'Teko','Impact',sans-serif; text-shadow: 2px 3px #08152b; }
         #storage-confirm .storage-confirm-copy { margin: 0 0 16px; color: #cfe3ff; font-size: 14px; letter-spacing: .4px; }
         #storage-confirm .storage-confirm-actions { display: flex; justify-content: center; gap: 9px; }
