@@ -168,7 +168,17 @@ export class TitleScreen {
     this.root.className = 'interactive';
     this.root.setAttribute('aria-labelledby', 'title-screen-name');
     this.root.innerHTML = `
-      <div class="title-screen__sky" aria-hidden="true"></div>
+      <div class="title-screen__arena" aria-hidden="true">
+        <div class="title-screen__lamps title-screen__lamps--warm"></div>
+        <div class="title-screen__lamps title-screen__lamps--cool"></div>
+        <div class="title-screen__beam title-screen__beam--a"></div>
+        <div class="title-screen__beam title-screen__beam--b"></div>
+        <div class="title-screen__beam title-screen__beam--c"></div>
+      </div>
+      <div class="title-screen__haze" aria-hidden="true">
+        <div class="title-screen__motes title-screen__motes--near"></div>
+        <div class="title-screen__motes title-screen__motes--far"></div>
+      </div>
       <div class="title-screen__grid" aria-hidden="true"></div>
       <div class="title-screen__content">
         <h1 id="title-screen-name" class="title-screen__accessible-name">Pokémon Stadium Tower Defense</h1>

@@ -7,12 +7,17 @@
   overflow: hidden;
   color: #fff;
   background:
-    url('/ui/title-screen-bg.png') center / cover no-repeat,
     radial-gradient(ellipse at 50% 38%, rgba(32, 75, 126, 0.48) 0%, rgba(6, 21, 40, 0.78) 42%, #020b17 78%),
     linear-gradient(180deg, #07182b 0%, #020812 100%);
   opacity: 1;
   transition: opacity 450ms ease, filter 450ms ease;
   isolation: isolate;
+  /* The lamp glows and beam origins below are placed in the backdrop's own
+     percentage coordinates, so they have to track exactly where `cover` puts
+     it. Sizing the arena off the container's own dimensions reproduces that
+     crop, which keeps every overlay nailed to the lamp it belongs to at any
+     aspect ratio. */
+  container-type: size;
 }
 
 #title-screen.title-screen--leaving {
@@ -21,17 +26,131 @@
   pointer-events: none;
 }
 
-.title-screen__sky {
+/* The backdrop, sized the way `background-size: cover` would size it, so its
+   children can address the art in percentages. Everything that lights the room
+   lives in here and rides the drift together. */
+.title-screen__arena {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100cqw, calc(100cqh * 1672 / 941));
+  height: max(100cqh, calc(100cqw * 941 / 1672));
+  transform: translate(-50%, -50%);
+  background: url('/ui/title-screen-bg.png') center / 100% 100% no-repeat;
+  animation: title-arena-drift 46s ease-in-out infinite;
+}
+
+/* The house lamps are painted into the backdrop, so they cannot move. Laying a
+   glow over each one and breathing it is what gives the beams below a source to
+   come from. Warm and cool run on separate layers so the two never pulse as one
+   bank. */
+.title-screen__lamps {
   position: absolute;
   inset: 0;
+  opacity: 0.62;
+  mix-blend-mode: screen;
+}
+
+.title-screen__lamps--warm {
   background:
-    radial-gradient(circle at 16% 18%, rgba(112, 174, 242, 0.35) 0 1px, transparent 2px),
-    radial-gradient(circle at 82% 25%, rgba(112, 174, 242, 0.25) 0 1px, transparent 2px),
-    radial-gradient(circle at 70% 12%, rgba(255, 255, 255, 0.26) 0 1px, transparent 2px),
-    linear-gradient(108deg, transparent 25%, rgba(58, 126, 187, 0.09) 40%, transparent 52%),
-    linear-gradient(252deg, transparent 23%, rgba(58, 126, 187, 0.08) 42%, transparent 57%);
-  background-size: 97px 83px, 133px 109px, 173px 137px, auto, auto;
-  opacity: 0.9;
+    radial-gradient(ellipse 2.4% 4.2% at 9.8% 1.3%, rgba(255, 207, 107, 0.36), transparent 70%),
+    radial-gradient(ellipse 2.4% 4.2% at 90.5% 1.3%, rgba(255, 207, 107, 0.36), transparent 70%),
+    radial-gradient(ellipse 2.6% 5.2% at 30.2% 7.2%, rgba(255, 207, 107, 0.42), transparent 70%),
+    radial-gradient(ellipse 2.6% 5.2% at 69.6% 7.1%, rgba(255, 207, 107, 0.42), transparent 70%),
+    radial-gradient(ellipse 3.4% 5.6% at 6.6% 58.7%, rgba(255, 210, 118, 0.46), transparent 70%),
+    radial-gradient(ellipse 3.4% 5.6% at 93.4% 58.5%, rgba(255, 210, 118, 0.46), transparent 70%),
+    radial-gradient(ellipse 2.8% 7.4% at 6.0% 68.4%, rgba(255, 210, 118, 0.44), transparent 70%),
+    radial-gradient(ellipse 2.8% 7.4% at 93.9% 68.3%, rgba(255, 210, 118, 0.44), transparent 70%);
+  animation: title-lamp-breathe 4.3s ease-in-out infinite;
+}
+
+.title-screen__lamps--cool {
+  background:
+    radial-gradient(ellipse 2.6% 5.0% at 8.4% 6.7%, rgba(111, 200, 240, 0.34), transparent 70%),
+    radial-gradient(ellipse 2.2% 4.4% at 42.0% 10.4%, rgba(111, 200, 240, 0.34), transparent 70%),
+    radial-gradient(ellipse 2.2% 4.4% at 58.1% 10.1%, rgba(111, 200, 240, 0.34), transparent 70%),
+    radial-gradient(ellipse 2.4% 4.8% at 79.9% 5.4%, rgba(111, 200, 240, 0.34), transparent 70%),
+    radial-gradient(ellipse 2.8% 4.6% at 17.7% 64.3%, rgba(122, 208, 244, 0.42), transparent 70%),
+    radial-gradient(ellipse 2.8% 4.6% at 82.3% 64.2%, rgba(122, 208, 244, 0.42), transparent 70%),
+    radial-gradient(ellipse 2.0% 5.2% at 17.8% 72.1%, rgba(122, 208, 244, 0.38), transparent 70%),
+    radial-gradient(ellipse 2.0% 5.2% at 82.2% 72.0%, rgba(122, 208, 244, 0.38), transparent 70%);
+  animation: title-lamp-breathe 5.7s ease-in-out infinite;
+}
+
+/* One beam: a soft wedge hung off a lamp on the upper rail, with a pool where
+   it lands on the floor. The cone is a conic gradient rather than a clipped box
+   because its angular stops give the sides their own falloff -- the blur is
+   only there to take the banding off, not to make the edges soft. */
+.title-screen__beam {
+  position: absolute;
+  top: 5%;
+  width: 26%;
+  height: 100%;
+  margin-left: -13%;
+  transform-origin: 50% 0;
+  background:
+    radial-gradient(ellipse 34% 9% at 50% 74%, rgba(var(--beam), 0.13), transparent 72%),
+    conic-gradient(
+      at 50% 0%,
+      transparent 168deg,
+      rgba(var(--beam), 0.022) 172deg,
+      rgba(var(--beam), 0.15) 180deg,
+      rgba(var(--beam), 0.022) 188deg,
+      transparent 192deg
+    );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.85) 9%,
+    rgba(0, 0, 0, 0.55) 48%,
+    rgba(0, 0, 0, 0.72) 74%,
+    transparent 96%
+  );
+  filter: blur(9px);
+  mix-blend-mode: screen;
+}
+
+/* Each beam hangs off one of the rail lamps the glows above sit on. The three
+   periods share no common factor worth the name, so the sweeps drift apart
+   after the first cycle and never fall back into step. */
+.title-screen__beam--a { left: 30.2%; --beam: 255, 207, 107; --sweep: 8deg; animation: title-beam-sweep 23s ease-in-out infinite; }
+.title-screen__beam--b { left: 42.0%; --beam: 111, 200, 240; --sweep: 10deg; animation: title-beam-sweep 17s ease-in-out infinite; }
+.title-screen__beam--c { left: 69.6%; --beam: 255, 207, 107; --sweep: 6deg; animation: title-beam-sweep 29s ease-in-out infinite; }
+
+/* Dust rising through the beams, on the layer that used to carry a starfield --
+   which the stadium roof had been sitting over since the backdrop landed. Each
+   layer travels exactly one tile of its own pattern, which is what lets it loop
+   without a seam. */
+.title-screen__haze {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0.55;
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.65) 46%, transparent 86%);
+}
+
+.title-screen__motes {
+  position: absolute;
+  top: -160px;
+  right: 0;
+  bottom: -160px;
+  left: 0;
+}
+
+.title-screen__motes--near {
+  background-image:
+    radial-gradient(circle at 16% 18%, rgba(176, 214, 255, 0.32) 0 1px, transparent 2px),
+    radial-gradient(circle at 68% 61%, rgba(255, 255, 255, 0.24) 0 1px, transparent 2px);
+  background-size: 97px 83px;
+  animation: title-motes-near 26s linear infinite;
+}
+
+.title-screen__motes--far {
+  background-image:
+    radial-gradient(circle at 82% 25%, rgba(112, 174, 242, 0.26) 0 1px, transparent 2px),
+    radial-gradient(circle at 34% 77%, rgba(255, 255, 255, 0.18) 0 1px, transparent 2px);
+  background-size: 173px 137px;
+  animation: title-motes-far 41s linear infinite;
 }
 
 .title-screen__grid {
@@ -213,6 +332,35 @@
   text-transform: uppercase;
 }
 
+/* Every cycle below passes through the element's own base pose at 0%, so a
+   frozen shot and a reduced-motion session hold the same neutral frame. */
+@keyframes title-arena-drift {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50.6%, -50.4%) scale(1.03); }
+}
+
+@keyframes title-lamp-breathe {
+  0%, 100% { opacity: 0.62; }
+  38% { opacity: 1; }
+  72% { opacity: 0.38; }
+}
+
+@keyframes title-beam-sweep {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(var(--sweep)); }
+  75% { transform: rotate(calc(var(--sweep) * -1)); }
+}
+
+@keyframes title-motes-near {
+  from { transform: translateY(0); }
+  to { transform: translateY(-83px); }
+}
+
+@keyframes title-motes-far {
+  from { transform: translateY(0); }
+  to { transform: translateY(-137px); }
+}
+
 @keyframes title-wordmark-arrive {
   from { opacity: 0; transform: translateY(20px) scale(0.88); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -237,7 +385,12 @@
   .title-screen__start { width: min(68vw, 256px); }
 }
 
+/* The room stays lit; nothing in it moves. */
 @media (prefers-reduced-motion: reduce) {
   .title-screen__wordmark-stage,
-  .title-screen__start { animation: none; }
+  .title-screen__start,
+  .title-screen__arena,
+  .title-screen__lamps,
+  .title-screen__beam,
+  .title-screen__motes { animation: none; }
 }
