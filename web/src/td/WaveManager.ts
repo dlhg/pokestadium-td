@@ -6,7 +6,7 @@
  */
 
 import * as THREE from 'three';
-import { Creep, CreepConfig } from './Creep';
+import { Creep, CreepConfig, CreepTrait, traitsForTypes } from './Creep';
 import { StadiumAnnouncer } from '../stadium/Announcer';
 import { CUPS, type CupRules } from './Cups';
 import type { PokemonType } from '../stadium/TypeMatrix';
@@ -26,13 +26,23 @@ export interface WaveDefinition {
 const TRASH_COUNT_MULTIPLIER = 0.5;
 const TRASH_HP_MULTIPLIER = 2;
 
+/** Bosses, Titans and elites are singular set-pieces; everything else is rank-and-file. */
+function isTrash(config: CreepConfig): boolean {
+  return !config.isBoss && config.threat !== 'elite' && config.threat !== 'titan';
+}
+
+/** How many of a group reach the lane once the density tradeoff is applied. */
+function spawnedCount(config: CreepConfig, count: number): number {
+  return isTrash(config) ? Math.max(1, Math.round(count * TRASH_COUNT_MULTIPLIER)) : count;
+}
+
 type RosterEntry = Omit<CreepConfig, 'id'>;
 
 /**
  * The opening rounds (1–10, QUALIFIERS/MAIN DRAW) draw from this weaker,
  * pre-evolution lineup instead of the mid-game ROSTER below — generated,
  * like every other round, so a map's `typeWeights` reach the opening too.
- * TRAIT_ANCHOR_ROUNDS and the Phantom safety net (see generateWave) keep
+ * TRAIT_ANCHOR_ROUNDS and the Phantom safety net (see rollWave) keep
  * the trait-teaching beats intact regardless of which map rolls them.
  */
 const EARLY_ROSTER: RosterEntry[] = [
@@ -136,10 +146,10 @@ export class WaveManager {
     // tankier trash mobs instead of a swarm. Bosses/elites/titans are already
     // singular set-pieces and are left alone.
     wave.spawns.forEach(group => {
-      const isTrash = !group.config.isBoss && group.config.threat !== 'elite' && group.config.threat !== 'titan';
-      const count = isTrash ? Math.max(1, Math.round(group.count * TRASH_COUNT_MULTIPLIER)) : group.count;
-      const hpMultiplier = isTrash ? TRASH_HP_MULTIPLIER : 1;
-      const interval = isTrash ? group.interval / TRASH_COUNT_MULTIPLIER : group.interval;
+      const trash = isTrash(group.config);
+      const count = spawnedCount(group.config, group.count);
+      const hpMultiplier = trash ? TRASH_HP_MULTIPLIER : 1;
+      const interval = trash ? group.interval / TRASH_COUNT_MULTIPLIER : group.interval;
 
       for (let i = 0; i < count; i++) {
         this.spawnQueue.push({
@@ -378,7 +388,8 @@ function titanTypeForRound(round: number): 'Onix' | 'Gyarados' {
   return round % 20 === 0 ? 'Gyarados' : 'Onix';
 }
 
-function generateWave(round: number, winRound: number, typeWeights?: Partial<Record<PokemonType, number>>): WaveDefinition {
+/** The round as rolled, before the debut rule thins a trait's first appearance. */
+export function rollWave(round: number, winRound: number, typeWeights?: Partial<Record<PokemonType, number>>): WaveDefinition {
   const rand = mulberry32(round * 2654435761);
   const hp = hpScale(round, winRound);
   // Rewards trail HP so income doesn't outrun the difficulty curve.
@@ -465,6 +476,95 @@ function generateWave(round: number, winRound: number, typeWeights?: Partial<Rec
   const lead = spawns[0].config.name;
   const name = modifier ? `${cupName}: MYSTERY ROUND — ${modifier.label}` : `${cupName}: ${lead} Assault`;
   return { round, cupName, name, spawns, isMystery };
+}
+
+// --------------------------------------------------------------------------
+// First contact
+// --------------------------------------------------------------------------
+
+/**
+ * A trait's debut round fields exactly one creep carrying it, instead of a
+ * whole group.
+ *
+ * Airborne, Phantom and Armored each answer to something a starter team may
+ * simply not own yet — above all Phantom, which most towers cannot even aim
+ * at. Meeting four Haunters in the round that introduces them costs a fresh
+ * trainer most of their lives before they have been told what the trait is,
+ * which teaches the lesson by ending the run. One scout still leaks, the
+ * announcer still calls the trait out, and the player is down a single life
+ * with the next round to answer it. Later rounds field them at full strength.
+ */
+const SCOUT_COUNT = 1;
+
+/** The traits a spawn group puts on the lane, read off its typing like any creep's. */
+function groupTraits(config: CreepConfig): CreepTrait[] {
+  return traitsForTypes([config.type, ...(config.secondaryType ? [config.secondaryType] : [])]);
+}
+
+function waveKey(round: number, winRound: number, typeWeights?: Partial<Record<PokemonType, number>>): string {
+  return `${round}|${winRound}|${typeWeights ? JSON.stringify(typeWeights) : ''}`;
+}
+
+const rolledWaves = new Map<string, WaveDefinition>();
+/** Traits fielded anywhere in rounds 1..round, memoized so walking the ladder stays linear. */
+const traitsThroughRound = new Map<string, Set<CreepTrait>>();
+
+function rolled(round: number, winRound: number, typeWeights?: Partial<Record<PokemonType, number>>): WaveDefinition {
+  const key = waveKey(round, winRound, typeWeights);
+  let wave = rolledWaves.get(key);
+  if (!wave) {
+    wave = rollWave(round, winRound, typeWeights);
+    rolledWaves.set(key, wave);
+  }
+  return wave;
+}
+
+/**
+ * Which traits the player has already met by the end of `round`. Read off the
+ * raw rolls, which the scout rule only thins out — it never changes which
+ * creeps a round fields, so the debut schedule is the same either way.
+ */
+function traitsThrough(round: number, winRound: number, typeWeights?: Partial<Record<PokemonType, number>>): Set<CreepTrait> {
+  if (round < 1) return new Set();
+  const key = waveKey(round, winRound, typeWeights);
+  let seen = traitsThroughRound.get(key);
+  if (!seen) {
+    seen = new Set(traitsThrough(round - 1, winRound, typeWeights));
+    for (const group of rolled(round, winRound, typeWeights).spawns) {
+      for (const trait of groupTraits(group.config)) seen.add(trait);
+    }
+    traitsThroughRound.set(key, seen);
+  }
+  return seen;
+}
+
+/** The round the player actually fights: the roll, with the debut rule applied. */
+export function generateWave(round: number, winRound: number, typeWeights?: Partial<Record<PokemonType, number>>): WaveDefinition {
+  const wave = rolled(round, winRound, typeWeights);
+  const seenBefore = traitsThrough(round - 1, winRound, typeWeights);
+  const debuting = new Set<CreepTrait>();
+  for (const group of wave.spawns) {
+    for (const trait of groupTraits(group.config)) if (!seenBefore.has(trait)) debuting.add(trait);
+  }
+  if (debuting.size === 0) return wave;
+
+  // Titans are a single set-piece already. The scout carries the whole group's
+  // purse — counted after the density tradeoff, which pays per head — so a
+  // debut round pays out like any other and the economy doesn't dip at exactly
+  // the round the player needs money for an answer.
+  return {
+    ...wave,
+    spawns: wave.spawns.map(group => {
+      if (group.config.isBoss || group.count <= SCOUT_COUNT) return group;
+      if (!groupTraits(group.config).some(trait => debuting.has(trait))) return group;
+      const purse = group.config.reward * spawnedCount(group.config, group.count);
+      return {
+        ...group,
+        config: { ...group.config, reward: Math.round(purse / spawnedCount(group.config, SCOUT_COUNT)) },
+        count: SCOUT_COUNT,
+      };
+    }),
+  };
 }
 
 /** Every type fielded in the opening rounds — what team select warns about. */

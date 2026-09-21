@@ -129,6 +129,15 @@ presentation.
 - A trait badge sits beside the creep's HP bar.
 - The first time a trait appears in a save, the announcer calls it out and a one-line
   banner explains it ("PHANTOMS — only Psychic and Ghost towers can aim at them").
+- **A trait debuts as a lone scout.** The first round that fields Airborne, Phantom or
+  Armored sends exactly one of the creep carrying it; every later round fields them at
+  full strength (`WaveManager.generateWave`). A starter team owns no answer to Phantoms
+  at all — most towers cannot even aim at one — so a full group in the round that
+  introduces them costs a fresh trainer most of their six lives before the banner has
+  finished explaining what a Phantom is. One scout still leaks, and the lesson costs one
+  life and a round's notice instead of the run. The scout carries the whole group's
+  prize money, so the debut round pays out like any other and the player can afford the
+  counter they just learned they need.
 - The tower card shows at most three chips: `HEAVY`, `SEES PHANTOMS`, `GROUND ONLY`.
 
 ## 6. Status clean-up

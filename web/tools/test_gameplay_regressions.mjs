@@ -21,6 +21,7 @@ const result = await build({
       "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
       "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups } from './src/td/Cups.ts';",
       "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
+      "export { generateWave, rollWave } from './src/td/WaveManager.ts';",
       "export { createRental, isRental, RENTALS, rentalLevel } from './src/td/progression/Rentals.ts';",
       "export { MatchProgress } from './src/td/progression/MatchProgress.ts';",
       "export { getSpecies, SPECIES } from './src/td/progression/Species.ts';",
@@ -42,7 +43,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep, Tower, rankTargets, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, generateWave, rollWave, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Losing browser focus clears held keys, and touch distinguishes a camera
@@ -936,4 +937,55 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   assert.deepEqual(hits, [['grunt', 30], ['titan', 22]], 'boss bonus and percent shares apply by threat');
 }
 
-console.log('PASS: gameplay timing, capture, summon, defeat, save repair, storage cap, release, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, bonus damage, and cup rules regressions.');
+// A creep trait debuts as a lone scout: the first round that fields Airborne,
+// Phantom or Armored sends one of it, carrying the group's whole purse, and
+// later rounds field it at full strength. A team with no answer to Phantoms
+// loses one life learning that, not four.
+{
+  const winRound = CUPS.little.winRound;
+  for (const weights of [undefined, ...STADIUM_MAPS.map(map => map.typeWeights)]) {
+    const label = weights ? JSON.stringify(weights) : 'no bias';
+    const debut = {};
+    const traitsOf = config => [config.type, config.secondaryType].filter(Boolean)
+      .flatMap(type => type === 'Flying' ? ['airborne'] : type === 'Ghost' ? ['phantom'] : type === 'Rock' ? ['armored'] : []);
+
+    for (let round = 1; round <= 20; round++) {
+      const wave = generateWave(round, winRound, weights);
+      const before = { ...debut };
+      for (const group of wave.spawns) for (const trait of traitsOf(group.config)) debut[trait] ??= round;
+      for (const group of wave.spawns) {
+        const traits = traitsOf(group.config);
+        if (group.config.isBoss || !traits.length) continue;
+        if (traits.some(trait => before[trait] === undefined)) {
+          assert.equal(group.count, 1, `${label} round ${round}: ${group.config.name} debuts alone`);
+        } else {
+          assert.ok(group.count > 1 || group.config.threat === 'elite',
+            `${label} round ${round}: ${group.config.name} is no longer a scout`);
+        }
+      }
+    }
+    assert.deepEqual(Object.keys(debut).sort(), ['airborne', 'armored', 'phantom'], `${label} teaches every trait by round 20`);
+    for (const [trait, round] of Object.entries(debut)) {
+      assert.ok(round <= 6, `${label} introduces ${trait} by round 6, not round ${round}`);
+    }
+  }
+
+  // The scout pays what its whole group would have, so a debut round's income
+  // is unchanged and the player can still afford the counter it just met.
+  // Heads spawned is the wave manager's density tradeoff: half, at least one.
+  const heads = (group) => group.config.isBoss || group.config.threat === 'elite' || group.config.threat === 'titan'
+    ? group.count : Math.max(1, Math.round(group.count * 0.5));
+  for (const weights of [undefined, ...STADIUM_MAPS.map(map => map.typeWeights)]) {
+    for (let round = 1; round <= 12; round++) {
+      const played = generateWave(round, winRound, weights);
+      const raw = rollWave(round, winRound, weights);
+      const purse = wave => wave.spawns.reduce((sum, group) => sum + group.config.reward * heads(group), 0);
+      assert.ok(Math.abs(purse(played) - purse(raw)) <= played.spawns.length,
+        `round ${round} pays the same whether or not a trait debuts in it`);
+    }
+  }
+  const flyer = generateWave(1, winRound).spawns.find(group => [group.config.type, group.config.secondaryType].includes('Flying'));
+  assert.equal(flyer.count, 1, 'round 1 sends a single flyer');
+}
+
+console.log('PASS: gameplay timing, capture, summon, defeat, save repair, storage cap, release, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, bonus damage, trait debuts, and cup rules regressions.');
