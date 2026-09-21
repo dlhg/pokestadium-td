@@ -533,6 +533,22 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   assert.equal(caught.level, CUPS.little.levelCap, 'Little Cup catches never exceed its cap');
 }
 
+// Capture odds are a gamble, not a formality: the cheap ball at a barely
+// weakened creep stays a long shot, weakening and ball tier are the levers
+// that move it, and nothing on the board reaches a sure thing.
+{
+  const game = new StadiumTDGame();
+  // Fresh luck, so the odds under test are the formula's and not a streak's.
+  game.store = { captureMissPenalty: 0 };
+  const creep = (threat, hpFraction) => ({ threat, hpFraction, status: 'none', movementStatus: null });
+  const fresh = game.captureChance(creep('normal', 0.35), 'poke');
+  const spent = game.captureChance(creep('normal', 0), 'poke');
+  assert.ok(fresh < 0.4, `a just-catchable creep is a long shot, got ${fresh}`);
+  assert.ok(spent - fresh > 0.08, 'finishing the weakening is worth a real step');
+  assert.ok(game.captureChance(creep('normal', 0), 'ultra') <= 0.9, 'no throw is ever certain');
+  assert.ok(game.captureChance(creep('titan', 0), 'poke') < 0.15, 'a Poké Ball is not titan equipment');
+}
+
 // The faint animation remains clickable briefly, but a dead target cannot
 // begin capture or spend inventory.
 {

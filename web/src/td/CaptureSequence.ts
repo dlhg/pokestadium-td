@@ -101,11 +101,18 @@ const BALL_GLOW: Record<BallType, number> = { poke: 0xff5566, great: 0x5fa8ff, u
 /**
  * Rarer quarry earns a longer, tighter set piece: more wobbles to survive,
  * slower holds between them, and a narrower release window.
+ *
+ * The zones were all wider and the sweeps all slower until playtesting found
+ * the meter was not a check at all — a `good` throw was the default outcome
+ * and `perfect` came up often enough that the odds read-out barely mattered.
+ * Each zone lost roughly a third of its width and each sweep gained speed, so
+ * the marker now crosses a normal zone in ~0.13s and a titan's in ~0.04s:
+ * still readable, no longer free.
  */
 const THREAT_PROFILE = {
-  normal: { wobbles: 3, period: 0.7, zone: 0.26, sweep: 1.15 },
-  elite: { wobbles: 3, period: 0.85, zone: 0.19, sweep: 1.4 },
-  titan: { wobbles: 4, period: 1.0, zone: 0.13, sweep: 1.75 },
+  normal: { wobbles: 3, period: 0.7, zone: 0.18, sweep: 1.5 },
+  elite: { wobbles: 3, period: 0.85, zone: 0.125, sweep: 1.95 },
+  titan: { wobbles: 4, period: 1.0, zone: 0.085, sweep: 2.45 },
 } as const;
 
 // Beat lengths measured from the moment the ball leaves the hand. The whole
@@ -308,13 +315,19 @@ export class CaptureSequence {
     const halfZone = (aim.zoneEnd - aim.zoneStart) / 2;
     const offset = Math.abs(aim.marker - centre);
 
-    // Dead centre is worth a quarter again on top of the odds; a wide throw costs.
-    if (offset <= halfZone * 0.3) { aim.grade = 'perfect'; aim.bonus = 0.25; }
-    else if (offset <= halfZone) { aim.grade = 'good'; aim.bonus = 0.12; }
-    else { aim.grade = 'wide'; aim.bonus = -0.1; }
+    // Dead centre is worth a quarter again on top of the odds; a wide throw
+    // costs enough to be felt, since the meter is the only part of a capture
+    // the player actually controls. `perfect` is the middle fifth of the zone
+    // rather than its middle third — with the narrower zones it has to be
+    // earned, not fallen into.
+    if (offset <= halfZone * 0.2) { aim.grade = 'perfect'; aim.bonus = 0.25; }
+    else if (offset <= halfZone) { aim.grade = 'good'; aim.bonus = 0.09; }
+    else { aim.grade = 'wide'; aim.bonus = -0.18; }
 
     aim.released = aim.marker;
-    this.hud.chance = THREE.MathUtils.clamp(this.baseChance + aim.bonus, 0.05, 0.98);
+    // Capped short of certainty: even a perfect throw at a battered target
+    // leaves the wobbles something to decide.
+    this.hud.chance = THREE.MathUtils.clamp(this.baseChance + aim.bonus, 0.04, 0.93);
 
     this.success = this.forceSuccess || Math.random() < this.hud.chance;
     // A likelier catch tends to break late, so a lost 90% roll still gets its

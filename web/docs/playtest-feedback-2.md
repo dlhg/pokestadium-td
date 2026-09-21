@@ -230,6 +230,17 @@ Implementation:
 - Risk to watch in the next playtest round: this could swing the
   complaint from "too easy" to "too grindy" on common encounters —
   no code change made for that yet, revisit if reported.
+- Follow-up (third pass, reported again after the above shipped): the
+  weaken term was no longer the lever — the **base rate** was, carrying a
+  whittled-down common creep past even money on a Poké Ball by itself, and
+  the **release meter** was wide and slow enough that `good` was the floor
+  rather than the reward. Base 0.28 → 0.15, ball and rarity spreads pulled
+  apart, ceiling 0.95 → 0.9 (0.93 after a perfect throw); meter zones cut
+  about a third narrower with faster sweeps, `perfect` narrowed to the
+  middle fifth of the zone, and a wide throw now costs 0.18 instead of
+  0.1. Both dials and their history are documented in
+  `docs/capture-sequence.md` ("How hard it is"), with a regression in
+  `tools/test_gameplay_regressions.mjs` pinning the odds' shape.
 
 ## 17. Can't see Ghost Pokémon without a Ghost/Psychic — but how do you catch the first Ghost then?
 Status: interviewed — parked, needs more research

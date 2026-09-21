@@ -77,6 +77,46 @@ the whole drop beat deleted to pay for them, and the freeze is nearly free
 because nothing is moving inside it. `skip()` still jumps to the verdict, since
 the outcome is rolled at `release()` and everything after is presentation.
 
+## How hard it is
+
+Two dials, in two files, and they do different jobs.
+
+**The odds** (`captureChance`, `StadiumTDGame.ts`) are what the player earns
+before the ball leaves their hand:
+
+| Term | Worth |
+| --- | --- |
+| base | 0.15 |
+| weakening | up to +0.32, and a creep is only catchable under 35% HP |
+| ball | +0 poké / +0.17 great / +0.36 ultra |
+| status | +0.10, or +0.20 while it is held still (stun, sleep, freeze) |
+| rarity | −0.22 elite, −0.46 titan |
+| misses since the last catch | −0.05 each (`CAPTURE_MISS_PENALTY_STEP`) |
+
+Clamped to 0.05–0.9, then the release meter's grade is added and re-clamped to
+0.04–0.93. Nothing is ever a certainty except the new-trainer safety net
+(`shouldGuaranteeCatch`), which never covers titans.
+
+**The meter** (`THREAT_PROFILE`, `CaptureSequence.ts`) is the part the player
+plays: a zone width, a sweep speed, and for elite and titan quarry a single
+crossing instead of a ping-pong sweep. `perfect` is the middle fifth of the
+zone and pays +0.25; `good` pays +0.09; `wide` costs −0.18.
+
+Three passes of playtesting all said the same thing — catching was too easy —
+and each pass found the reason somewhere new. The first cut the weaken term,
+which was then the dominant free lever. That left the base rate carrying a
+whittled-down common creep to better than even money on a Poké Ball alone, so
+the base rate came down next, and rarity and the ball tiers were spread
+further apart so the ball in hand is a real decision. The last pass was the
+meter itself: the zones were wide enough and the sweeps slow enough that
+`good` was the floor rather than the reward, which made the odds read-out
+decoration. Zones lost about a third of their width, sweeps got faster, and a
+wide throw now costs twice what it did.
+
+The dial to reach for depends on the complaint. "I catch everything" is the
+odds. "The throw doesn't feel like I did anything" is the meter. Moving both
+at once is how this ended up needing three passes.
+
 ## Decisions worth keeping
 
 **The world stops, the sequence does not.** `worldTimeScale` bottoms out at

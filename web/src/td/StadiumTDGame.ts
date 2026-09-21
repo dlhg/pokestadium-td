@@ -662,15 +662,24 @@ export class StadiumTDGame {
     return !match || !this.store.hasSpecies(match.speciesId);
   }
 
-  /** Odds a ball would catch this Pokémon right now, before the release meter. */
+  /**
+   * Odds a ball would catch this Pokémon right now, before the release meter.
+   *
+   * Every term here was looser until captures turned out to be the cheapest
+   * roster slot in the game — a Poké Ball at a half-healthy creep was better
+   * than even money. The base rate came down hardest, so a throw at something
+   * still standing is now a gamble, and the levers the player can actually
+   * pull kept their weight: chipping it down to nothing is worth more than the
+   * base rate itself, a status hold is worth a ball tier, and rarity bites.
+   */
   private captureChance(target: Creep, ball: BallType): number {
-    const ballBonus: Record<BallType, number> = { poke: 0, great: 0.20, ultra: 0.42 };
+    const ballBonus: Record<BallType, number> = { poke: 0, great: 0.17, ultra: 0.36 };
     const held = target.movementStatus?.effect;
-    const statusBonus = held === 'stun' || held === 'sleep' || held === 'freeze' ? 0.22 : target.status !== 'none' ? 0.12 : 0;
-    const rarityPenalty = target.threat === 'titan' ? 0.42 : target.threat === 'elite' ? 0.18 : 0;
+    const statusBonus = held === 'stun' || held === 'sleep' || held === 'freeze' ? 0.2 : target.status !== 'none' ? 0.1 : 0;
+    const rarityPenalty = target.threat === 'titan' ? 0.46 : target.threat === 'elite' ? 0.22 : 0;
     // Every miss since the last catch makes the quarry warier of the next throw.
     const missPenalty = this.store.captureMissPenalty;
-    return THREE.MathUtils.clamp(0.28 + (1 - target.hpFraction) * 0.3 + ballBonus[ball] + statusBonus - rarityPenalty - missPenalty, 0.08, 0.95);
+    return THREE.MathUtils.clamp(0.15 + (1 - target.hpFraction) * 0.32 + ballBonus[ball] + statusBonus - rarityPenalty - missPenalty, 0.05, 0.9);
   }
 
   /** Public so the headless shot harness can stage a capture set piece. */
