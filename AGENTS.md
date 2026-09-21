@@ -22,6 +22,7 @@ web/
 ├── take_screenshot.py       # Visual self-critique & screenshot capture script
 ├── docs/                    # Design-rationale docs, updated alongside the features they cover
 │   ├── tower-roles.md       # Tower path/signature design and rationale
+│   ├── balance-lab.md       # The species harness: what it checks, measures, and found
 │   ├── trainer-progression.md
 │   ├── capture-sequence.md  # The catch set piece's anime beat sheet and per-beat shots
 │   ├── summon-sequence.md   # The send-out set piece and its reversed energy conversion
@@ -48,6 +49,13 @@ The full, current file list always wins over any summary here — see the source
 - **`engine/StadiumCamera.ts`** — *Cinematic Multi-Angle Director.* Smooth transitions between Tactical Top-Down, Stadium Isometric, and Dramatic Action Battle Cams.
 - **`td/CaptureSequence.ts`, `engine/EnergyForm.ts`, `engine/JaggedBeam.ts`** — *The Catch Set Piece.* Staged the way the anime does it: the ball strikes the Pokémon and rebounds open, freezes mid-air, converts the body to light (`EnergyForm` swaps material references, so shared GLB materials are safe), drags it down a crackling tether (`JaggedBeam`, reusable for electric moves), snaps shut, and ticks there suspended with the centre button flashing. The ball never touches the pitch: a catch lifts away from mid-air, a break bursts where it hangs. Beat sheet, timing budget and per-beat screenshots: `docs/capture-sequence.md`.
 - **`td/StadiumUI.ts`** — *90s Stadium Presentation.* Catch tags over weakened creeps with a ball picker, tower path shop, signature bar, metallic tournament headers, 3D floating HP bars, and the team roster deck.
+- **`tools/test_species.mjs`, `tools/balance_towers.mjs`** — *The Species Harness.* `test:species`
+  checks every invariant `Species.ts` relies on but cannot express in its types — path and tier
+  shape, level gates, dangling move/signature/hazard ids, duplicate form names, dex numbers against
+  the extracted manifest, creep names that map back onto a species, and rental pools. `balance:towers`
+  is the tower half of the balance lab: it runs one tower against a standing pack through the real
+  combat code and reports what each species is worth solo and against a crowd. Both are built for a
+  table headed to all 151 — add species, then run them. Model and findings: `docs/balance-lab.md`.
 - **`td/progression/`** — *Trainer Progression.* Persistent collection and team of six (`TrainerStore`, localStorage), species data, roles, paths and evolution lines (`Species`), Gen 1-style stats and XP curve (`Stats`), per-match XP splitting (`MatchProgress`), starter/team/summary/report screens (`TrainerScreens`), and a dev panel toggled with the backquote key (`DevPanel`, dev builds or `?dev`). Design and rationale: `docs/trainer-progression.md`.
 
 ### Copyrighted assets
@@ -119,5 +127,8 @@ npm run dev        # Launch local Vite dev server on http://localhost:3004
 npm run build      # Typecheck and bundle production distribution
 npm run test:gameplay   # Headless gameplay regression tests (node)
 npm run test:maps       # Headless map-layout tests (node)
+npm run test:species    # Species table validation (node) — run after touching Species.ts
+npm run balance:xp      # XP pacing report: the round a team caps in each cup
+npm run balance:towers  # Tower balance lab: solo/pack damage per species, per cup
 python3 take_screenshot.py  # Capture headless screenshots for visual verification
 ```

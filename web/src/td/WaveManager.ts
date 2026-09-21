@@ -45,7 +45,7 @@ type RosterEntry = Omit<CreepConfig, 'id'>;
  * TRAIT_ANCHOR_ROUNDS and the Phantom safety net (see rollWave) keep
  * the trait-teaching beats intact regardless of which map rolls them.
  */
-const EARLY_ROSTER: RosterEntry[] = [
+export const EARLY_ROSTER: RosterEntry[] = [
   { name: 'Rattata', type: 'Normal', maxHp: 220, speed: 4.6, reward: 22, modelType: 'rattata' },
   { name: 'Pidgey', type: 'Normal', secondaryType: 'Flying', maxHp: 180, speed: 5.0, reward: 22, modelType: 'zubat' },
   { name: 'Zubat', type: 'Poison', secondaryType: 'Flying', maxHp: 190, speed: 5.2, reward: 22, modelType: 'zubat' },
@@ -250,7 +250,7 @@ export function getMilestone(round: number, winRound: number): MilestoneReward |
 // --------------------------------------------------------------------------
 
 /** Mid-game-and-later lineup (round 11+), tuned at the round-10 baseline. */
-const ROSTER: RosterEntry[] = [
+export const ROSTER: RosterEntry[] = [
   { name: 'Raticate', type: 'Normal', maxHp: 300, speed: 5.2, reward: 30, modelType: 'rattata' },
   { name: 'Golbat', type: 'Poison', secondaryType: 'Flying', maxHp: 280, speed: 5.6, reward: 30, modelType: 'zubat' },
   { name: 'Haunter', type: 'Ghost', secondaryType: 'Poison', maxHp: 260, speed: 4.6, reward: 32, modelType: 'zubat' },
