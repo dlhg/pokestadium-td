@@ -116,6 +116,8 @@ export class WordmarkCover {
   private owner: Int16Array | null = null;
   private columns = WORDMARK_TEXEL_COLUMNS;
   private rows = 0;
+  /** Transparent margin above the letters as a fraction of the art's height, or -1 unmeasured. */
+  private margin = -1;
   private slabDirty = true;
   private settling = false;
   private revealed = false;
@@ -153,6 +155,37 @@ export class WordmarkCover {
     this.slabDirty = true;
     this.resize();
     return true;
+  }
+
+  /**
+   * How far the letters sit below the top of their own box. The art is baked
+   * with headroom over them for the Pokemon to land in, so anything stacked on
+   * top of the wordmark has to measure to the ink and not to the element.
+   * Measured off the art itself, so it holds once the cast is gone; 0 until the
+   * image has loaded, which reads as no headroom and corrects on the refit.
+   */
+  get inkTop(): number {
+    if (this.margin < 0) this.margin = this.measureMargin();
+    return Math.max(this.margin, 0);
+  }
+
+  private measureMargin(): number {
+    if (!this.image.naturalWidth) return -1;
+    const rows = Math.max(1, Math.round((this.columns * this.image.naturalHeight) / this.image.naturalWidth));
+    const slab = document.createElement('canvas');
+    slab.width = this.columns;
+    slab.height = rows;
+    const context = slab.getContext('2d', { willReadFrequently: true });
+    if (!context) return -1;
+    context.imageSmoothingEnabled = false;
+    context.drawImage(this.image, 0, 0, this.columns, rows);
+    const drawn = context.getImageData(0, 0, this.columns, rows).data;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < this.columns; x++) {
+        if (drawn[(y * this.columns + x) * 4 + 3] > 8) return y / rows;
+      }
+    }
+    return 0;
   }
 
   /** Grow the silhouette so the art's own soft edge stays hidden underneath. */
