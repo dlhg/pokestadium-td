@@ -79,6 +79,8 @@ export class StadiumAudio {
   private musicGain: GainNode | null = null;
   private requestedMusicId: string | null = null;
   private musicIds: string[] = [];
+  /** Context time of the last stone impact, for the crowding check in `playStoneImpact`. */
+  private lastStoneHit = -Infinity;
 
   /** Called after the optional local music manifest has been discovered. */
   public onMusicCatalogChanged: (() => void) | null = null;
@@ -536,8 +538,22 @@ export class StadiumAudio {
     this.crowdGain.gain.linearRampToValueAtTime(0.08 * Math.max(0.01, level), now + seconds);
   }
 
+  /**
+   * Where a cue sits across the stage, -1 to 1. The stone cues place their hits
+   * along the wordmark they land on; everything else stays centred and skips
+   * the extra node entirely.
+   */
+  private stageOut(pan: number): AudioNode {
+    const bus = this.sfxBus ?? this.ctx!.destination;
+    if (!pan || !this.ctx?.createStereoPanner) return bus;
+    const panner = this.ctx.createStereoPanner();
+    panner.pan.value = Math.max(-1, Math.min(1, pan));
+    panner.connect(bus);
+    return panner;
+  }
+
   /** Filtered noise burst shared by the whoosh, land, and break cues. */
-  private noiseBurst(duration: number, fromHz: number, toHz: number, peak: number, delay: number = 0): void {
+  private noiseBurst(duration: number, fromHz: number, toHz: number, peak: number, delay: number = 0, pan: number = 0): void {
     if (!this.ctx) return;
     const now = this.ctx.currentTime + delay;
     const frames = Math.ceil(this.ctx.sampleRate * duration);
@@ -559,13 +575,13 @@ export class StadiumAudio {
 
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(this.sfxBus ?? this.ctx.destination);
+    gain.connect(this.stageOut(pan));
     source.start(now);
     source.stop(now + duration);
   }
 
   /** Single tone helper for the capture cues. */
-  private tone(type: OscillatorType, fromHz: number, toHz: number, duration: number, peak: number, delay: number = 0): void {
+  private tone(type: OscillatorType, fromHz: number, toHz: number, duration: number, peak: number, delay: number = 0, pan: number = 0): void {
     if (!this.ctx) return;
     const now = this.ctx.currentTime + delay;
     const osc = this.ctx.createOscillator();
@@ -576,7 +592,7 @@ export class StadiumAudio {
     gain.gain.setValueAtTime(peak, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
     osc.connect(gain);
-    gain.connect(this.sfxBus ?? this.ctx.destination);
+    gain.connect(this.stageOut(pan));
     osc.start(now);
     osc.stop(now + duration);
   }
@@ -720,5 +736,143 @@ export class StadiumAudio {
       osc.start(noteTime);
       osc.stop(noteTime + 0.25);
     });
+  }
+
+  /**
+   * True when the context is actually running. Cues with no user gesture behind
+   * them have to check: a suspended context's clock is frozen, so anything
+   * scheduled against it queues rather than plays, and then the whole queue
+   * fires at once the moment the context resumes. The title intro plays before
+   * anyone has clicked anything, so it is this or a wall of thuds on the first
+   * click. A browser that has not granted audio yet gets a silent intro, and if
+   * it grants it mid-clip the rest of the intro is heard.
+   */
+  private running(): boolean {
+    return this.ctx?.state === 'running';
+  }
+
+  /*
+   * ---------------------------------------------------------------------------
+   * Stone
+   *
+   * The title intro rains Pokemon onto a stone cast of the wordmark and breaks
+   * it off (WordmarkCover.ts). These are the four things that happen to rock:
+   * something lands on it, it strains, pieces come away, the slab lets go.
+   *
+   * Each is layered three ways, because a low thump on its own reads as a
+   * blanket rather than as stone: a contact transient for the hit's edge, a mid
+   * grit band that identifies the material, and a body that carries the weight.
+   * `force` runs 0-1 and is the saturated jolt the lockup's shake is drawn from,
+   * so the ear and the eye size the same landing the same way; `pan` places the
+   * hit along the word it struck.
+   *
+   * None of this can be a sample. The extraction pipeline decodes the music and
+   * the announcer, but the ROM's move and menu SFX live in an N64 sequence bank
+   * nothing here reads yet (ROM_ASSETS.md), so there is no Stadium thud to
+   * borrow. The native ids are still tried first, the way every cue in this file
+   * does, so a decoded bank would take these over without touching the callers.
+   * ---------------------------------------------------------------------------
+   */
+
+  /** A body landing on stone: contact slap, grit, and the weight under it. */
+  public playStoneImpact(force: number, pan: number = 0): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled || !this.running()) return;
+    if (this.playNative('stone_impact')) return;
+    const weight = Math.max(0, Math.min(1, force));
+
+    // Landings inside the finale arrive two or three frames apart. At full
+    // level they sum past the ceiling and smear into one long crunch, so a hit
+    // that lands on top of another is pulled down. The pile-up still reads as
+    // the bigger event, because the jolt behind `force` is what climbed.
+    const now = this.ctx.currentTime;
+    const level = 0.5 + 0.5 * Math.min(1, (now - this.lastStoneHit) / 0.09);
+    this.lastStoneHit = now;
+
+    // Heavier landings ring lower, so a hit's size is in its pitch as well as
+    // its level, and each is detuned a little so repeats are not machine-gunned.
+    const body = (185 - 75 * weight) * (0.94 + Math.random() * 0.12);
+    this.noiseBurst(0.03 + 0.02 * weight, 3600, 1200, (0.06 + 0.07 * weight) * level, 0, pan);
+    this.noiseBurst(0.06 + 0.1 * weight, 1300, 320, (0.05 + 0.1 * weight) * level, 0.008, pan);
+    this.tone('sine', body, body * 0.32, 0.1 + 0.22 * weight, (0.09 + 0.21 * weight) * level, 0, pan);
+  }
+
+  /**
+   * The surface straining without giving: a couple of dry ticks, banded low so
+   * they sit underneath the landing that caused them. A bright crack would pull
+   * the ear off the impacts, which are the moment -- this is only the texture
+   * that says the thing being hit is about to break.
+   */
+  public playStoneCrack(strain: number, pan: number = 0): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled || !this.running()) return;
+    if (this.playNative('stone_crack')) return;
+    const stress = Math.max(0, Math.min(1, strain));
+
+    for (let i = 0; i <= Math.round(stress * 2); i++) {
+      const from = 900 - Math.random() * 320;
+      const at = 0.012 + Math.random() * 0.1;
+      this.noiseBurst(0.02 + Math.random() * 0.02, from, 240, 0.018 + 0.03 * stress, at, pan);
+    }
+    this.tone('triangle', 255, 150, 0.06, 0.025 + 0.035 * stress, 0.02, pan);
+  }
+
+  /** Pieces coming away: a crunch, a short drop, and rubble tumbling after it. */
+  public playStoneShatter(pieces: number, force: number, pan: number = 0): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled || !this.running()) return;
+    if (this.playNative('stone_shatter')) return;
+    // A landing takes one or two shards off the letters it hits; eight is a
+    // whole word's worth, by which point the cue is as big as it gets.
+    const mass = Math.min(1, Math.max(0, pieces) / 8);
+    const weight = Math.max(0, Math.min(1, force));
+
+    this.noiseBurst(0.1 + 0.18 * mass, 2000, 420, 0.07 + 0.11 * mass, 0, pan);
+    this.tone('triangle', 150 - 40 * mass, 52, 0.16 + 0.24 * mass, 0.06 + 0.12 * mass, 0.01, pan);
+    this.rubble(3 + Math.round(mass * 8), 0.12 + 0.4 * mass, 0.03 + 0.03 * weight, pan);
+  }
+
+  /**
+   * The whole cast letting go at once: a sub boom under a broadband slab sweep,
+   * a long rubble tail, and the crowd catching it. The title's backdrop is a
+   * stadium and the ambiance bed is already playing under it, so the swell
+   * costs nothing but the ramp.
+   */
+  public playStoneCollapse(pan: number = 0): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled || !this.running()) return;
+    if (this.playNative('stone_collapse')) return;
+
+    this.noiseBurst(0.5, 2600, 200, 0.22, 0, pan);
+    this.noiseBurst(0.75, 520, 90, 0.14, 0.02);
+    // The boom stays centred however far along the word the blow landed: it is
+    // the whole slab going, not a hit on one end of it.
+    this.tone('sine', 96, 34, 0.8, 0.26);
+    this.tone('triangle', 200, 60, 0.3, 0.13, 0, pan);
+    this.rubble(20, 0.95, 0.05, pan);
+
+    this.duckCrowd(2.1, 0.16);
+    window.setTimeout(() => this.duckCrowd(1, 1.8), 280);
+  }
+
+  /**
+   * Stone bits raining down after a break: short pings scattered across
+   * `spread` seconds and thinning out as they go, so the tail dies away with
+   * the debris still tumbling on screen instead of stopping dead. Scattered
+   * sideways around the break as well -- rubble does not fall in a line.
+   */
+  private rubble(count: number, spread: number, peak: number, pan: number): void {
+    for (let i = 0; i < count; i++) {
+      const at = Math.random() * spread;
+      const thinning = 0.35 + 0.65 * (1 - at / spread);
+      this.noiseBurst(
+        0.012 + Math.random() * 0.028,
+        2900 - Math.random() * 1500,
+        700,
+        peak * thinning,
+        0.02 + at,
+        pan + (Math.random() - 0.5) * 0.5,
+      );
+    }
   }
 }

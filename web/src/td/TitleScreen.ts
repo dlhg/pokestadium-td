@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { WORDMARK_TEXEL_COLUMNS, WordmarkCover } from './WordmarkCover';
+import { WORDMARK_TEXEL_COLUMNS, WordmarkCover, type StoneStrike } from './WordmarkCover';
+import type { StadiumAudio } from '../engine/StadiumAudio';
 import './title-screen.css';
 
 interface StadiumManifest {
@@ -10,6 +11,12 @@ interface StadiumManifest {
 interface TitleScreenOptions {
   /** Hold the complete intro on its last frame for visual regression shots. */
   settled?: boolean;
+  /**
+   * The game's audio, for the landings and the stone. Optional: the screen is
+   * standalone otherwise, and a browser that has not granted audio yet plays
+   * the intro silently either way.
+   */
+  audio?: StadiumAudio;
 }
 
 const LOGO_SLUG = 'x214_model';
@@ -123,6 +130,20 @@ const KNOCK_DAMPING = 11;
 const KNOCK_REST = 0.04;
 
 /**
+ * How far across the stage a landing is placed in the mix. The wordmark sits in
+ * the middle of the screen and the Pokemon only land across the middle quarter
+ * of it, so a full-width pan would throw a hit on one letter out into a speaker
+ * on its own; this is wide enough to hear which end of the word took it.
+ */
+const IMPACT_PAN = 0.45;
+/**
+ * Strain under which the stone is not complaining out loud yet. Every landing
+ * that fails to break anything still leaves its worst-hit shard somewhere, and
+ * the first, lightest touches are not worth a sound of their own.
+ */
+const CRACK_AUDIBLE = 0.3;
+
+/**
  * The course select has been mounted behind this screen since the UI was built,
  * so the exit has nothing to reveal but itself: cut the backdrop down the middle
  * and drive the halves off either side. Long enough to read as a set piece, and
@@ -163,6 +184,7 @@ export class TitleScreen {
   private readonly content: HTMLElement;
   private readonly wordmarkStage: HTMLElement;
   private readonly cover: WordmarkCover;
+  private readonly audio: StadiumAudio | null;
   private readonly fallers: Faller[] = [];
   private readonly reducedMotion: boolean;
   private jolt = 0;
@@ -232,6 +254,7 @@ export class TitleScreen {
       this.requireElement<HTMLCanvasElement>('.title-screen__wordmark-cover'),
       this.wordmark,
     );
+    this.audio = options.audio ?? null;
     this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     // Everything that would break the cast off is motion. Without it the stone
     // would simply sit there, so the wordmark starts uncovered instead.
@@ -497,12 +520,35 @@ export class TitleScreen {
   private land(speed: number, where: number): void {
     this.jolt += speed * speed * JOLT_PER_ENERGY;
     this.joltPhase = 0;
-    this.cover.strike(where, this.jolt);
+    const strike = this.cover.strike(where, this.jolt);
+    this.sound(strike, where);
     if (this.jolt <= KNOCK_THRESHOLD) return;
     this.knock = Math.min(
       this.knock + (this.jolt - KNOCK_THRESHOLD) * KNOCK_PER_JOLT,
       this.texel() * KNOCK_MAX_TEXELS,
     );
+  }
+
+  /**
+   * The landing, heard. The thud is thrown from the same saturated jolt the
+   * shake is and placed where along the word the Pokemon came down, so what is
+   * heard and what is seen are the one impact; the stone's own report picks what
+   * goes over the top of it -- the surface straining, pieces coming away, or the
+   * whole cast letting go on the finale.
+   *
+   * Nothing here is timed against the clip either. The bouncing middle carries
+   * jolts of 2-16, which saturate to 0.06-0.4 of full force, and the finale's
+   * cluster runs past 50 and arrives at 0.8 and up, so the two acts sit as far
+   * apart in the mix as they do on screen.
+   */
+  private sound(strike: StoneStrike, where: number): void {
+    if (!this.audio) return;
+    const force = 1 - Math.exp(-this.jolt / SHAKE_KNEE);
+    const pan = Math.max(-1, Math.min(1, (where - 0.5) * 2)) * IMPACT_PAN;
+    this.audio.playStoneImpact(force, pan);
+    if (strike.collapsed) this.audio.playStoneCollapse(pan);
+    else if (strike.broke) this.audio.playStoneShatter(strike.broke, force, pan);
+    else if (strike.strain > CRACK_AUDIBLE) this.audio.playStoneCrack(strike.strain, pan);
   }
 
   /** One texel of the baked wordmark, in CSS pixels. */

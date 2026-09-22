@@ -414,7 +414,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   if (!shot || titleShot) {
-    new TitleScreen(uiContainer, { settled: shot === 'title_screen' });
+    new TitleScreen(uiContainer, { settled: shot === 'title_screen', audio: game.audio });
   }
 
   let lastTime = performance.now();

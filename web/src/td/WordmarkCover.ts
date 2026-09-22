@@ -74,6 +74,18 @@ const STONE_SEED = 0x5de7;
 /** Grey steps in the stone, well under the 5-bit grid's 32. */
 const STONE_LEVELS = 6;
 
+/**
+ * What a landing did to the stone, so the sound can be drawn from the cast
+ * rather than scripted against the clip: how many pieces came away, how close
+ * the worst-strained survivor is now to going, and whether this was the blow
+ * that took the whole cast off.
+ */
+export interface StoneStrike {
+  readonly broke: number;
+  readonly strain: number;
+  readonly collapsed: boolean;
+}
+
 /** A shard of the cast, live until its damage passes its strength. */
 interface Shard {
   readonly texels: number[];
@@ -352,30 +364,44 @@ export class WordmarkCover {
   }
 
   /** A landing at `where` across the word, carrying `jolt`. */
-  strike(where: number, jolt: number): void {
-    if (this.revealed || !this.shards.length) return;
+  strike(where: number, jolt: number): StoneStrike {
+    if (this.revealed || !this.shards.length) return { broke: 0, strain: 0, collapsed: false };
     const reach = DAMAGE_REACH_FLOOR + jolt * DAMAGE_REACH_PER_JOLT;
     const dose = jolt * DAMAGE_PER_JOLT;
+    let broke = 0;
+    let strain = 0;
     for (const shard of this.shards) {
       if (shard.debris || shard.damage >= shard.strength) continue;
       const falloff = Math.max(0, 1 - Math.abs(shard.centre - where) / reach);
       if (!falloff) continue;
       shard.damage += dose * falloff * falloff;
-      if (shard.damage >= shard.strength) this.detach(shard, where);
+      if (shard.damage >= shard.strength) {
+        this.detach(shard, where);
+        broke++;
+      } else {
+        strain = Math.max(strain, shard.damage / shard.strength);
+      }
       this.slabDirty = true;
     }
 
-    if (jolt >= COLLAPSE_JOLT) this.collapse(where);
+    if (jolt < COLLAPSE_JOLT) return { broke, strain, collapsed: false };
+    // The finale keeps hitting past the threshold, so the sweep that finds
+    // nothing left is not another collapse -- it is the same one, already spent.
+    const swept = this.collapse(where);
+    return { broke: broke + swept, strain: 0, collapsed: swept > 0 };
   }
 
   /** Everything still attached lets go at once. */
-  private collapse(where: number): void {
+  private collapse(where: number): number {
+    let swept = 0;
     for (const shard of this.shards) {
       if (shard.debris || shard.damage >= shard.strength) continue;
       shard.damage = shard.strength;
       this.detach(shard, where);
+      swept++;
     }
     this.slabDirty = true;
+    return swept;
   }
 
   /** Cut a shard out of the slab and hand it to gravity. */
