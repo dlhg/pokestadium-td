@@ -24,21 +24,6 @@ function disc(parent: THREE.Group, radius: number, color: THREE.ColorRepresentat
   return result;
 }
 
-function taperedLimb(
-  parent: THREE.Group,
-  start: THREE.Vector3,
-  end: THREE.Vector3,
-  baseRadius: number,
-  tipRadius: number,
-  mat: THREE.Material,
-): THREE.Mesh {
-  const delta=end.clone().sub(start);
-  const limb=mesh(parent,new THREE.CylinderGeometry(tipRadius,baseRadius,delta.length(),6),mat);
-  limb.position.copy(start).add(end).multiplyScalar(0.5);
-  limb.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
-  return limb;
-}
-
 /** Small deterministic generator: the same course always dresses the same way. */
 function seeded(seed: number): () => number {
   let state = (Math.floor(seed) ^ 0x9e3779b9) >>> 0;
@@ -431,162 +416,27 @@ function buildDecor(item: MapDecor, map: StadiumMap, terrain: MapTerrain): THREE
   return root;
 }
 
-function buildAncientTree(prop: THREE.Group, r: number, random: () => number): void {
-  disc(prop,r*0.96,'#365f3b',0.08);
-  const bark=material('#6e4b2e'), barkLight=material('#89613a');
-  const trunkTop=new THREE.Vector3(0.08*r,1.18*r,-0.03*r);
-  taperedLimb(prop,new THREE.Vector3(0,0.05,0),trunkTop,0.19*r,0.105*r,bark);
-
-  // Roots and visible forks make this read as one old branching tree, rather
-  // than a foliage ball balanced on a pole.
-  for (let i=0;i<5;i++) {
-    const a=i*Math.PI*2/5+0.25;
-    taperedLimb(prop,new THREE.Vector3(0,0.13,0),new THREE.Vector3(Math.cos(a)*r*0.52,0.08,Math.sin(a)*r*0.52),0.085*r,0.025*r,i%2?bark:barkLight);
-  }
-  const fork=new THREE.Vector3(0.03*r,0.66*r,0);
-  const tips=[
-    new THREE.Vector3(-0.39*r,1.13*r,0.12*r),
-    new THREE.Vector3(0.11*r,1.42*r,0.04*r),
-    new THREE.Vector3(0.39*r,1.08*r,-0.3*r),
-  ];
-  tips.forEach((tip,i)=>taperedLimb(prop,i===1?new THREE.Vector3(0.04*r,0.48*r,0):fork,tip,0.105*r,0.045*r,i===1?bark:barkLight));
-  const leaves=['#477d46','#5f9850','#79aa57'].map(material);
-  tips.forEach((tip,i)=>{
-    const crown=mesh(prop,new THREE.DodecahedronGeometry(r*(0.3+random()*0.025),0),leaves[i],tip.x,tip.y+0.08*r,tip.z);
-    crown.scale.set(1.18+random()*0.12,0.62+random()*0.1,0.9+random()*0.1);
-    crown.rotation.set((random()-0.5)*0.18,random()*Math.PI,(random()-0.5)*0.16);
-  });
-}
-
-function buildRestNook(prop: THREE.Group, r: number): void {
-  disc(prop,r*0.96,'#547c48',0.08);
-  disc(prop,r*0.72,'#9a7c50',0.09);
-  const wood=material('#8a5a31'), darkWood=material('#57371f');
-  const benchWidth=r*1.22;
-  mesh(prop,new THREE.BoxGeometry(benchWidth,0.18,0.62),wood,0,0.62,0.25);
-  mesh(prop,new THREE.BoxGeometry(benchWidth,0.72,0.16),wood,0,0.94,0.52);
-  for (const x of [-benchWidth*0.36,benchWidth*0.36]) {
-    mesh(prop,new THREE.BoxGeometry(0.18,0.62,0.18),darkWood,x,0.31,0.25);
-  }
-
-  // A compact Trainer Tips marker, using the familiar Poké Ball colors.
-  mesh(prop,new THREE.CylinderGeometry(0.09,0.12,1.55,6),darkWood,-r*0.58,0.78,-r*0.4);
-  const sign=mesh(prop,new THREE.CircleGeometry(0.37,12),material('#eee9d7'),-r*0.58,1.7,-r*0.4);
-  sign.rotation.x=-0.5;
-  const signBand=mesh(prop,new THREE.BoxGeometry(0.72,0.12,0.04),material('#c74742'),-r*0.58,1.7,-r*0.38);
-  signBand.rotation.x=-0.5;
-
-  const planter=mesh(prop,new THREE.BoxGeometry(r*0.55,0.35,r*0.42),material('#b36c3d'),r*0.55,0.22,-r*0.48);
-  planter.rotation.y=-0.18;
-  const foliage=material('#447c43');
-  for (const [x,z,color] of [[0.4,-0.48,'#e85a53'],[0.58,-0.56,'#f1c84b'],[0.72,-0.42,'#8c67c8']] as const) {
-    mesh(prop,new THREE.IcosahedronGeometry(0.2,0),foliage,r*x,0.52,r*z);
-    mesh(prop,new THREE.IcosahedronGeometry(0.075,0),material(color),r*x,0.68,r*z);
-  }
-}
-
-function buildGardenPond(prop: THREE.Group, r: number, random: () => number): void {
-  disc(prop,r*0.98,'#496d45',0.07);
-  disc(prop,r*0.78,'#355e55',0.09);
-  const water=disc(prop,r*0.7,'#53a8b8',0.12);
-  (water.material as THREE.MeshLambertMaterial).transparent=true;
-  (water.material as THREE.MeshLambertMaterial).opacity=0.86;
-  const stoneColors=['#9b9a83','#b3ad91','#7f8778'];
-  for (let i=0;i<12;i++) {
-    const a=i*Math.PI*2/12+(random()-0.5)*0.08;
-    const stone=mesh(prop,new THREE.DodecahedronGeometry(r*(0.12+random()*0.025),0),material(stoneColors[i%3]),Math.cos(a)*r*0.78,0.17,Math.sin(a)*r*0.78);
-    stone.scale.set(1.2,0.58,0.9);
-    stone.rotation.y=random()*Math.PI;
-  }
-  for (const [x,z,size] of [[-0.25,0.12,0.16],[0.2,-0.22,0.13],[0.31,0.18,0.1]] as const) {
-    const pad=mesh(prop,new THREE.CircleGeometry(r*size,7),material('#6e9e4f'),r*x,0.16,r*z);
-    pad.rotation.x=-Math.PI/2;
-  }
-  for (const x of [-0.46,0.5]) for (let i=0;i<3;i++) {
-    taperedLimb(prop,new THREE.Vector3(r*x,0.1,r*(0.1+i*0.09)),new THREE.Vector3(r*(x+(i-1)*0.025),r*(0.32+i*0.04),r*(0.1+i*0.09)),0.025,0.018,material('#527b3e'));
-  }
-  const bloom=mesh(prop,new THREE.OctahedronGeometry(r*0.09,0),material('#f3a7c6'),-r*0.23,0.28,r*0.11);
-  bloom.scale.y=0.45;
-}
-
-function buildFlowerEmblem(prop: THREE.Group, r: number, random: () => number): void {
-  disc(prop,r*0.98,'#416d3f',0.07);
-  const bedRadius=r*0.75;
-  const white=mesh(prop,new THREE.CircleGeometry(bedRadius,32,0,Math.PI),material('#f0e8ca'),0,0.12,0);
-  const red=mesh(prop,new THREE.CircleGeometry(bedRadius,32,Math.PI,Math.PI),material('#d84e50'),0,0.125,0);
-  white.rotation.x=red.rotation.x=-Math.PI/2;
-  mesh(prop,new THREE.BoxGeometry(bedRadius*2,0.07,r*0.13),material('#313638'),0,0.16,0);
-  disc(prop,r*0.2,'#313638',0.18);
-  disc(prop,r*0.115,'#f4ecd0',0.2);
-  const border=material('#cabf9b');
-  for (let i=0;i<18;i++) {
-    const a=i*Math.PI*2/18;
-    const stone=mesh(prop,new THREE.BoxGeometry(r*0.23,0.16,r*0.12),border,Math.cos(a)*r*0.83,0.14,Math.sin(a)*r*0.83);
-    stone.rotation.y=-a;
-  }
-  // A few raised blossoms keep the emblem from looking like painted turf.
-  for (let i=0;i<16;i++) {
-    const a=random()*Math.PI*2, distance=r*(0.3+random()*0.34);
-    const color=Math.sin(a)>0?'#f6eed0':'#e76867';
-    const flower=mesh(prop,new THREE.IcosahedronGeometry(0.09+random()*0.035,0),material(color),Math.cos(a)*distance,0.24,Math.sin(a)*distance);
-    flower.castShadow=false;
-  }
-}
-
-function buildBugHabitat(prop: THREE.Group, r: number, random: () => number): void {
-  disc(prop,r*0.97,'#45633a',0.07);
-  disc(prop,r*0.72,'#755b39',0.085);
-  const bark=material('#76502e'), cutWood=material('#bd8a52');
-  const log=mesh(prop,new THREE.CylinderGeometry(r*0.27,r*0.33,r*1.18,7),bark,-r*0.08,r*0.34,0);
-  log.rotation.z=Math.PI/2;
-  log.rotation.x=0.12;
-  const hollow=mesh(prop,new THREE.CircleGeometry(r*0.19,9),material('#2b2018'),r*0.53,r*0.35,0);
-  hollow.rotation.y=Math.PI/2;
-  mesh(prop,new THREE.CylinderGeometry(r*0.25,r*0.3,r*0.7,7),bark,-r*0.58,r*0.35,r*0.48);
-  mesh(prop,new THREE.CircleGeometry(r*0.25,7),cutWood,-r*0.58,r*0.71,r*0.48).rotation.x=-Math.PI/2;
-
-  const stem=material('#e8dfc5'), caps=['#e06755','#e4bc55','#a77ac1'];
-  for (let i=0;i<5;i++) {
-    const a=random()*Math.PI*2, distance=r*(0.58+random()*0.2), height=0.16+random()*0.18;
-    const x=Math.cos(a)*distance,z=Math.sin(a)*distance;
-    mesh(prop,new THREE.CylinderGeometry(0.035,0.045,height,5),stem,x,height/2+0.1,z);
-    const cap=mesh(prop,new THREE.SphereGeometry(0.13+random()*0.05,6,4,0,Math.PI*2,0,Math.PI/2),material(caps[i%3]),x,height+0.09,z);
-    cap.scale.y=0.55;
-  }
-
-  // A Bug Catcher's net supplies the human story without adding another tree.
-  const poleStart=new THREE.Vector3(-r*0.35,0.08,-r*0.5);
-  const poleEnd=new THREE.Vector3(r*0.34,r*0.98,-r*0.38);
-  taperedLimb(prop,poleStart,poleEnd,0.055,0.045,material('#9c7340'));
-  const hoop=mesh(prop,new THREE.TorusGeometry(r*0.23,0.035,5,12),material('#d9d3bb'),poleEnd.x,poleEnd.y, poleEnd.z);
-  hoop.rotation.set(-0.2,0.45,-0.55);
-}
-
 export function buildMapObstacle(zone: MapObstacle, map: StadiumMap, terrain: MapTerrain): THREE.Group {
   const prop=new THREE.Group();
   prop.position.set(zone.x,terrain.heightAt(zone.x,zone.z),zone.z);
-  prop.rotation.y=zone.angle ?? 0;
   prop.name=`obstacle-${zone.style}-${zone.label}`;
   const r=zone.radius;
   // Every prop is dressed from its own position, so neighbours never repeat.
   const random=seeded(hash2(zone.x,zone.z)*1e6+r*97);
   const base = map.theme==='industrial' ? '#253746'
     : zone.style==='pillar' || zone.style==='brick' ? '#cfc6b0'
-    : zone.style==='tree' || zone.style==='pine' || zone.style==='ancient-tree' || zone.style==='bug-habitat' ? '#3f6a3e'
-    : zone.style==='garden-pond' ? '#355e55'
-    : zone.style==='flower-emblem' || zone.style==='rest-nook' ? '#547c48' : map.palette.edge;
+    : zone.style==='tree' || zone.style==='single-tree' || zone.style==='pine' ? '#3f6a3e' : map.palette.edge;
   // The visible base fills exactly the blocked circle, including small gaps between props.
   disc(prop,r,base,0.06);
-  if (zone.style==='ancient-tree') {
-    buildAncientTree(prop,r,random);
-  } else if (zone.style==='rest-nook') {
-    buildRestNook(prop,r);
-  } else if (zone.style==='garden-pond') {
-    buildGardenPond(prop,r,random);
-  } else if (zone.style==='flower-emblem') {
-    buildFlowerEmblem(prop,r,random);
-  } else if (zone.style==='bug-habitat') {
-    buildBugHabitat(prop,r,random);
+  if (zone.style==='single-tree') {
+    disc(prop,r*0.95,'#385e3c',0.08);
+    const height=r*(1.22+random()*0.18);
+    const bark=['#69472f','#755335','#805b38'][Math.floor(random()*3)];
+    mesh(prop,new THREE.CylinderGeometry(r*0.1,r*0.16,height,6),material(bark),0,height/2,0).rotation.y=random()*Math.PI;
+    const leaves=['#568c55','#679e58','#77a85a'];
+    const canopy=mesh(prop,new THREE.DodecahedronGeometry(r*(0.57+random()*0.05),1),material(leaves[Math.floor(random()*leaves.length)]),0,height+r*0.18,0);
+    canopy.scale.set(0.92+random()*0.12,0.78+random()*0.12,0.9+random()*0.14);
+    canopy.rotation.set((random()-0.5)*0.12,random()*Math.PI,(random()-0.5)*0.12);
   } else if (zone.style==='tree') {
     disc(prop,r*0.95,'#385e3c',0.08);
     const trunks=2+Math.floor(random()*3);
