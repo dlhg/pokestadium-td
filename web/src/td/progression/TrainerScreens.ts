@@ -69,6 +69,9 @@ function writeFlag(key: string): void {
   try { localStorage.setItem(key, '1'); } catch { /* storage blocked */ }
 }
 
+/** When the gift's Poké Ball pops open; matches the tr-gift-ball animation in trainer.css. */
+const GIFT_POP_MS = 700;
+
 /** Below this many benched Pokémon the search, sort and filter toolbar stays hidden. */
 const BENCH_TOOLS_MIN = 8;
 
@@ -191,6 +194,8 @@ export class TrainerScreens {
   private views: RosterModelView[] = [];
   private summaryView: RosterModelView | null = null;
   private rerender: (() => void) | null = null;
+  /** The gift's Poké Ball has popped: the game plays the release and the cry. */
+  public onGiftRevealed: ((name: string, type: PokemonType) => void) | null = null;
 
   constructor(private container: HTMLElement, private store: TrainerStore) {
     this.root = document.createElement('div');
@@ -258,65 +263,155 @@ export class TrainerScreens {
 
   // ---- Starter select ------------------------------------------------------
 
+  /**
+   * Two beats: choose a partner, then meet the gift. Pikachu used to be one
+   * clause in the pick screen's subtitle plus a nickname box for a Pokémon
+   * nobody had seen yet, so players missed that they get it at all. Now it
+   * gets its own reveal, and each nickname is asked for right after that
+   * Pokémon is met. Nothing is saved until the last beat, so backing out of
+   * the gift loses nothing and a closed tab just starts over.
+   */
   public openStarterSelect(onDone: () => void): void {
     let chosen: string | null = null;
-    this.open(() => {
-      if (this.root.querySelector('.tr-starter')) return; // Built once; choosing only restyles it.
-      this.clearViews();
-      const gift = getSpecies(GIFT_ID);
-      this.root.innerHTML = `
-        <section class="tr-panel stadium-panel tr-starter">
-          <div class="tr-eyebrow">NEW TRAINER</div>
-          <h1 class="tr-title">CHOOSE YOUR FIRST POKÉMON</h1>
-          <p class="tr-subtitle">Your partner grows with every battle. ${gift.forms[0].name} joins you as a gift. Catch the rest in the stadium.</p>
-          <div class="tr-starter-cards">
-            ${STARTER_IDS.map(id => {
-              const species = getSpecies(id);
-              const form = species.forms[0];
-              return `<button class="tr-starter-card ${chosen === id ? 'selected' : ''}" data-starter="${id}" aria-pressed="${chosen === id}">
-                <span class="tr-model" data-model="${form.name}" data-species="${id}"></span>
-                <strong>${form.name.toUpperCase()}</strong>
-                <span class="tr-types">${typeChip(form.type)}</span>
-                <span class="tr-desc">${species.description}</span>
-                <span class="tr-evo-line">${species.forms.map(f => f.name).join(' → ')}</span>
-              </button>`;
-            }).join('')}
-          </div>
-          <form class="tr-starter-names">
-            <label>STARTER NICKNAME <input name="starter" maxlength="${NICKNAME_MAX}" autocomplete="off" placeholder="${chosen ? getSpecies(chosen).forms[0].name : 'Starter'}" ${chosen ? '' : 'disabled'}></label>
-            <label>${gift.forms[0].name.toUpperCase()} NICKNAME <input name="gift" maxlength="${NICKNAME_MAX}" autocomplete="off" placeholder="${gift.forms[0].name}"></label>
-            <button class="stadium-btn active tr-confirm" type="submit" ${chosen ? '' : 'disabled'}>BEGIN YOUR JOURNEY</button>
-          </form>
-        </section>`;
-      this.mountModels(this.root);
-      const starterInput = this.root.querySelector<HTMLInputElement>('input[name="starter"]')!;
-      const confirm = this.root.querySelector<HTMLButtonElement>('.tr-confirm')!;
-      this.root.querySelectorAll<HTMLButtonElement>('[data-starter]').forEach(button => button.addEventListener('click', () => {
-        chosen = button.dataset.starter!;
-        this.root.querySelectorAll<HTMLButtonElement>('[data-starter]').forEach(card => {
-          card.classList.toggle('selected', card === button);
-          card.setAttribute('aria-pressed', String(card === button));
-        });
-        starterInput.disabled = false;
-        starterInput.placeholder = getSpecies(chosen).forms[0].name;
-        confirm.disabled = false;
-      }));
-      this.root.querySelector('form')!.addEventListener('submit', (event) => {
-        event.preventDefault();
-        if (!chosen) return;
-        const { starter, gift: giftName } = this.readStarterNames();
-        this.store.chooseStarter(chosen, starter || null, giftName || null);
+    let starterName = '';
+    let step: 'pick' | 'gift' = 'pick';
+    const render = () => {
+      if (step === 'pick') this.renderStarterPick(chosen, starterName, (id, name) => {
+        chosen = id;
+        starterName = name;
+        step = 'gift';
+        render();
+      });
+      else this.renderGiftReveal(chosen!, starterName, () => {
+        step = 'pick';
+        render();
+      }, (giftName) => {
+        this.store.chooseStarter(chosen!, starterName || null, giftName || null);
         this.close();
         onDone();
       });
+    };
+    this.open(render);
+  }
+
+  private renderStarterPick(initial: string | null, initialName: string, onChoose: (id: string, nickname: string) => void): void {
+    if (this.root.querySelector('.tr-starter')) return; // Built once; choosing only restyles it.
+    this.clearViews();
+    let chosen = initial;
+    const chooseLabel = () => chosen ? `CHOOSE ${getSpecies(chosen).forms[0].name.toUpperCase()}` : 'CHOOSE';
+    this.root.innerHTML = `
+      <section class="tr-panel stadium-panel tr-starter">
+        <div class="tr-eyebrow">NEW TRAINER</div>
+        <h1 class="tr-title">CHOOSE YOUR FIRST POKÉMON</h1>
+        <p class="tr-subtitle">Your partner grows with every battle. Pick one, and a gift is waiting once you do.</p>
+        <div class="tr-starter-cards">
+          ${STARTER_IDS.map(id => {
+            const species = getSpecies(id);
+            const form = species.forms[0];
+            return `<button class="tr-starter-card ${chosen === id ? 'selected' : ''}" data-starter="${id}" aria-pressed="${chosen === id}">
+              <span class="tr-model" data-model="${form.name}" data-species="${id}"></span>
+              <strong>${form.name.toUpperCase()}</strong>
+              <span class="tr-types">${typeChip(form.type)}</span>
+              <span class="tr-desc">${species.description}</span>
+            </button>`;
+          }).join('')}
+        </div>
+        <form class="tr-starter-names">
+          <label>NICKNAME <input name="starter" maxlength="${NICKNAME_MAX}" autocomplete="off" value="${escapeHtml(initialName)}" placeholder="${chosen ? getSpecies(chosen).forms[0].name : 'Choose a Pokémon first'}" ${chosen ? '' : 'disabled'}></label>
+          <button class="stadium-btn active tr-confirm" type="submit" ${chosen ? '' : 'disabled'}>${chooseLabel()}</button>
+        </form>
+      </section>`;
+    this.mountModels(this.root);
+    const starterInput = this.root.querySelector<HTMLInputElement>('input[name="starter"]')!;
+    const confirm = this.root.querySelector<HTMLButtonElement>('.tr-confirm')!;
+    this.root.querySelectorAll<HTMLButtonElement>('[data-starter]').forEach(button => button.addEventListener('click', () => {
+      chosen = button.dataset.starter!;
+      this.root.querySelectorAll<HTMLButtonElement>('[data-starter]').forEach(card => {
+        card.classList.toggle('selected', card === button);
+        card.setAttribute('aria-pressed', String(card === button));
+      });
+      starterInput.disabled = false;
+      starterInput.placeholder = getSpecies(chosen).forms[0].name;
+      confirm.disabled = false;
+      confirm.textContent = chooseLabel();
+    }));
+    this.root.querySelector('form')!.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (chosen) onChoose(chosen, this.readNickname('starter'));
     });
   }
 
-  private readStarterNames(): { starter: string; gift: string } {
-    const form = this.root.querySelector('form');
-    const read = (name: string) => form?.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value.trim() ?? '';
-    return { starter: read('starter'), gift: read('gift') };
+  /**
+   * The gift, staged like a send-out: a Poké Ball drops in, pops, and Pikachu
+   * is standing there with everything a starter card shows. The two-slot team
+   * strip underneath is the point of the screen -- you are not choosing
+   * between these, you are leaving with both.
+   */
+  private renderGiftReveal(starterId: string, starterName: string, onBack: () => void, onBegin: (giftName: string) => void): void {
+    if (this.root.querySelector('.tr-gift')) return;
+    this.clearViews();
+    const gift = getSpecies(GIFT_ID);
+    const form = gift.forms[0];
+    const starter = getSpecies(starterId).forms[0];
+    const partner = starterName || starter.name;
+    const slot = (speciesId: string, name: string, species: string, tag: string) => `
+      <li class="tr-gift-slot">
+        <span class="tr-model" data-model="${species}" data-species="${speciesId}"></span>
+        <span class="tr-gift-slot-copy"><b>${escapeHtml(name.toUpperCase())}</b><small>${tag} · LV 5</small></span>
+      </li>`;
+    this.root.innerHTML = `
+      <section class="tr-panel stadium-panel tr-gift">
+        <div class="tr-eyebrow">A GIFT FROM THE STADIUM</div>
+        <h1 class="tr-title">${form.name.toUpperCase()} JOINS YOUR TEAM</h1>
+        <p class="tr-subtitle">Every new trainer gets one. ${form.name} fights alongside ${escapeHtml(partner)} from your very first match.</p>
+        <div class="tr-gift-reveal">
+          <div class="tr-gift-stage">
+            <span class="tr-gift-ball" aria-hidden="true"><i></i><i></i></span>
+            <span class="tr-gift-flash" aria-hidden="true"></span>
+            <span class="tr-model" data-model="${form.name}" data-species="${GIFT_ID}"></span>
+          </div>
+          <div class="tr-gift-copy">
+            <span class="tr-gift-role">${gift.role}</span>
+            <strong>${form.name.toUpperCase()}</strong>
+            <span class="tr-types">${typeChip(form.type)}</span>
+            <span class="tr-desc">${gift.description}</span>
+          </div>
+        </div>
+        <div class="tr-gift-team">
+          <span class="tr-gift-team-label">YOUR TEAM</span>
+          <ul>
+            ${slot(starterId, partner, starter.name, 'YOUR PICK')}
+            ${slot(GIFT_ID, form.name, form.name, 'GIFT')}
+          </ul>
+        </div>
+        <form class="tr-starter-names">
+          <label>${form.name.toUpperCase()} NICKNAME <input name="gift" maxlength="${NICKNAME_MAX}" autocomplete="off" placeholder="${form.name}"></label>
+          <button class="stadium-btn tr-back" type="button">BACK</button>
+          <button class="stadium-btn active tr-confirm" type="submit">BEGIN YOUR JOURNEY</button>
+        </form>
+      </section>`;
+    this.mountModels(this.root);
+    const giftInput = this.root.querySelector<HTMLInputElement>('input[name="gift"]')!;
+    const giftSlotName = this.root.querySelectorAll<HTMLElement>('.tr-gift-slot b')[1];
+    giftInput.addEventListener('input', () => {
+      giftSlotName.textContent = (giftInput.value.trim() || form.name).toUpperCase();
+    });
+    this.root.querySelector('.tr-back')!.addEventListener('click', onBack);
+    this.root.querySelector('form')!.addEventListener('submit', (event) => {
+      event.preventDefault();
+      onBegin(this.readNickname('gift'));
+    });
+    // Timed to the ball popping in trainer.css, so the cry lands on the reveal.
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    window.setTimeout(() => {
+      if (this.root.querySelector('.tr-gift')) this.onGiftRevealed?.(form.name, form.type);
+    }, reduced ? 0 : GIFT_POP_MS);
   }
+
+  private readNickname(name: 'starter' | 'gift'): string {
+    return this.root.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value.trim() ?? '';
+  }
+
 
   // ---- Team select ---------------------------------------------------------
 

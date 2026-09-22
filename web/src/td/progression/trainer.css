@@ -70,6 +70,61 @@
 
 /* Starter select */
 .tr-starter { width: min(860px, 100%); }
+
+/* The gift reveal: a ball drops, pops at 700ms (GIFT_POP_MS), and the model is there. */
+.tr-gift { width: min(760px, 100%); }
+.tr-gift-reveal { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 18px; align-items: center; }
+.tr-gift-stage {
+  position: relative; height: 250px; border: 3px solid rgba(246,196,55,.55); border-radius: 10px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 88%, rgba(246,196,55,.35) 0 22%, transparent 48%), radial-gradient(circle at 50% 40%, #2a5596 0%, #0b1d3c 72%);
+}
+.tr-gift-stage .tr-model { position: absolute; inset: 0; height: auto; animation: tr-gift-appear 420ms 700ms cubic-bezier(.2, 1.6, .4, 1) both; }
+.tr-gift-ball { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; animation: tr-gift-drop 700ms cubic-bezier(.3, 0, .7, 1) both; }
+.tr-gift-ball i {
+  position: absolute; left: 0; width: 54px; height: 27px; border: 3px solid #111; box-sizing: border-box;
+  animation: tr-gift-open-top 360ms 700ms ease-out both;
+}
+.tr-gift-ball i:first-child { top: 0; border-radius: 27px 27px 0 0; background: linear-gradient(#ff6a5c, #d11f1f); }
+.tr-gift-ball i:last-child { bottom: 0; border-radius: 0 0 27px 27px; background: linear-gradient(#fff, #cfd6e4); animation-name: tr-gift-open-bottom; }
+.tr-gift-ball i:first-child::after {
+  content: ''; position: absolute; left: 50%; bottom: -9px; width: 12px; height: 12px; margin-left: -9px;
+  border: 3px solid #111; border-radius: 50%; background: #fff; z-index: 1;
+}
+.tr-gift-flash {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 50% 50%, #fff 0 18%, rgba(255,246,190,.7) 34%, transparent 70%);
+  animation: tr-gift-flash 520ms 700ms ease-out both;
+}
+@keyframes tr-gift-drop {
+  0% { transform: translateY(-190px) rotate(-200deg); }
+  62% { transform: translateY(0) rotate(0); }
+  74% { transform: translateY(-22px) rotate(-14deg); }
+  86% { transform: translateY(0) rotate(10deg); }
+  93% { transform: rotate(-6deg); }
+  100% { transform: rotate(0); }
+}
+@keyframes tr-gift-open-top { to { transform: translateY(-46px) rotate(-24deg); opacity: 0; } }
+@keyframes tr-gift-open-bottom { to { transform: translateY(40px) rotate(14deg); opacity: 0; } }
+@keyframes tr-gift-flash { 0% { opacity: 0; transform: scale(.4); } 25% { opacity: 1; } 100% { opacity: 0; transform: scale(1.6); } }
+@keyframes tr-gift-appear { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: none; } }
+.tr-gift-copy { display: flex; flex-direction: column; gap: 6px; }
+.tr-gift-copy strong { font: 700 40px/1 'Teko', Impact, sans-serif; color: var(--broadcast-cream-bright); }
+.tr-gift-role { color: var(--broadcast-gold); font: 900 12px/1 'Trebuchet MS', sans-serif; letter-spacing: 2px; }
+.tr-gift-copy .tr-desc { font-size: 15px; }
+.tr-gift-team { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 10px 12px; border: 1px solid rgba(246,196,55,.4); border-radius: 8px; background: rgba(4,17,63,.55); }
+.tr-gift-team-label { color: #bcd7ec; font: 16px 'Teko', sans-serif; letter-spacing: 1.5px; }
+.tr-gift-team ul { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.tr-gift-slot { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border: 2px solid rgba(255,255,255,.35); border-radius: 8px; background: rgba(25,58,176,.5); }
+.tr-gift-slot .tr-model { width: 56px; height: 56px; }
+.tr-gift-slot-copy { display: flex; flex-direction: column; }
+.tr-gift-slot-copy b { color: var(--broadcast-cream-bright); font: 700 22px/1 'Teko', Impact, sans-serif; }
+.tr-gift-slot-copy small { color: #e9d89a; font: 13px/1 'Teko', sans-serif; letter-spacing: 1px; }
+.tr-gift .tr-back { margin-left: auto; }
+.tr-gift .tr-back + .tr-confirm { margin-left: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .tr-gift-ball, .tr-gift-flash { display: none; }
+  .tr-gift-stage .tr-model { animation: none; }
+}
 .tr-starter-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .tr-starter-card, .tr-card-main, .tr-slot {
   font: inherit; color: #fff; text-align: left; cursor: pointer;
@@ -249,6 +304,9 @@ select.tr-input { padding: 4px 6px; border: 2px solid #9dc0dc; border-radius: 4p
 @media (max-width: 560px) {
   .tr-starter-cards { grid-template-columns: 1fr; }
   .tr-starter-card .tr-model { height: 110px; }
+  .tr-gift-reveal { grid-template-columns: 1fr; }
+  .tr-gift-stage { height: 200px; }
+  .tr-gift-team { flex-direction: column; align-items: flex-start; }
   .tr-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tr-summary-top { flex-direction: column; align-items: stretch; }
   .tr-model.large { width: 100%; }
@@ -299,3 +357,7 @@ select.tr-input { padding: 4px 6px; border: 2px solid #9dc0dc; border-radius: 4p
 .tr-slot.rental { outline: 2px dashed #8ec5ff; outline-offset: -4px; }
 .tr-tag.rental { background: #8ec5ff; }
 .tr-tag.grad { background: #ffb3f0; }
+
+/* Headless shots judge the settled reveal, not a frame caught mid-drop. */
+.shot-mode .tr-gift-ball, .shot-mode .tr-gift-flash { display: none; }
+.shot-mode .tr-gift-stage .tr-model { animation: none; }

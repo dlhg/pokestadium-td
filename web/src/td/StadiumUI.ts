@@ -249,6 +249,8 @@ export class StadiumUI {
   public onResumeMap: () => void = () => {};
   /** Course select came up (team select and the collection open from it). */
   public onMenuShown: () => void = () => {};
+  /** The new-trainer gift's Poké Ball has popped open. */
+  public onGiftRevealed: (name: string, type: PokemonType) => void = () => {};
   public onResumeGame: () => void = () => {};
   public onCastSignature: (tower: Tower, signatureId: string) => void = () => {};
   public onToggleSignatureCuts: () => void = () => {};
@@ -274,6 +276,7 @@ export class StadiumUI {
     this.applyUiScale();
     window.addEventListener('resize', this.handleUiResize);
     this.trainer = new TrainerScreens(container, store);
+    this.trainer.onGiftRevealed = (name, type) => this.onGiftRevealed(name, type);
     // A new trainer picks a starter before anything else.
     if (!store.data.starterChosen) this.trainer.openStarterSelect(() => this.setMapSelectVisible(true));
   }

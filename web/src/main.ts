@@ -92,6 +92,12 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelector<HTMLButtonElement>('[data-fill-rentals]')!.click();
   }
   if (shot === 'pokemon_summary') game.ui.trainer.openSummary(store.team[0].uid);
+  // A new trainer's two beats: a partner picked, then the gift that comes with it.
+  if (shot === 'starter_select' || shot === 'starter_gift') {
+    game.ui.trainer.openStarterSelect(() => {});
+    document.querySelector<HTMLButtonElement>('[data-starter="charmander"]')!.click();
+    if (shot === 'starter_gift') document.querySelector<HTMLButtonElement>('.tr-starter .tr-confirm')!.click();
+  }
   // The in-match roster with three members sitting out and three rentals in their places.
   if (shot === 'roster_rentals') {
     store.team.slice(0, 3).forEach(member => store.setLevel(member, CUPS.little.entryMax + 6));
@@ -215,7 +221,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && shot !== 'pokemon_summary' && !titleShot && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
+  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && shot !== 'pokemon_summary' && !shot.startsWith('starter_') && !titleShot && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

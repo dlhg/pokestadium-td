@@ -208,8 +208,14 @@ titans +8. A caught Pokémon keeps the level of the creep, clamped to the cup's 
 
 ## UI
 
-1. **Starter select** (first launch only): Bulbasaur, Charmander or Squirtle at Lv 5,
-   plus a gift Pikachu. Nickname prompt for each.
+1. **Starter select** (first launch only), in two beats:
+   - **Pick:** Bulbasaur, Charmander or Squirtle at Lv 5, with a nickname for the one chosen.
+   - **Gift:** a Poké Ball pops and Pikachu is revealed with its role and type, above a
+     two-slot "your team" strip showing the pick and the gift together, and its own
+     nickname field. BACK returns to the pick with the choice kept.
+   Pikachu used to be one clause in the pick screen's subtitle plus a nickname box for a
+   Pokémon nobody had seen, and players missed that they got it at all. Nothing is saved
+   until BEGIN YOUR JOURNEY, so a closed tab starts the flow over.
 2. **Team select**: a new step between map select and match start.
    - Six slots on top, collection grid below.
    - Shows the map's threat types, taken from the wave list.

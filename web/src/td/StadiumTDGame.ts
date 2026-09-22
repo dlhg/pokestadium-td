@@ -224,6 +224,10 @@ export class StadiumTDGame {
       else this.audio.stopMusic();
     };
     this.ui.onMenuShown = () => this.audio.playMusic(MENU_MUSIC);
+    this.ui.onGiftRevealed = (name, type) => {
+      this.audio.playSummonRelease();
+      this.audio.playCry(name, type);
+    };
     this.ui.onResumeGame = () => {
       this.pauseMenuOpen = false;
       this.isPaused = this.namingHold;
