@@ -414,7 +414,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   if (!shot || titleShot) {
-    new TitleScreen(uiContainer, { settled: shot === 'title_screen', audio: game.audio });
+    new TitleScreen(uiContainer, {
+      settled: shot === 'title_screen',
+      audio: game.audio,
+      nextMusic: store.data.starterChosen ? 'pokemon_select' : 'battle_preparation',
+    });
   }
 
   let lastTime = performance.now();

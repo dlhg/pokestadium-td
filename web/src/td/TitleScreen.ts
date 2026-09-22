@@ -12,11 +12,13 @@ interface TitleScreenOptions {
   /** Hold the complete intro on its last frame for visual regression shots. */
   settled?: boolean;
   /**
-   * The game's audio, for the landings and the stone. Optional: the screen is
-   * standalone otherwise, and a browser that has not granted audio yet plays
-   * the intro silently either way.
+   * The game's audio, for title music, the landings, and the stone. Optional:
+   * the screen is standalone otherwise, and a browser that has not granted
+   * audio yet plays the intro silently either way.
    */
   audio?: StadiumAudio;
+  /** Music to hand off to when the title doors open. */
+  nextMusic?: string;
 }
 
 const LOGO_SLUG = 'x214_model';
@@ -185,6 +187,7 @@ export class TitleScreen {
   private readonly wordmarkStage: HTMLElement;
   private readonly cover: WordmarkCover;
   private readonly audio: StadiumAudio | null;
+  private readonly nextMusic: string | null;
   private readonly fallers: Faller[] = [];
   private readonly reducedMotion: boolean;
   private jolt = 0;
@@ -255,6 +258,8 @@ export class TitleScreen {
       this.wordmark,
     );
     this.audio = options.audio ?? null;
+    this.nextMusic = options.nextMusic ?? null;
+    this.audio?.playMusic('title');
     this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     // Everything that would break the cast off is motion. Without it the stone
     // would simply sit there, so the wordmark starts uncovered instead.
@@ -316,6 +321,7 @@ export class TitleScreen {
   private readonly dismiss = (): void => {
     if (this.closing) return;
     this.closing = true;
+    if (this.nextMusic) this.audio?.playMusic(this.nextMusic);
     // The shake and the knock drive these through inline transforms, which
     // would outrank the exit's own. They are at rest by now unless a landing is
     // still ringing, so clearing them costs nothing and hands the exit control.
