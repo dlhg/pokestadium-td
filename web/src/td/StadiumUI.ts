@@ -27,7 +27,7 @@ import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
 import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
-import { displayName, formOf, nextEvolution, OwnedPokemon, speciesOf, statsOf, STORAGE_MAX, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { displayName, formOf, nextEvolution, OwnedPokemon, POKEDEX_TOTAL, speciesOf, statsOf, STORAGE_MAX, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { isRental } from './progression/Rentals';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import { VARIANTS } from './progression/Variants';
@@ -133,6 +133,8 @@ export interface UIState {
 
 export interface CatchSlot {
   creep: Creep;
+  /** This exact Pokémon form has never been registered in the persistent Pokédex. */
+  isNew: boolean;
   /** Viewport pixels of the spot just above the creep's HP bar. */
   x: number;
   y: number;
@@ -1161,7 +1163,7 @@ export class StadiumUI {
       ...(unlockedCup ? [`<div class="trophy-move new-cup"><span>${unlockedCup}</span><em>NOW OPEN</em></div>`] : []),
     ].join('');
     this.trophyView.hide();
-    card.classList.remove('has-model');
+    card.classList.remove('has-model', 'new-registration');
     card.innerHTML = `
       <div class="trophy-kicker">ROUND ${milestone.round} CLEARED</div>
       <div class="trophy-name">${milestone.label}</div>
@@ -1176,7 +1178,7 @@ export class StadiumUI {
   public showResearchResult(formName: string, points: number): void {
     const card = document.getElementById('capture-trophy')!;
     this.trophyView.hide();
-    card.classList.remove('has-model', 'naming', 'interactive');
+    card.classList.remove('has-model', 'new-registration', 'naming', 'interactive');
     card.innerHTML = `
       <div class="trophy-copy research-result">
         <div class="trophy-kicker">RESEARCH COMPLETE</div>
@@ -1212,10 +1214,22 @@ export class StadiumUI {
    */
   public showCaptureTrophy(
     pokemon: OwnedPokemon,
-    options: { duplicate: boolean; openTeamSlot: boolean; guestSlotsLeft: number; storageFull: boolean },
+    options: {
+      duplicate: boolean;
+      openTeamSlot: boolean;
+      guestSlotsLeft: number;
+      storageFull: boolean;
+      firstRegistration: boolean;
+      caughtBefore: number;
+      newSpeciesBonus: number;
+      milestone: boolean;
+    },
     onNamed: (name: string | null, destination: 'match' | 'storage' | 'research') => void,
   ): void {
-    const { duplicate, openTeamSlot, guestSlotsLeft, storageFull } = options;
+    const {
+      duplicate, openTeamSlot, guestSlotsLeft, storageFull,
+      firstRegistration, caughtBefore, newSpeciesBonus, milestone,
+    } = options;
     const card = document.getElementById('capture-trophy')!;
     const species = speciesOf(pokemon);
     const form = formOf(pokemon);
@@ -1239,12 +1253,29 @@ export class StadiumUI {
     const researchButton = storageFull
       ? '<button class="stadium-btn active" type="button" data-research>SEND TO RESEARCH</button>'
       : duplicate ? '<button class="stadium-btn" type="button" data-research>SEND TO RESEARCH</button>' : '';
+    const number = dexNumber(pokemon.speciesId, pokemon.stage);
+    const dexStrip = Array.from({ length: 5 }, (_, index) => number + index - 2)
+      .filter(value => value >= 1 && value <= POKEDEX_TOTAL)
+      .map(value => value === number
+        ? `<span class="dex-register-cell current"><span class="dex-silhouette"></span><img src="/generated/stadium/icons/${String(value).padStart(3, '0')}.png" alt=""><b>#${String(value).padStart(3, '0')}</b></span>`
+        : `<span class="dex-register-cell"><span class="dex-silhouette"></span><b>#${String(value).padStart(3, '0')}</b></span>`)
+      .join('');
+    const registration = firstRegistration ? `
+      <div class="registration-kicker">NEW POKÉMON!</div>
+      <div class="registration-title">#${String(number).padStart(3, '0')} ${form.name.toUpperCase()} REGISTERED</div>
+      <div class="dex-register-strip" aria-label="Pokédex number ${number} registered">${dexStrip}</div>
+      <div class="registration-progress"><span>${caughtBefore} / ${POKEDEX_TOTAL}</span><i>→</i><strong>${caughtBefore + 1} / ${POKEDEX_TOTAL} CAUGHT</strong></div>
+      <div class="registration-bonus">NEW SPECIES BONUS <strong>+$${newSpeciesBonus}</strong></div>
+      ${milestone ? `<div class="registration-milestone">COLLECTOR MILESTONE · ${caughtBefore + 1} REGISTERED!</div>` : ''}
+    ` : '';
     card.classList.toggle('has-variant', !!variant);
+    card.classList.toggle('new-registration', firstRegistration);
     if (variant) card.style.setProperty('--variant-color', variant.accentColor);
     card.innerHTML = `
       <div class="trophy-stage"></div>
       <div class="trophy-copy">
-        <div class="trophy-kicker">${storageFull ? 'STORAGE FULL' : duplicate ? 'DUPLICATE ENCOUNTER' : 'POKÉMON CAUGHT'}</div>
+        ${registration}
+        <div class="trophy-kicker">${storageFull ? 'STORAGE FULL' : duplicate ? 'DUPLICATE ENCOUNTER' : firstRegistration ? 'COLLECTION UPDATED' : 'POKÉMON CAUGHT'}</div>
         <div class="trophy-name">${form.name.toUpperCase()} <small>LV ${pokemon.level}</small></div>
         <div class="trophy-type" style="background:${typeColor}">${form.type.toUpperCase()}</div>
         ${variant ? `<span class="trophy-variant">${variant.label}</span>` : ''}
@@ -1264,6 +1295,12 @@ export class StadiumUI {
     card.querySelector('.trophy-stage')!.appendChild(this.trophyView.canvas);
     card.classList.add('has-model', 'shown', 'naming', 'interactive');
     this.trophyView.show(form.name, species.createModel, variant?.accentColor);
+    const portrait = card.querySelector<HTMLImageElement>('.dex-register-cell.current img');
+    if (portrait) {
+      const loaded = () => portrait.parentElement?.classList.add('portrait-loaded');
+      portrait.addEventListener('load', loaded, { once: true });
+      if (portrait.complete && portrait.naturalWidth) loaded();
+    }
     window.clearTimeout(this.trophyTimer);
 
     const input = card.querySelector<HTMLInputElement>('#trophy-nickname-input')!;
@@ -1295,7 +1332,7 @@ export class StadiumUI {
         if (event.key === 'Escape') finish(null, 'research');
       });
     }
-    window.setTimeout(() => dismiss.focus(), 50);
+    window.setTimeout(() => dismiss.focus(), firstRegistration ? 950 : 50);
   }
 
   /** The end-of-match card when a player quits: who grew, who evolved, who was caught. */
@@ -1374,11 +1411,15 @@ export class StadiumUI {
         tag = document.createElement('button');
         tag.className = `catch-tag interactive ${slot.creep.threat}`;
         tag.dataset.catch = String(id);
-        tag.innerHTML = `<span class="ball-icon" aria-hidden="true"></span><span class="catch-label"></span><span class="catch-odds"></span>`;
+        tag.innerHTML = `<span class="ball-icon" aria-hidden="true"></span><span class="catch-new">NEW</span><span class="catch-label"></span><span class="catch-odds"></span>`;
         tagsEl.appendChild(tag);
         this.catchTags.set(id, tag);
       }
       tag.disabled = state.balls[state.selectedBall] <= 0;
+      if ((tag.dataset.isNew === 'true') !== slot.isNew) this.catchTagWidths.delete(id);
+      tag.dataset.isNew = String(slot.isNew);
+      tag.classList.toggle('new-species', slot.isNew);
+      tag.querySelector<HTMLElement>('.catch-new')!.hidden = !slot.isNew;
       const throwTitle = tag.disabled ? `No ${BALL_NAMES[state.selectedBall]} Balls left` : `Throw a ${BALL_NAMES[state.selectedBall]} Ball`;
       const typeInfo = defensiveNotes(slot.creep.types, this.showTypeEffectiveness);
       tag.title = typeInfo
@@ -1420,7 +1461,7 @@ export class StadiumUI {
 
     // Tray: every catchable creep, even off screen or hidden behind the stands.
     const tray = this.container.querySelector<HTMLElement>('#catch-tray')!;
-    const trayKey = `${state.selectedBall}|${state.catchables.map(slot => this.catchId(slot.creep)).join('|')}`;
+    const trayKey = `${state.selectedBall}|${state.catchables.map(slot => `${this.catchId(slot.creep)}:${slot.isNew}`).join('|')}`;
     if (trayKey !== this.catchTrayKey) {
       this.catchTrayKey = trayKey;
       tray.hidden = state.catchables.length === 0;
@@ -1428,7 +1469,7 @@ export class StadiumUI {
         const creep = slot.creep;
         const color = TYPE_COLORS[creep.type]?.hex ?? '#fff';
         const odds = Math.round(slot.odds[state.selectedBall] * 100);
-        return `<button class="catch-chip" data-catch-chip="${this.catchId(creep)}"><i style="background:${color}"></i>${escapeHtml(creep.name.replace(/^Titan /, '').toUpperCase())}<span class="catch-odds">${odds}%</span></button>`;
+        return `<button class="catch-chip${slot.isNew ? ' new-species' : ''}" data-catch-chip="${this.catchId(creep)}"><i style="background:${color}"></i><span class="catch-chip-copy"><b>${slot.isNew ? '<em>NEW</em>' : ''}${escapeHtml(creep.name.replace(/^Titan /, '').toUpperCase())}</b>${slot.isNew ? '<small>NOT YET REGISTERED</small>' : ''}</span><span class="catch-odds">${odds}%</span></button>`;
       }).join('');
     }
     tray.querySelectorAll<HTMLButtonElement>('[data-catch-chip]').forEach(chip => {

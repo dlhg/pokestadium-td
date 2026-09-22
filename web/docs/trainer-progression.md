@@ -23,6 +23,16 @@ higher move tiers. Tiers are still bought with prize money during the match.
   in this match as a bonus roster member. The match has three guest slots beyond the
   six-Pokémon team; storage and Research Data never consume those slots. Catches are
   never hidden just because the guest roster is full.
+- **First registrations are called out twice.** An uncaught form gets a gold `NEW`
+  marker and `NOT YET REGISTERED` in the capture tray once it becomes catchable.
+  A successful first catch gets a Pokédex registration card, animated count toward
+  151, jumbotron takeover, cry and unique registration sting, plus $250 match money.
+  The announcer stays silent for these beats because Stadium has no authentic
+  capture lines. Pokédex registration is form-specific and permanent even if the
+  last owned copy is released; ownership and Research Data remain evolution-line
+  based and separately control duplicate/storage choices.
+- **Collection milestones** are highlighted on registrations 10, 25, 50, 100 and
+  151. MY POKÉMON keeps the 151-species progress bar visible between matches.
 - **Duplicate catches** pause at the trophy card and can either be kept as another
   individual or sent to the Professor for species-specific Research Data. Research
   Data is persistent, does not refund the ball or award prize money, and is reserved

@@ -373,7 +373,7 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   assert.equal(store.isStorageFull, true, 'the cap reports full');
   assert.equal(store.add(createPokemon('pikachu', 5, origin), false), false, 'a full collection refuses a catch');
   assert.equal(store.storageUsed, STORAGE_MAX, 'the refused catch is not stored');
-  assert.equal(store.data.pokedex.caught.includes('pikachu'), false, 'a refused catch is not marked caught');
+  assert.equal(store.hasCaughtSpecies('pikachu', 0), false, 'a refused catch is not marked caught');
 
   const doomed = store.data.collection[0].uid;
   const earned = store.releaseForResearch(doomed);
@@ -399,7 +399,7 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   assert.equal(store.data.team.includes(second.uid), true, 'the catch took an open team slot');
   assert.equal(store.releaseForResearch(second.uid), 3, 'a second copy can be released');
   assert.equal(store.data.team.includes(second.uid), false, 'a released Pokémon leaves the team');
-  assert.equal(store.data.pokedex.caught.includes('bulbasaur'), true, 'releasing keeps the Pokédex entry');
+  assert.equal(store.hasCaughtSpecies('bulbasaur', 0), true, 'releasing keeps the Pokédex entry');
 }
 
 // A wild Pokemon keeps the form that was caught even when its wild level is
@@ -417,6 +417,25 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   store.gainXp(rattata, xpForLevel(21) - rattata.xp);
   assert.equal(rattata.level, 21, 'enough XP reaches the next level');
   assert.equal(formOf(rattata).name, 'Raticate', 'over-level capture evolves on a real level-up');
+  assert.equal(store.hasCaughtSpecies('rattata', 0), false, 'an unowned test Pokémon does not invent its earlier form registration');
+  assert.equal(store.hasCaughtSpecies('rattata', 1), true, 'evolution registers the new form in the Pokédex');
+}
+
+// Pokédex registrations are permanent and form-specific, while ownership is
+// still family-based for duplicate and Research Data rules.
+{
+  const store = new TrainerStore(false);
+  const gastly = createPokemon('gastly', 25, { kind: 'caught', at: 0 }, { stage: 0 });
+  const haunter = createPokemon('gastly', 25, { kind: 'caught', at: 0 }, { stage: 1 });
+  store.add(gastly, false);
+  assert.equal(store.hasCaughtSpecies('gastly', 0), true, 'caught Gastly is registered');
+  assert.equal(store.hasCaughtSpecies('gastly', 1), false, 'Haunter remains a new Pokédex form');
+  store.add(haunter, false);
+  assert.equal(store.hasCaughtSpecies('gastly', 1), true, 'caught Haunter gets its own registration');
+  assert.equal(store.caughtSpeciesCount, 2, 'two forms advance the 151 counter twice');
+  store.release(gastly.uid);
+  store.release(haunter.uid);
+  assert.equal(store.caughtSpeciesCount, 2, 'releasing every copy preserves both registrations');
 }
 
 // Cup rules: each cap lands inside the next cup's entry window, every course

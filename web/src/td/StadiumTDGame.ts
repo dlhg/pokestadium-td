@@ -39,8 +39,8 @@ import { BALL_ORDER, BALL_PRICES, BallType, CaptureSequence } from './CaptureSeq
 import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
-import { speciesForCreepName } from './progression/Species';
-import { createPokemon, displayName, MATCH_GUEST_SLOTS, OwnedPokemon, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { dexNumber, speciesForCreepName } from './progression/Species';
+import { createPokemon, displayName, formOf, MATCH_GUEST_SLOTS, OwnedPokemon, POKEDEX_TOTAL, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { variantForCreep } from './progression/Variants';
 import { MatchProgress, XpAward } from './progression/MatchProgress';
 import { createRental } from './progression/Rentals';
@@ -66,6 +66,8 @@ const PLACEMENT_BLOCK_LABELS: Record<PlacementBlockReason, string> = {
 /** A successful-capture prompt is informational, not a persistent mode hint. */
 const CAPTURE_DEPLOY_HINT_DURATION = 5;
 const CAPTURE_FAIL_HINT_DURATION = 3;
+const NEW_SPECIES_BONUS = 250;
+const POKEDEX_MILESTONES = new Set([10, 25, 50, 100, POKEDEX_TOTAL]);
 
 /** Course select, starter select and team select share one loop. */
 const MENU_MUSIC = 'pokemon_select';
@@ -156,6 +158,9 @@ export class StadiumTDGame {
   /** Queued so simultaneous evolutions (a multi-way knockout) play one at a time. */
   private evolutionQueue: { tower: Tower; fromName: string; toName: string }[] = [];
   private traitsIntroduced = new Set<CreepTrait>();
+  /** One discovery callout per uncaught form per match, even if several copies weaken together. */
+  private catchableSpeciesNoticed = new Set<string>();
+  private pokedexJumbotron: { title: string; subtitle: string; timer: number } | null = null;
   private cinemaDim = 0;
   /** Simulation clock: advances with game speed and freezes with the match. */
   private arenaTime = 0;
@@ -405,6 +410,8 @@ export class StadiumTDGame {
     this.abortCapture();
     this.abortEvolution();
     this.traitsIntroduced.clear();
+    this.catchableSpeciesNoticed.clear();
+    this.pokedexJumbotron = null;
     // Team members over the cup's entry limit sit this match out; they stay on the saved team.
     this.roster = [
       ...this.store.team.filter(member => isEligible(member.level, CUPS[this.map.cup])),
@@ -663,7 +670,7 @@ export class StadiumTDGame {
    *  toward giving the player the reaction window rather than not. */
   private isUncaughtSpecies(creep: Creep): boolean {
     const match = speciesForCreepName(creep.name);
-    return !match || !this.store.hasSpecies(match.speciesId);
+    return !match || !this.store.hasCaughtSpecies(match.speciesId, match.stage);
   }
 
   /**
@@ -712,18 +719,37 @@ export class StadiumTDGame {
 
   private finishCapture(success: boolean, target: Creep, ball: BallType): void {
     if (success) {
+      const firstRegistration = this.isUncaughtSpecies(target);
+      const caughtBefore = this.store.caughtSpeciesCount;
       this.renderer.scene.remove(target.group);
       this.creeps = this.creeps.filter(creep => creep !== target);
       target.destroy(this.renderer.scene);
       this.store.data.captureLuck = 0;
       const caught = this.createCaughtPokemon(target, ball);
       this.money += Math.ceil(target.reward * 1.5);
-      this.captureHint = `CAUGHT ${target.name.replace(/^Titan /, '').toUpperCase()}! READY TO DEPLOY`;
+      if (firstRegistration) this.money += NEW_SPECIES_BONUS;
+      this.captureHint = firstRegistration
+        ? `NEW POKÉMON! ${target.name.replace(/^Titan /, '').toUpperCase()} REGISTERED · ${caughtBefore + 1}/${POKEDEX_TOTAL}`
+        : `CAUGHT ${target.name.replace(/^Titan /, '').toUpperCase()}! READY TO DEPLOY`;
       this.timedCaptureHint = this.captureHint;
       this.captureHintTimer = CAPTURE_DEPLOY_HINT_DURATION;
       this.announcer.trigger('capture_success', target.name);
-      if (!this.audio.playJingle(CAPTURE_JINGLE)) this.audio.playFanfare();
-      if (caught) this.promptCaughtPokemon(caught);
+      if (firstRegistration && caught) {
+        const form = formOf(caught);
+        const number = dexNumber(caught.speciesId, caught.stage);
+        this.pokedexJumbotron = {
+          title: 'NEW POKÉMON!',
+          subtitle: `#${String(number).padStart(3, '0')} ${form.name.toUpperCase()} · ${caughtBefore + 1}/${POKEDEX_TOTAL}`,
+          timer: 5,
+        };
+        this.audio.playPokedexRegistered();
+        this.audio.playCry(form.name, form.type);
+        this.audio.duckCrowd(2.4, 0.2);
+        this.arena.setCrowdMood(1);
+      } else if (!this.audio.playJingle(CAPTURE_JINGLE)) {
+        this.audio.playFanfare();
+      }
+      if (caught) this.promptCaughtPokemon(caught, firstRegistration, caughtBefore);
     } else {
       this.store.data.captureLuck++;
       this.store.commit();
@@ -749,7 +775,7 @@ export class StadiumTDGame {
   }
 
   /** The trophy card asks whether to keep a duplicate, then optionally asks for a nickname. */
-  private promptCaughtPokemon(pokemon: OwnedPokemon): void {
+  private promptCaughtPokemon(pokemon: OwnedPokemon, firstRegistration: boolean, caughtBefore: number): void {
     if (!this.isPaused) {
       this.isPaused = true;
       this.namingHold = true;
@@ -763,7 +789,11 @@ export class StadiumTDGame {
     // A full collection leaves research as the only destination, so the card
     // drops the keep options rather than offering a slot that cannot be filled.
     const storageFull = this.store.isStorageFull;
-    const options = { duplicate, openTeamSlot, guestSlotsLeft, storageFull };
+    const options = {
+      duplicate, openTeamSlot, guestSlotsLeft, storageFull, firstRegistration, caughtBefore,
+      newSpeciesBonus: firstRegistration ? NEW_SPECIES_BONUS : 0,
+      milestone: firstRegistration && POKEDEX_MILESTONES.has(caughtBefore + 1),
+    };
     this.ui.showCaptureTrophy(pokemon, options, (name, destination) => {
       const kept = (destination === 'match' || destination === 'storage')
         && this.store.add(pokemon, destination === 'match' && openTeamSlot);
@@ -775,7 +805,7 @@ export class StadiumTDGame {
         this.progress.track(pokemon, true);
         if (name !== null) this.store.rename(pokemon.uid, name);
       } else {
-        const points = this.store.convertDuplicate(pokemon.speciesId);
+        const points = this.store.convertDuplicate(pokemon.speciesId, pokemon.stage);
         this.ui.showResearchResult(displayName(pokemon), points);
       }
       this.store.commit();
@@ -1196,6 +1226,8 @@ export class StadiumTDGame {
     }
     this.pumpEvolutionQueue();
 
+    this.updatePokedexDiscovery(realDt);
+
     // Update Subsystems
     this.particles.update(dt);
     this.announcer.update(realDt);
@@ -1216,6 +1248,8 @@ export class StadiumTDGame {
       this.arena.updateJumbotron(hud.targetName, 'CAPTURE ATTEMPT', hud.wobbles);
     } else if (this.evolution) {
       this.arena.updateJumbotron(this.evolution.sequence.hud.toName, 'EVOLUTION', currentWave.round);
+    } else if (this.pokedexJumbotron) {
+      this.arena.updateJumbotron(this.pokedexJumbotron.title, this.pokedexJumbotron.subtitle, currentWave.round);
     } else {
       this.arena.updateJumbotron(
         this.map.name.toUpperCase(),
@@ -1264,8 +1298,32 @@ export class StadiumTDGame {
       const { x, y, visible } = this.renderer.toScreenXY(anchor, this.camera.camera);
       const odds = {} as Record<BallType, number>;
       BALL_ORDER.forEach(ball => { odds[ball] = this.captureChance(creep, ball); });
-      return { creep, x, y, onScreen: visible, odds };
+      return { creep, isNew: this.isUncaughtSpecies(creep), x, y, onScreen: visible, odds };
     });
+  }
+
+  /** Announces the opportunity once, without inventing an announcer voice line. */
+  private updatePokedexDiscovery(realDt: number): void {
+    if (this.pokedexJumbotron) {
+      this.pokedexJumbotron.timer = Math.max(0, this.pokedexJumbotron.timer - realDt);
+      if (this.pokedexJumbotron.timer === 0) {
+        this.pokedexJumbotron = null;
+        this.arena.setCrowdMood(0);
+      }
+    }
+    if (this.capture || this.pokedexJumbotron) return;
+    const fresh = this.catchableCreeps().find(creep => {
+      const match = speciesForCreepName(creep.name);
+      return match && this.isUncaughtSpecies(creep) && !this.catchableSpeciesNoticed.has(`${match.speciesId}:${match.stage}`);
+    });
+    if (!fresh) return;
+    const match = speciesForCreepName(fresh.name)!;
+    this.catchableSpeciesNoticed.add(`${match.speciesId}:${match.stage}`);
+    this.pokedexJumbotron = {
+      title: 'NEW SPECIES!',
+      subtitle: `${fresh.name.replace(/^Titan /, '').toUpperCase()} · NOT REGISTERED`,
+      timer: 2.8,
+    };
   }
 
   private updateTimedCaptureHint(realDt: number): void {

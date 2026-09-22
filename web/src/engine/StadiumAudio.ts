@@ -738,6 +738,19 @@ export class StadiumAudio {
     });
   }
 
+  /** Short electronic flourish reserved for a first Pokédex registration. */
+  public playPokedexRegistered(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('pokedex_registered')) return;
+    const notes = [659.25, 783.99, 987.77, 1318.51];
+    notes.forEach((frequency, index) => {
+      this.tone('square', frequency, frequency, 0.16, 0.09, index * 0.09);
+      this.tone('sine', frequency * 2, frequency * 2, 0.2, 0.035, index * 0.09 + 0.02);
+    });
+    this.noiseBurst(0.34, 2600, 5200, 0.08, 0.26);
+  }
+
   /**
    * True when the context is actually running. Cues with no user gesture behind
    * them have to check: a suspended context's clock is frozen, so anything

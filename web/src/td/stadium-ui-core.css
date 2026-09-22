@@ -283,6 +283,62 @@
   box-shadow:inset 0 0 22px rgba(0,0,0,.6);
 }
 #capture-trophy .trophy-canvas { display:block; width:100%; height:100%; transform:skew(6deg) scale(1.12); }
+#capture-trophy.new-registration { width:min(720px,88vw); }
+#capture-trophy .registration-kicker {
+  display:inline-block; margin-bottom:4px; padding:3px 9px; border-radius:4px;
+  background:#ffe15b; color:#671606; font:900 12px/1 'Trebuchet MS',sans-serif; letter-spacing:2px;
+  animation:registration-slam .55s cubic-bezier(.15,1.5,.45,1) both;
+}
+#capture-trophy .registration-title {
+  color:#fff7c6; font:700 25px/.95 'Teko','Impact',sans-serif; letter-spacing:1px;
+  text-shadow:2px 3px #671606,0 0 14px rgba(255,224,90,.7);
+  animation:registration-rise .45s .16s ease-out both;
+}
+.dex-register-strip { display:flex; justify-content:center; gap:5px; margin:8px 0 6px; }
+.dex-register-cell {
+  position:relative; display:grid; place-items:center; width:46px; height:50px; overflow:hidden;
+  border:2px solid #476f99; border-radius:5px; background:#08162d; color:#7991ae;
+}
+.dex-register-cell b { position:absolute; bottom:2px; font:800 8px/1 'Trebuchet MS',sans-serif; letter-spacing:.4px; }
+.dex-register-cell .dex-silhouette {
+  width:21px; height:24px; margin-bottom:8px; border-radius:48% 52% 42% 58%; background:#020711;
+  box-shadow:7px -5px 0 -4px #020711,-7px -3px 0 -4px #020711;
+}
+.dex-register-cell.current { border-color:#ffe15b; color:#fff2a7; box-shadow:0 0 12px rgba(255,225,91,.65); animation:dex-cell-flip .65s .45s both; }
+.dex-register-cell.current::after {
+  content:''; position:absolute; top:8px; width:22px; height:22px; border:2px solid #161b28; border-radius:50%;
+  background:linear-gradient(180deg,#e73845 0 44%,#161b28 45% 57%,#f5f1dc 58%);
+}
+.dex-register-cell.current img { position:absolute; inset:2px 5px 11px; width:32px; height:32px; object-fit:contain; opacity:0; image-rendering:pixelated; }
+.dex-register-cell.current.portrait-loaded::after { display:none; }
+.dex-register-cell.current.portrait-loaded img { animation:dex-portrait-reveal .35s 1s both; }
+.dex-register-cell.current .dex-silhouette { animation:dex-silhouette-out .25s .82s both; }
+.registration-progress { display:flex; align-items:baseline; justify-content:center; gap:8px; color:#8faecf; font:700 15px 'Teko',sans-serif; letter-spacing:1px; }
+.registration-progress i { color:#ffe15b; font-style:normal; }
+.registration-progress strong { color:#fff; font-size:20px; animation:registration-count .5s .95s both; }
+.registration-bonus { margin:3px 0 7px; color:#9fdcff; font:800 10px 'Trebuchet MS',sans-serif; letter-spacing:1.2px; text-align:center; }
+.registration-bonus strong { color:#75ff85; font-size:13px; }
+.registration-milestone { margin:5px 0 8px; padding:4px; border:1px solid #ffe15b; background:rgba(246,196,55,.14); color:#fff2a7; font:900 10px 'Trebuchet MS',sans-serif; letter-spacing:1.2px; text-align:center; }
+@keyframes registration-slam { from { opacity:0; transform:scale(2.1) rotate(-3deg); } to { opacity:1; transform:none; } }
+@keyframes registration-rise { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@keyframes dex-cell-flip { from { opacity:0; transform:rotateY(90deg) scale(.75); } to { opacity:1; transform:none; } }
+@keyframes dex-silhouette-out { to { opacity:0; transform:scale(.3); } }
+@keyframes dex-portrait-reveal { from { opacity:0; transform:scale(.45); filter:brightness(3); } to { opacity:1; transform:none; filter:none; } }
+@keyframes registration-count { from { opacity:0; transform:scale(1.7); color:#ffe15b; } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) {
+  #capture-trophy .registration-kicker, #capture-trophy .registration-title, .dex-register-cell.current,
+  .dex-register-cell.current.portrait-loaded img, .dex-register-cell.current .dex-silhouette, .registration-progress strong { animation:none; }
+  .dex-register-cell.current.portrait-loaded img { opacity:1; }
+  .dex-register-cell.current.portrait-loaded .dex-silhouette { opacity:0; }
+}
+/* Screenshot harnesses judge the settled card rather than a frame between the
+   silhouette and portrait halves of the registration flip. */
+.shot-mode #capture-trophy .registration-kicker,
+.shot-mode #capture-trophy .registration-title,
+.shot-mode #capture-trophy .dex-register-cell.current,
+.shot-mode #capture-trophy .registration-progress strong { animation:none; opacity:1; transform:none; }
+.shot-mode #capture-trophy .dex-register-cell.current.portrait-loaded img { animation:none; opacity:1; transform:none; filter:none; }
+.shot-mode #capture-trophy .dex-register-cell.current.portrait-loaded .dex-silhouette { animation:none; opacity:0; }
 @media (max-width: 480px) {
   #capture-trophy.has-model { flex-direction:column; gap:10px; min-width:0; width:min(88vw,330px); }
   #capture-trophy .trophy-stage { flex-basis:auto; width:100%; height:150px; }
@@ -495,7 +551,16 @@
 .catch-tag.elite { border-color:#8ee7ff; }
 .catch-tag.titan { border-color:#ff8a4d; }
 .catch-tag .ball-icon { width:14px; height:14px; }
+.catch-tag .catch-new {
+  padding:1px 4px; border-radius:4px; background:#fff7bd; color:#9b2500;
+  font-size:11px; font-weight:900; letter-spacing:1px; box-shadow:0 0 7px #fff;
+}
+.catch-tag.new-species {
+  border-color:#fffbd0; box-shadow:0 0 0 2px #8f4c00, 0 0 20px 5px rgba(255,224,90,.9);
+  animation:catch-new-pulse .72s ease-in-out infinite;
+}
 @keyframes catch-tag-pulse { 50% { box-shadow:0 0 0 2px #5c3a05, 0 0 14px 3px rgba(255,224,90,.75); } }
+@keyframes catch-new-pulse { 50% { filter:brightness(1.28); box-shadow:0 0 0 2px #8f4c00, 0 0 28px 8px rgba(255,238,105,.95); } }
 @media (prefers-reduced-motion: reduce) { .catch-tag { animation:none; } }
 .catch-odds { min-width:38px; text-align:right; color:#8dff8d; }
 .catch-key { position:relative; min-width:15px; padding:1px 3px; background:#f6c437; color:#07162f; font-size:13px; text-align:center; border:1px solid #07162f; }
@@ -508,6 +573,11 @@
   background:#2a2106; color:#fff3b0; cursor:pointer; font-family:'Teko','Impact',sans-serif; font-size:15px; line-height:1; letter-spacing:.5px;
 }
 .catch-chip:hover:not(:disabled) { background:#f6c437; color:#1a1204; }
+.catch-chip.new-species { border-color:#fff3a0; background:linear-gradient(180deg,#473900,#211900); box-shadow:0 0 9px rgba(255,224,90,.55); }
+.catch-chip-copy { display:grid; line-height:.9; text-align:left; }
+.catch-chip-copy b { font:inherit; }
+.catch-chip-copy em { margin-right:4px; padding:0 3px; border-radius:3px; background:#ffe766; color:#8a2100; font-size:10px; font-style:normal; font-weight:900; letter-spacing:1px; }
+.catch-chip-copy small { margin-top:2px; color:#ffd76b; font:700 8px/1 'Trebuchet MS',sans-serif; letter-spacing:.8px; }
 .catch-chip:disabled { opacity:.48; cursor:not-allowed; filter:saturate(.35); }
 .catch-chip .catch-odds { min-width:auto; margin-left:2px; }
 .catch-chip i { width:7px; height:7px; border-radius:50%; border:1px solid rgba(0,0,0,.6); }

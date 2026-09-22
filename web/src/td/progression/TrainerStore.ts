@@ -17,6 +17,8 @@ import { VARIANTS, VariantTag } from './Variants';
 
 export const TEAM_SIZE = 6;
 export const NICKNAME_MAX = 10;
+/** The long-term collection goal, including species not yet authored as towers. */
+export const POKEDEX_TOTAL = 151;
 /** While the collection is smaller than this, the last ball in hand always catches. */
 export const GUARANTEED_CATCH_BELOW = 4;
 /** Catch odds lost per failed attempt since the last success — a gentle
@@ -162,11 +164,26 @@ function finiteInteger(value: unknown, fallback: number, min: number, max: numbe
     : fallback;
 }
 
-function validSpeciesIds(value: unknown): string[] {
+/** Pokédex entries are form-specific (`gastly:1` is Haunter), while owned
+ *  Pokémon and research remain evolution-line based (`gastly`). */
+function pokedexEntry(speciesId: string, stage = 0): string {
+  const species = getSpecies(speciesId);
+  const safeStage = Math.max(0, Math.min(species.forms.length - 1, Math.round(stage)));
+  return `${speciesId}:${safeStage}`;
+}
+
+function validPokedexEntries(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((id): id is string => {
-    if (typeof id !== 'string') return false;
-    try { getSpecies(id); return true; } catch { return false; }
+  return [...new Set(value.flatMap((entry): string[] => {
+    if (typeof entry !== 'string') return [];
+    const separator = entry.lastIndexOf(':');
+    const speciesId = separator === -1 ? entry : entry.slice(0, separator);
+    const stage = separator === -1 ? 0 : Number(entry.slice(separator + 1));
+    try {
+      const species = getSpecies(speciesId);
+      if (!Number.isInteger(stage) || stage < 0 || stage >= species.forms.length) return [];
+      return [pokedexEntry(speciesId, stage)];
+    } catch { return []; }
   }))];
 }
 
@@ -241,6 +258,12 @@ function migrate(raw: unknown): TrainerSave {
     }
   }
   const pokedex = data.pokedex && typeof data.pokedex === 'object' ? data.pokedex : base.pokedex;
+  const caughtEntries = new Set(validPokedexEntries(pokedex.caught));
+  // Old v1 saves stored only an evolution-line id. Preserve that base-form
+  // registration, and also register the exact form the player demonstrably
+  // owns so an upgraded save never labels its own Pokémon as undiscovered.
+  collection.forEach(pokemon => caughtEntries.add(pokedexEntry(pokemon.speciesId, pokemon.stage)));
+  const seenEntries = new Set([...validPokedexEntries(pokedex.seen), ...caughtEntries]);
   const research: Record<string, number> = {};
   if (data.research && typeof data.research === 'object') {
     for (const [speciesId, value] of Object.entries(data.research)) {
@@ -257,7 +280,7 @@ function migrate(raw: unknown): TrainerSave {
     collection,
     team,
     maps,
-    pokedex: { seen: validSpeciesIds(pokedex.seen), caught: validSpeciesIds(pokedex.caught) },
+    pokedex: { seen: [...seenEntries], caught: [...caughtEntries] },
     captureLuck: finiteInteger(data.captureLuck, 0, 0, Number.MAX_SAFE_INTEGER),
     matchesPlayed: finiteInteger(data.matchesPlayed, 0, 0, Number.MAX_SAFE_INTEGER),
     unlocks: Array.isArray(data.unlocks) ? [...new Set(data.unlocks.filter((item): item is string => typeof item === 'string'))] : [],
@@ -340,7 +363,7 @@ export class TrainerStore {
       const open = this.data.team.indexOf(null);
       if (open !== -1) this.data.team[open] = pokemon.uid;
     }
-    this.markCaught(pokemon.speciesId);
+    this.markCaught(pokemon.speciesId, pokemon.stage);
     return true;
   }
 
@@ -348,19 +371,29 @@ export class TrainerStore {
     return this.data.collection.some(pokemon => pokemon.speciesId === speciesId);
   }
 
+  /** Permanent registration state, unlike `hasSpecies`, which only asks what
+   *  is owned right now and becomes false when the last copy is released. */
+  public hasCaughtSpecies(speciesId: string, stage: number): boolean {
+    return this.data.pokedex.caught.includes(pokedexEntry(speciesId, stage));
+  }
+
+  public get caughtSpeciesCount(): number {
+    return this.data.pokedex.caught.length;
+  }
+
   /** Duplicate catches grant diminishing species-specific research. */
-  public convertDuplicate(speciesId: string): number {
-    return this.awardResearch(speciesId, this.copiesOf(speciesId));
+  public convertDuplicate(speciesId: string, stage = 0): number {
+    return this.awardResearch(speciesId, this.copiesOf(speciesId), stage);
   }
 
   private copiesOf(speciesId: string): number {
     return this.data.collection.filter(pokemon => pokemon.speciesId === speciesId).length;
   }
 
-  private awardResearch(speciesId: string, copiesKept: number): number {
+  private awardResearch(speciesId: string, copiesKept: number, stage: number): number {
     const points = researchPointsFor(copiesKept);
     this.data.research[speciesId] = (this.data.research[speciesId] ?? 0) + points;
-    this.markCaught(speciesId);
+    this.markCaught(speciesId, stage);
     return points;
   }
 
@@ -383,7 +416,7 @@ export class TrainerStore {
   public releaseForResearch(uid: string): number | null {
     const pokemon = this.get(uid);
     if (!pokemon || !this.canRelease(uid)) return null;
-    const points = this.awardResearch(pokemon.speciesId, this.copiesOf(pokemon.speciesId) - 1);
+    const points = this.awardResearch(pokemon.speciesId, this.copiesOf(pokemon.speciesId) - 1, pokemon.stage);
     this.release(uid);
     return points;
   }
@@ -453,13 +486,15 @@ export class TrainerStore {
     this.commit();
   }
 
-  public markSeen(speciesId: string): void {
-    if (!this.data.pokedex.seen.includes(speciesId)) this.data.pokedex.seen.push(speciesId);
+  public markSeen(speciesId: string, stage = 0): void {
+    const entry = pokedexEntry(speciesId, stage);
+    if (!this.data.pokedex.seen.includes(entry)) this.data.pokedex.seen.push(entry);
   }
 
-  public markCaught(speciesId: string): void {
-    this.markSeen(speciesId);
-    if (!this.data.pokedex.caught.includes(speciesId)) this.data.pokedex.caught.push(speciesId);
+  public markCaught(speciesId: string, stage = 0): void {
+    const entry = pokedexEntry(speciesId, stage);
+    this.markSeen(speciesId, stage);
+    if (!this.data.pokedex.caught.includes(entry)) this.data.pokedex.caught.push(entry);
   }
 
   /**
@@ -493,6 +528,7 @@ export class TrainerStore {
       : pokemon.stage;
     const evolved = stage !== pokemon.stage;
     pokemon.stage = stage;
+    if (evolved) this.markCaught(pokemon.speciesId, pokemon.stage);
     return { levelsGained: pokemon.level - before, evolvedFrom: evolved ? beforeName : null };
   }
 

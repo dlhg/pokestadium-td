@@ -77,6 +77,27 @@ the whole drop beat deleted to pay for them, and the freeze is nearly free
 because nothing is moving inside it. `skip()` still jumps to the verdict, since
 the outcome is rolled at `release()` and everything after is presentation.
 
+## First Pokédex registration
+
+The capture itself keeps one timing sheet for new and repeat catches. The extra
+celebration begins only after a successful verdict, so collection presentation
+does not make the ball take longer to resolve:
+
+- a never-registered form carries a gold `NEW` mark above the field and a
+  `NOT YET REGISTERED` line in the capture tray;
+- its first catch takes over the jumbotron and opens the trophy as `NEW POKÉMON`,
+  with its exact Pokédex number, a silhouette-to-portrait reveal, and an animated
+  `n / 151` count;
+- a unique electronic registration sting, the Pokémon's cry, and a crowd swell
+  replace the ordinary success fanfare; no announcer voice is fabricated because
+  the original Stadium recording has no capture dialogue;
+- the match awards a $250 new-species bonus, and registrations 10, 25, 50, 100,
+  and 151 add a collector milestone ribbon.
+
+Registration is permanent and form-specific. Ownership and duplicate research
+remain evolution-line based, so releasing the last Pidgey never makes Pidgey look
+new again, while encountering Pidgeotto for the first time still does.
+
 ## How hard it is
 
 Two dials, in two files, and they do different jobs.

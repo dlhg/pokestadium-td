@@ -15,7 +15,7 @@ import { getCombinedEffectiveness, PokemonType, TYPE_COLORS } from '../../stadiu
 import { dexNumber, GIFT_ID, getSpecies, reachableMoveIds, STARTER_IDS } from './Species';
 import { levelProgress, MAX_DV, MAX_LEVEL, STAT_KEYS, xpForLevel } from './Stats';
 import {
-  displayName, formOf, NICKNAME_MAX, OwnedPokemon, researchPointsFor, speciesOf, statsOf, STORAGE_MAX,
+  displayName, formOf, NICKNAME_MAX, OwnedPokemon, POKEDEX_TOTAL, researchPointsFor, speciesOf, statsOf, STORAGE_MAX,
   TEAM_SIZE, TrainerStore,
 } from './TrainerStore';
 import type { MatchReportEntry } from './MatchProgress';
@@ -557,7 +557,11 @@ export class TrainerScreens {
         + (this.store.isStorageFull ? ' · FULL, RELEASE ONE TO CATCH MORE' : '');
       this.root.querySelector('[data-bench-count]')!.textContent = renting
         ? `${shownCount} RENTALS AT LV ${rentalLevel(cup!.id)} · ${desk.picks.length} ON LOAN · RETURNED AFTER THE MATCH`
-        : `${shownCount} ON BENCH · ${storage} · ${data.pokedex.caught.length} SPECIES CAUGHT · ${researchTotal} RESEARCH DATA`;
+        : `${shownCount} ON BENCH · ${storage} · ${this.store.caughtSpeciesCount} / ${POKEDEX_TOTAL} SPECIES CAUGHT · ${researchTotal} RESEARCH DATA`;
+      const dexProgress = this.root.querySelector<HTMLElement>('.tr-pokedex-progress')!;
+      dexProgress.hidden = renting;
+      dexProgress.querySelector<HTMLElement>('[data-pokedex-fill]')!.style.width = `${this.store.caughtSpeciesCount / POKEDEX_TOTAL * 100}%`;
+      dexProgress.querySelector<HTMLElement>('[data-pokedex-label]')!.textContent = `POKÉDEX ${this.store.caughtSpeciesCount} / ${POKEDEX_TOTAL}`;
       this.root.querySelector<HTMLElement>('[data-bench-count]')!.classList.toggle('full', !renting && this.store.isStorageFull);
       list.classList.toggle('storage-full', !renting && this.store.isStorageFull);
       this.root.querySelectorAll<HTMLButtonElement>('[data-bench-mode]').forEach(tab => {
@@ -623,6 +627,7 @@ export class TrainerScreens {
           <button class="tr-filter-toggle" data-bench-mode="rentals" aria-pressed="false">RENTALS</button>
         </div>` : ''}
         <div class="tr-collection-head"><span data-bench-count></span><span>One tower per Pokémon on the field. Catch duplicates to field more.</span></div>
+        <div class="tr-pokedex-progress" aria-label="Pokédex completion"><div data-pokedex-fill></div><span data-pokedex-label></span></div>
         <div class="tr-bench-tools">
           <div class="tr-bench-row">
             <input type="search" class="tr-input tr-search" placeholder="Search name" aria-label="Search Pokémon" autocomplete="off">
