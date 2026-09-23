@@ -1469,7 +1469,7 @@ export class StadiumUI {
         const creep = slot.creep;
         const color = TYPE_COLORS[creep.type]?.hex ?? '#fff';
         const odds = Math.round(slot.odds[state.selectedBall] * 100);
-        return `<button class="catch-chip${slot.isNew ? ' new-species' : ''}" data-catch-chip="${this.catchId(creep)}"><i style="background:${color}"></i><span class="catch-chip-copy"><b>${slot.isNew ? '<em>NEW</em>' : ''}${escapeHtml(creep.name.replace(/^Titan /, '').toUpperCase())}</b>${slot.isNew ? '<small>NOT YET REGISTERED</small>' : ''}</span><span class="catch-odds">${odds}%</span></button>`;
+        return `<button class="catch-chip${slot.isNew ? ' new-species' : ''}" data-catch-chip="${this.catchId(creep)}"><i style="background:${color}"></i><span class="catch-chip-copy"><b>${slot.isNew ? '<em>NEW</em>' : ''}${escapeHtml(creep.name.replace(/^Titan /, '').toUpperCase())}</b></span><span class="catch-odds">${odds}%</span></button>`;
       }).join('');
     }
     tray.querySelectorAll<HTMLButtonElement>('[data-catch-chip]').forEach(chip => {
