@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Erase cutout-sheet seam slivers at the top of each crowd turnaround-atlas
-character cell (web/public/crowd/turnaround-crowd-0N.png).
+character cell (web/public/crowd/turnaround-crowd-*.png).
 
-Each atlas is an 8-col x 4-row grid (see the crowd atlas layout comments in
-StadiumArena.ts). Every grid row is an independently cut-out sub-image (idle
-vs. cheer pose x two characters per atlas), so the top edge of a grid row can
-carry a thin sliver of the row above it that leaked in during packing.
+Normal atlases are 8-col x 4-row grids; the combined tension and disappointment
+atlases are 20-col x 4-row grids (see the layout comments in StadiumArena.ts).
+Every grid row is an independently cut-out sub-image, so its top edge can carry
+a thin sliver of the row above it that leaked in during packing.
 
 Detection, per pixel column within a grid cell (excluding a margin near the
 cell's left/right edges, where unrelated neighbour-cell bleed lives and the
@@ -86,7 +86,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="*", help="Atlas PNGs to fix (default: all crowd atlases)")
     parser.add_argument("--dry-run", action="store_true", help="Report without writing")
-    parser.add_argument("--cols", type=int, default=8, help="Atlas column count (default: 8)")
+    parser.add_argument("--cols", type=int, help="Atlas column count (default: infer 20 for reaction atlases, otherwise 8)")
     parser.add_argument("--rows", type=int, default=4, help="Atlas row count (default: 4)")
     args = parser.parse_args()
 
@@ -96,7 +96,8 @@ def main():
         return 1
 
     for path in paths:
-        fixed, changed, per_row = process_atlas(path, args.cols, args.rows)
+        cols = args.cols or (20 if path.stem in {"turnaround-crowd-tension", "turnaround-crowd-disappointment"} else 8)
+        fixed, changed, per_row = process_atlas(path, cols, args.rows)
         summary = ", ".join(
             f"row{r}: {len(v)} cols, max {max(v)}px" for r, v in sorted(per_row.items())
         )

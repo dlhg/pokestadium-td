@@ -809,10 +809,12 @@ export class CaptureSequence {
       if (!this.success) this.stage.camera.setCinematicAngle(this.clearestAngle(distance, height), 0);
       this.stage.camera.setCinematicFraming(distance, height);
       this.stage.camera.shake(this.success ? 0.4 : 0.8);
-      this.stage.audio.duckCrowd(this.success ? 1.9 : 1.1, 0.25);
-      // The stands erupt on a catch and deflate into a murmur on a break.
-      this.stage.arena.setCrowdMood(this.success ? 1 : -0.35);
+      this.stage.audio.duckCrowd(this.success ? 1.9 : 0.55, 0.25);
+      // The stands erupt on a catch; a break lands as a groan and a brief,
+      // visibly disappointed slump before the match atmosphere returns.
+      this.stage.arena.setCrowdMood(this.success ? 1 : -0.65);
       this.stage.arena.setCrowdTension?.(false);
+      if (!this.success) this.stage.arena.showCrowdDisappointment?.();
       if (this.success) {
         this.stage.audio.playCaptureLock();
         this.stage.particles.emitRing(this.hangPos, 0xffe46b, 4.2, 0.8);

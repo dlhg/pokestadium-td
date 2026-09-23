@@ -83,8 +83,8 @@ The capture itself keeps one timing sheet for new and repeat catches. The extra
 celebration begins only after a successful verdict, so collection presentation
 does not make the ball take longer to resolve:
 
-- a never-registered form carries a gold `NEW` mark above the field and a
-  `NOT YET REGISTERED` line in the capture tray;
+- a never-registered form carries a gold `NEW` mark above the field and in the
+  capture tray;
 - its first catch takes over the jumbotron and opens the trophy as `NEW POKÉMON`,
   with its exact Pokédex number, a silhouette-to-portrait reveal, and an animated
   `n / 151` count;
@@ -174,6 +174,15 @@ lifts away. Worth stating plainly because two earlier passes each had a drop in
 them, each with its own bug — the first popped the ball upward at 20
 units/second on contact, faster than it had fallen. The bug is gone because the
 code is gone.
+
+**The crowd receives the verdict too.** The capture wind-up uses a dedicated
+tense turnaround atlas. Success releases it directly into the ordinary cheer
+art. Failure instead switches roughly 80% of the stands to a generated
+disappointment atlas through the one-second verdict shot and lowers the crowd
+bed into a groan. The reaction art switches back together when the cinematic
+releases; the already-eased crowd mood keeps the ordinary sprites subdued while
+the match atmosphere returns. Staggering whole sprite swaps was avoided because
+it read as spectators disappearing and repopulating the stands.
 
 ## The two engine pieces
 

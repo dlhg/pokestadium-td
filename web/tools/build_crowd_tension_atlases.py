@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Build capture-tension crowd atlases from the generated 4x4 source sheets.
+"""Build capture-reaction crowd atlases from the generated 4x4 source sheets.
 
 Each source sheet has four spectators in rows and their front, left, back and
 right-three-quarter views in columns. The output packs all twenty spectators
-into one 20 x 4 texture, keeping the shader to six samplers total (five normal
-atlases plus this one) instead of exceeding the portable WebGL minimum.
+into one 20 x 4 texture, keeping each reaction to one sampler rather than five.
 
 Usage:
     /path/to/python web/tools/build_crowd_tension_atlases.py
@@ -77,10 +76,11 @@ def build(sources: list[Path], destination: Path) -> None:
 
 
 def main() -> int:
-    sources = sorted(SOURCE.glob("tension-crowd-??-sheet.png"))
-    if len(sources) != 5:
-        raise SystemExit(f"Expected five source sheets under {SOURCE}; found {len(sources)}")
-    build(sources, DESTINATION / "turnaround-crowd-tension.png")
+    for reaction in ("tension", "disappointment"):
+        sources = sorted(SOURCE.glob(f"{reaction}-crowd-??-sheet.png"))
+        if len(sources) != 5:
+            raise SystemExit(f"Expected five {reaction} source sheets under {SOURCE}; found {len(sources)}")
+        build(sources, DESTINATION / f"turnaround-crowd-{reaction}.png")
     return 0
 
 
