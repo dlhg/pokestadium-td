@@ -636,6 +636,11 @@ Decisions:
   tint — on the capture trophy and the roster.
 - Deferred: a Titan-exclusive signature move/kit distinct from the
   non-Titan counterpart's moveset is not part of this pass.
+- Follow-up: max DVs alone made a titan Onix only ~15% stronger than a
+  fresh starter, for $10 more. Titans now carry a power multiplier (1.4x
+  damage, 1.15x rate) and a +$160 deploy premium, both on the variant
+  entry (`deployCostOf`, `withVariantPower`). See trainer-progression's
+  Decisions for why this stays on money rather than a field-points budget.
 
 ## 35. Leveling is too fast — would feel more meaningful if slower
 Status: done

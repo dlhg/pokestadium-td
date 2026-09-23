@@ -21,6 +21,7 @@ import { SIGNATURES } from './Signatures';
 import { AttackProfile, buildAttackProfile, MAX_PATHS_BOUGHT, SECONDARY_PATH_MAX_TIER } from './TowerAttack';
 import { towerModifiers, TowerModifiers } from './progression/Stats';
 import { displayName, formOf, OwnedPokemon, speciesOf, statsOf } from './progression/TrainerStore';
+import { withVariantPower } from './progression/Variants';
 import { dexNumber } from './progression/Species';
 import { worldHeightFor } from '../stadium/PokemonScale';
 
@@ -151,7 +152,7 @@ export class Tower {
     this.species = speciesOf(pokemon);
     this.placementFootprint = placementFootprintRadius(pokemon);
     this.renderedStage = pokemon.stage;
-    this.modifiers = towerModifiers(statsOf(pokemon), pokemon.level);
+    this.modifiers = withVariantPower(towerModifiers(statsOf(pokemon), pokemon.level), pokemon.variant);
     this.position = pos.clone();
     this.tiers = this.species.paths.map(() => 0);
     this.attack = this.buildAttack();
@@ -319,7 +320,7 @@ export class Tower {
    * model to appear (typically hidden behind a flash).
    */
   public syncProgress(deferModelSwap = false): boolean {
-    this.modifiers = towerModifiers(statsOf(this.pokemon), this.pokemon.level);
+    this.modifiers = withVariantPower(towerModifiers(statsOf(this.pokemon), this.pokemon.level), this.pokemon.variant);
     if (this.pokemon.stage === this.renderedStage) return false;
     // Some forms fight differently (Magikarp → Gyarados).
     this.attack = this.buildAttack();

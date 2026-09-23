@@ -40,7 +40,7 @@ import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
 import { setCinemaDim } from '../engine/CinemaDim';
 import { dexNumber, speciesForCreepName } from './progression/Species';
-import { createPokemon, displayName, formOf, MATCH_GUEST_SLOTS, OwnedPokemon, POKEDEX_TOTAL, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { createPokemon, deployCostOf, displayName, formOf, MATCH_GUEST_SLOTS, OwnedPokemon, POKEDEX_TOTAL, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { variantForCreep } from './progression/Variants';
 import { MatchProgress, XpAward } from './progression/MatchProgress';
 import { createRental } from './progression/Rentals';
@@ -290,7 +290,7 @@ export class StadiumTDGame {
         return;
       }
       // Disabled roster cards are informative, not placement toggles.
-      if (this.isDeployed(member) || this.money < speciesOf(member).deployCost) return;
+      if (this.isDeployed(member) || this.money < deployCostOf(member)) return;
       if (this.selectedTower) {
         this.selectedTower.setSelected(false);
         this.selectedTower = null;
@@ -869,7 +869,7 @@ export class StadiumTDGame {
   ): PlacementBlockReason | null {
     // One tower per owned Pokémon: two Pikachu towers means catching two Pikachu.
     if (this.isDeployed(member)) return 'already_deployed';
-    if (this.money < speciesOf(member).deployCost) return 'too_expensive';
+    if (this.money < deployCostOf(member)) return 'too_expensive';
 
     const radius = placementFootprintRadius(member);
     const arenaBlock = this.arena.isBuildable(x, z, radius);
@@ -888,7 +888,7 @@ export class StadiumTDGame {
   private placeTower(member: OwnedPokemon, ground: THREE.Vector3): void {
     const radius = placementFootprintRadius(member);
     const position = new THREE.Vector3(ground.x, this.padHeight(ground.x, ground.z, radius), ground.z);
-    this.money -= speciesOf(member).deployCost;
+    this.money -= deployCostOf(member);
 
     const tower = new Tower(member, position);
     this.renderer.scene.add(tower.group);

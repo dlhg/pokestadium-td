@@ -135,6 +135,12 @@ export function speciesOf(pokemon: OwnedPokemon): SpeciesDef {
   return getSpecies(pokemon.speciesId);
 }
 
+/** What sending this Pokémon out costs: its species price, plus any variant premium. */
+export function deployCostOf(pokemon: OwnedPokemon): number {
+  const premium = pokemon.variant ? VARIANTS[pokemon.variant.kind].deployPremium : 0;
+  return speciesOf(pokemon).deployCost + premium;
+}
+
 export function formOf(pokemon: OwnedPokemon): SpeciesForm {
   const species = speciesOf(pokemon);
   return species.forms[Math.min(pokemon.stage, species.forms.length - 1)];

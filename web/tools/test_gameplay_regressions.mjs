@@ -17,7 +17,7 @@ const result = await build({
       "export { Projectile } from './src/td/Projectile.ts';",
       "export { resolveMoveHit, collectVictims, hitDamage, strikeCreeps } from './src/td/MoveDelivery.ts';",
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
-      "export { createPokemon, formOf, statsOf, TrainerStore, STORAGE_MAX } from './src/td/progression/TrainerStore.ts';",
+      "export { createPokemon, deployCostOf, formOf, statsOf, TrainerStore, STORAGE_MAX } from './src/td/progression/TrainerStore.ts';",
       "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
       "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups } from './src/td/Cups.ts';",
       "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
@@ -43,7 +43,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep, Tower, rankTargets, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, generateWave, rollWave, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, deployCostOf, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, generateWave, rollWave, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Losing browser focus clears held keys, and touch distinguishes a camera
@@ -213,6 +213,27 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   game.money = 0;
   game.ui.onSelectMember(member);
   assert.equal(game.selectedMember, null, 'unaffordable member cannot enter placement mode');
+}
+
+// A titan costs more to send out and hits harder than the same catch without it.
+{
+  const origin = { kind: 'dev', at: 0 };
+  const dvs = { attack: 15, speed: 15, special: 15 };
+  const plain = createPokemon('onix', 20, origin, { dvs });
+  const titan = createPokemon('onix', 20, origin, { dvs, variant: { kind: 'titan' } });
+  assert.equal(deployCostOf(plain), getSpecies('onix').deployCost, 'a plain catch pays the species price');
+  assert.ok(deployCostOf(titan) > deployCostOf(plain) * 2, 'a titan costs over twice its plain counterpart');
+  const game = new StadiumTDGame();
+  game.money = deployCostOf(titan) - 1;
+  game.towers = [];
+  assert.equal(game.getPlacementBlock(titan, 0, 0), 'too_expensive', 'placement charges the titan price');
+  const modifiersOf = (pokemon) => {
+    const tower = { pokemon, renderedStage: pokemon.stage };
+    Tower.prototype.syncProgress.call(tower);
+    return tower.modifiers;
+  };
+  const [p, t] = [modifiersOf(plain), modifiersOf(titan)];
+  assert.ok(t.damage > p.damage * 1.3 && t.rate > p.rate * 1.1, 'a titan tower out-hits and out-paces its plain counterpart');
 }
 
 // Poké Ball entrances default on and the pause-menu toggle persists an opt-out.

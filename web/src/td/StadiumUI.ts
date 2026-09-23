@@ -27,7 +27,7 @@ import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { RosterModelView } from './RosterModelView';
 import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
-import { displayName, formOf, nextEvolution, OwnedPokemon, POKEDEX_TOTAL, speciesOf, statsOf, STORAGE_MAX, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
+import { deployCostOf, displayName, formOf, nextEvolution, OwnedPokemon, POKEDEX_TOTAL, speciesOf, statsOf, STORAGE_MAX, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
 import { isRental } from './progression/Rentals';
 import { levelProgress, MAX_LEVEL, xpForLevel } from './progression/Stats';
 import { VARIANTS } from './progression/Variants';
@@ -662,7 +662,7 @@ export class StadiumUI {
       card.innerHTML = `
         <span class="card-portrait-stage" style="background-image: linear-gradient(90deg, transparent 28%, rgba(4,12,43,.18) 48%, rgba(4,12,43,.96) 78%), url('${typeArt}');"></span>
         <button class="card-info-btn" type="button" data-info-member aria-label="View ${escapeHtml(displayName(member))} details">?</button>
-        <span class="card-cost">$${speciesOf(member).deployCost}</span>
+        <span class="card-cost">$${deployCostOf(member)}</span>
         <span class="card-xp"><i style="width:${levelProgress(member.xp, member.level) * 100}%"></i></span>
         <span class="card-deployed">ON FIELD</span>
         <button class="card-storage" type="button" data-store-member aria-label="Send ${escapeHtml(displayName(member))} to storage" ${rental ? 'hidden' : ''}>STORE</button>
@@ -1791,8 +1791,8 @@ export class StadiumUI {
       if (!el) return;
       const deployed = state.deployed.has(member.uid);
       el.classList.toggle('deployed', deployed);
-      el.classList.toggle('disabled', deployed || state.money < speciesOf(member).deployCost);
-      el.setAttribute('aria-disabled', String(deployed || state.money < speciesOf(member).deployCost));
+      el.classList.toggle('disabled', deployed || state.money < deployCostOf(member));
+      el.setAttribute('aria-disabled', String(deployed || state.money < deployCostOf(member)));
       el.classList.toggle('selected', state.selectedMember?.uid === member.uid);
       const storageButton = el.querySelector<HTMLButtonElement>('[data-store-member]')!;
       storageButton.disabled = deployed;

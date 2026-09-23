@@ -299,6 +299,14 @@ still lose streaks, so catching stays tense.
 - **Starting team:** choose Bulbasaur, Charmander or Squirtle at Lv 5, plus a gift
   Pikachu at Lv 5. Everything else is caught.
 - **Deploy cost is the same at every level.** Level already raises the ceiling.
+- **Deploy cost follows power, not level.** A variant adds a flat premium on top of
+  the species price (a titan pays +$160, so a titan Onix costs $300 against a $420
+  opening purse), and brings its own damage/rate multipliers (titan 1.4x/1.15x)
+  because max DVs alone move a tower only a few percent. Both live in
+  `Variants.ts`. A separate field-points budget was considered and passed on: it is
+  a second mechanic to teach, and money already reads as "strong costs more". If
+  late matches drift into fielding the whole bench, revisit it as a team-screen rule
+  replacing the six-slot cap rather than as a new in-match currency.
 - **No bench XP by default.** Later it becomes an unlockable item: **Exp. All**
   (the Gen 1 item) shares a portion of XP with team members that aren't placed.
 
