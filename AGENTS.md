@@ -16,6 +16,7 @@ Use `pokestadium` as a set of **building blocks for 3D games in other genres**. 
 
 ```
 web/
+├── art-source/              # High-resolution generated-art masters; not bundled by Vite
 ├── index.html               # Stadium canvas viewport & retro CRT/scanline overlay
 ├── vite.config.ts           # Vite bundler config (port 3004)
 ├── package.json             # Three.js + TypeScript setup
@@ -26,6 +27,7 @@ web/
 │   ├── trainer-progression.md
 │   ├── capture-sequence.md  # The catch set piece's anime beat sheet and per-beat shots
 │   ├── summon-sequence.md   # The send-out set piece and its reversed energy conversion
+│   ├── generated-art-plan.md # Generated imagery/texture priorities, pipeline, and checkpoints
 │   └── cup-rules.md         # Cup level brackets, entry rules, rentals (phases 1–4 in; tuning next)
 ├── ROM_ASSETS.md            # Optional, gitignored ROM-extraction workflow
 └── src/
