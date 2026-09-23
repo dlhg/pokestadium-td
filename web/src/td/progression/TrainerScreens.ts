@@ -626,7 +626,7 @@ export class TrainerScreens {
           <button class="tr-filter-toggle" data-bench-mode="mine" aria-pressed="true">MY POKÉMON</button>
           <button class="tr-filter-toggle" data-bench-mode="rentals" aria-pressed="false">RENTALS</button>
         </div>` : ''}
-        <div class="tr-collection-head"><span data-bench-count></span><span>One tower per Pokémon on the field. Catch duplicates to field more.</span></div>
+        <div class="tr-collection-head"><span data-bench-count></span></div>
         <div class="tr-pokedex-progress" aria-label="Pokédex completion"><div data-pokedex-fill></div><span data-pokedex-label></span></div>
         <div class="tr-bench-tools">
           <div class="tr-bench-row">
