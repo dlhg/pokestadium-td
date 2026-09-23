@@ -38,6 +38,7 @@ import { CUPS, isEligible, unlockedCups } from './Cups';
 import { BALL_ORDER, BALL_PRICES, BallType, CaptureSequence } from './CaptureSequence';
 import { EvolutionSequence } from './EvolutionSequence';
 import { SummonSequence } from './SummonSequence';
+import type { PrizeEarning, PrizeProjector } from './PrizeMoneyFx';
 import { setCinemaDim } from '../engine/CinemaDim';
 import { dexNumber, speciesForCreepName } from './progression/Species';
 import { createPokemon, deployCostOf, displayName, formOf, MATCH_GUEST_SLOTS, OwnedPokemon, POKEDEX_TOTAL, speciesOf, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
@@ -190,6 +191,7 @@ export class StadiumTDGame {
 
     this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
+    this.ui.prizeFx.onCoinLand = (step) => this.audio.playCoin(step);
 
     this.bindUIEvents();
     // The game opens on starter or course select. Browsers hold audio until the
@@ -402,6 +404,7 @@ export class StadiumTDGame {
     this.renderer.scene.add(this.arena.group);
     this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights);
     this.money = 420;
+    this.ui.prizeFx.reset();
     this.lives = 6;
     // A brand-new trainer gets extra balls to build a team with.
     this.balls = { poke: this.store.data.matchesPlayed === 0 ? 5 : 3, great: 0, ultra: 0 };
@@ -726,8 +729,12 @@ export class StadiumTDGame {
       target.destroy(this.renderer.scene);
       this.store.data.captureLuck = 0;
       const caught = this.createCaughtPokemon(target, ball);
-      this.money += Math.ceil(target.reward * 1.5);
-      if (firstRegistration) this.money += NEW_SPECIES_BONUS;
+      const caughtAt = target.group.position.clone();
+      caughtAt.y += target.hudAnchorHeight * 0.55;
+      this.earn({ amount: Math.ceil(target.reward * 1.5), source: 'capture', at: caughtAt });
+      if (firstRegistration) {
+        this.earn({ amount: NEW_SPECIES_BONUS, source: 'newSpecies', at: caughtAt.clone().setY(caughtAt.y + 1.2), delay: 0.45 });
+      }
       this.captureHint = firstRegistration
         ? `NEW POKÉMON! ${target.name.replace(/^Titan /, '').toUpperCase()} REGISTERED · ${caughtBefore + 1}/${POKEDEX_TOTAL}`
         : `CAUGHT ${target.name.replace(/^Titan /, '').toUpperCase()}! READY TO DEPLOY`;
@@ -1015,6 +1022,7 @@ export class StadiumTDGame {
 
   public update(realDt: number, input: Input): void {
     this.updateTimedCaptureHint(realDt);
+    this.ui.prizeFx.update(realDt, this.money, this.projectToScreen);
     if (this.isChoosingMap) {
       this.camera.update(realDt);
       this.renderer.update(realDt, 0);
@@ -1436,7 +1444,10 @@ export class StadiumTDGame {
         this.channels.push({ remaining: duration - interval, interval, timer: interval, tick });
       },
       addHazard: (hazard, position, tower) => this.hazards.push(new Hazard(hazard, position, tower, this.renderer.scene)),
-      addMoney: (amount) => { this.money += amount; },
+      addMoney: (amount, tower) => {
+        this.earn({ amount, source: 'payDay', at: tower.chestPoint });
+        this.audio.playPayDay();
+      },
       revealPhantoms: (seconds) => { this.phantomRevealTimer = Math.max(this.phantomRevealTimer, seconds); },
     };
   }
@@ -1521,11 +1532,12 @@ export class StadiumTDGame {
 
     const milestone = getMilestone(round, this.waveManager.winRound);
     if (milestone) {
-      this.money += milestone.money;
+      this.ui.showMilestone(milestone, newCup ? CUPS[newCup].name : undefined);
+      // The coins shower out of the trophy card once it has slid in.
+      this.earn({ amount: milestone.money, source: 'milestone', at: this.ui.trophyCenter(), delay: 0.5 });
       for (const [ball, count] of Object.entries(milestone.balls) as [BallType, number][]) {
         this.balls[ball] += count;
       }
-      this.ui.showMilestone(milestone, newCup ? CUPS[newCup].name : undefined);
     }
 
     if (round === this.waveManager.winRound) {
@@ -1538,11 +1550,30 @@ export class StadiumTDGame {
     }
   }
 
+  /** Pays out prize money and hands the payout to the HUD to show off. */
+  private earn(earning: PrizeEarning): void {
+    this.money += earning.amount;
+    this.ui.prizeFx.earn(earning, this.projectToScreen);
+  }
+
+  private readonly projectToScreen: PrizeProjector = (world) => this.renderer.toScreenXY(world, this.camera.camera);
+
   private handleCreepDefeat(creep: Creep): void {
-    this.money += creep.reward;
-    // Bounty towers are paid for every knockout they helped with.
+    const knockedOutAt = creep.group.position.clone();
+    knockedOutAt.y += creep.hudAnchorHeight * 0.55;
+    this.earn({ amount: creep.reward, source: 'knockout', at: knockedOutAt, multiplier: this.waveManager.getCurrentWave().payMult });
+    // Bounty towers are paid for every knockout they helped with; the coin
+    // visits the tower on its way to the wallet so the player sees who earned it.
     for (const tower of creep.contributors.keys()) {
-      if (tower.attack.bounty && this.towers.includes(tower)) this.money += tower.attack.bounty;
+      if (!tower.attack.bounty || !this.towers.includes(tower)) continue;
+      const chest = tower.chestPoint;
+      this.earn({
+        amount: tower.attack.bounty, source: 'bounty', at: knockedOutAt,
+        via: { at: chest, onArrive: () => {
+          tower.celebrate();
+          this.particles.emitImpact(chest, 0xffd700, 8, 3);
+        } },
+      });
     }
     this.spreadSeed(creep);
     this.applyXp(this.progress.awardKnockout(creep, this.towers));

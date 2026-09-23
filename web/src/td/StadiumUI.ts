@@ -25,6 +25,7 @@ import { EvolutionHud } from './EvolutionSequence';
 import { SummonHud } from './SummonSequence';
 import type { MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
+import { PrizeMoneyFx } from './PrizeMoneyFx';
 import { RosterModelView } from './RosterModelView';
 import { escapeHtml, TrainerScreens, reportListHtml } from './progression/TrainerScreens';
 import { deployCostOf, displayName, formOf, nextEvolution, OwnedPokemon, POKEDEX_TOTAL, speciesOf, statsOf, STORAGE_MAX, TEAM_SIZE, TrainerStore } from './progression/TrainerStore';
@@ -217,6 +218,12 @@ export class StadiumUI {
   private sigTooltipEl!: HTMLElement;
   private rosterInfoTipEl!: HTMLElement;
   private combatTextLayerEl!: HTMLElement;
+  /** Prize money popups, coins and the wallet count-up; the game feeds it every payout. */
+  public prizeFx!: PrizeMoneyFx;
+  /** Whether each price was affordable at the wallet's last shown value, for the flash when it becomes so. */
+  private affordable = new WeakMap<HTMLElement, boolean>();
+  private lastWalletShown = 0;
+  private walletRose = false;
   private showTypeEffectiveness = false;
   private wasBallLocked: Partial<Record<BallType, boolean>> = {};
   private cardDeckToggleEl!: HTMLButtonElement;
@@ -401,6 +408,9 @@ export class StadiumUI {
       <!-- Floating combat text: crits, immunities, and (opt-in) type effectiveness -->
       <div id="combat-text-layer"></div>
 
+      <!-- Prize money: popups off each payout and coins flying into the wallet -->
+      <div id="prize-layer"></div>
+
       <div id="pause-screen" class="interactive" hidden>
         <section class="pause-card stadium-panel" aria-labelledby="pause-title">
           <h2 id="pause-title">PAUSED</h2>
@@ -526,6 +536,7 @@ export class StadiumUI {
     this.sigTooltipEl = document.getElementById('sig-tooltip')!;
     this.rosterInfoTipEl = document.getElementById('roster-info-tip')!;
     this.combatTextLayerEl = document.getElementById('combat-text-layer')!;
+    this.prizeFx = new PrizeMoneyFx(document.getElementById('prize-layer')!, document.getElementById('prize-money')!, () => this.uiScale);
     this.panelEl = document.getElementById('tower-panel')!;
     this.announcerBannerEl = document.getElementById('announcer-banner')!;
     this.cinemaEl = document.getElementById('capture-cinema')!;
@@ -1022,6 +1033,7 @@ export class StadiumUI {
       if (btn.classList.contains('maxed') || btn.classList.contains('locked')) return;
       const cost = Number(btn.dataset.cost);
       btn.classList.toggle('poor', money < cost);
+      this.noteAffordable(btn, cost);
     });
 
     const xpFill = document.getElementById('tp-xp-fill');
@@ -1153,6 +1165,13 @@ export class StadiumUI {
 
   /** Milestone payout card, sharing the trophy card's slot and timing. */
   /** `unlockedCup` names a cup this clear just opened. */
+  /** The trophy card's centre in layer pixels, where milestone coins shower from. */
+  public trophyCenter(): { x: number; y: number } {
+    const rect = document.getElementById('capture-trophy')!.getBoundingClientRect();
+    if (!rect.width) return { x: window.innerWidth / 2 / this.uiScale, y: window.innerHeight * 0.3 / this.uiScale };
+    return { x: (rect.left + rect.width / 2) / this.uiScale, y: (rect.top + rect.height / 2) / this.uiScale };
+  }
+
   public showMilestone(milestone: MilestoneReward, unlockedCup?: string): void {
     const card = document.getElementById('capture-trophy')!;
     const ballNames: Record<BallType, string> = { poke: 'POKÉ BALL', great: 'GREAT BALL', ultra: 'ULTRA BALL' };
@@ -1634,6 +1653,18 @@ export class StadiumUI {
     button.classList.toggle('active', mode !== 'off');
   }
 
+  /** Flashes a price the moment the wallet's shown total climbs past it. */
+  private noteAffordable(el: HTMLElement, cost: number, eligible = true): void {
+    const now = eligible && this.prizeFx.displayed >= cost;
+    const before = this.affordable.get(el);
+    this.affordable.set(el, now);
+    if (now && before === false && this.walletRose) {
+      el.classList.remove('just-affordable');
+      void el.offsetWidth;
+      el.classList.add('just-affordable');
+    }
+  }
+
   /** Drops a floating combat-text callout (crit, immunity, type effectiveness,
    *  signature damage numbers) at a screen point. `size` (px) scales a
    *  signature hit's damage number to its value; omitted for everything else. */
@@ -1691,7 +1722,10 @@ export class StadiumUI {
       ? `ROUND ${state.round} · FREEPLAY`
       : `ROUND ${state.round} / ${state.winRound}`;
     document.getElementById('mystery-badge')!.hidden = !state.isMystery;
-    document.getElementById('prize-money')!.innerText = `$${state.money}`;
+    // The wallet's text belongs to prizeFx, which counts up as coins land.
+    const walletShown = this.prizeFx.displayed;
+    this.walletRose = walletShown > this.lastWalletShown;
+    this.lastWalletShown = walletShown;
 
     // Stadium HP remains the defensive fail-state; balls are capture inventory.
     const tray = document.getElementById('stadium-hp')!;
@@ -1729,6 +1763,7 @@ export class StadiumUI {
       button.disabled = premiumLocked || !canAfford;
       button.classList.toggle('locked', premiumLocked);
       button.classList.toggle('poor', !premiumLocked && !canAfford);
+      this.noteAffordable(button, BALL_PRICES[type], !premiumLocked);
       // A locked ball can't be bought at any price right now, so the label drops the
       // dollar sign entirely rather than showing a price that looks buyable but isn't.
       const label = premiumLocked ? 'AFTER ROUND' : `$${BALL_PRICES[type]}`;
@@ -1793,6 +1828,7 @@ export class StadiumUI {
       el.classList.toggle('deployed', deployed);
       el.classList.toggle('disabled', deployed || state.money < deployCostOf(member));
       el.setAttribute('aria-disabled', String(deployed || state.money < deployCostOf(member)));
+      this.noteAffordable(el, deployCostOf(member), !deployed);
       el.classList.toggle('selected', state.selectedMember?.uid === member.uid);
       const storageButton = el.querySelector<HTMLButtonElement>('[data-store-member]')!;
       storageButton.disabled = deployed;

@@ -534,6 +534,63 @@
   .combat-text { animation: combat-text-fade .9s ease-out forwards; }
   @keyframes combat-text-fade { 0% { opacity:0; } 15% { opacity:1; } 100% { opacity:0; } }
 }
+/* Prize money: world-anchored popups, coins flying to the wallet (PrizeMoneyFx.ts). */
+#prize-layer { position:absolute; inset:0; z-index:35; pointer-events:none; overflow:hidden; }
+.prize-pop {
+  position:absolute; left:0; top:0; display:flex; flex-direction:column; align-items:center;
+  font-family:'Teko','Impact',sans-serif; font-weight:800; line-height:.9; white-space:nowrap;
+  color:#ffd94a; letter-spacing:.6px; will-change:transform, opacity; z-index:2;
+  text-shadow:0 2px 0 #7a4a00, 0 0 8px rgba(255,190,40,.55), 1px 3px 4px rgba(0,0,0,.8);
+}
+.prize-pop.prize-sm .prize-amount { font-size:19px; }
+.prize-pop.prize-md .prize-amount { font-size:25px; }
+.prize-pop.prize-lg .prize-amount {
+  font-size:36px; background:linear-gradient(100deg,#ffe46b 0%,#ffe46b 40%,#fffbe0 50%,#ffe46b 60%,#ffb42a 100%);
+  background-size:250% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 2px 0 #7a4a00) drop-shadow(0 0 8px rgba(255,190,40,.6));
+  text-shadow:none; animation:prize-shine .9s ease-out .1s both;
+}
+@keyframes prize-shine { from { background-position:100% 0; } to { background-position:0 0; } }
+.prize-pop.prize-bounty { color:#ffe9a8; }
+.prize-pop.prize-bounty .prize-amount { font-size:16px; }
+.prize-pop .prize-label { font-size:15px; letter-spacing:1.4px; color:#fff6c8; }
+.prize-pop.prize-payDay .prize-label, .prize-pop.prize-newSpecies .prize-label { font-size:18px; }
+.prize-pop .prize-mult {
+  margin-top:2px; padding:1px 5px 0; border-radius:6px; font-size:14px; letter-spacing:.8px;
+  color:#1a1204; background:#ffd94a; text-shadow:none; box-shadow:0 1px 3px rgba(0,0,0,.6);
+}
+.prize-coin {
+  position:absolute; left:0; top:0; z-index:1; width:15px; height:15px; border-radius:50%; will-change:transform;
+  background:radial-gradient(circle at 35% 30%,#fffbe0 0 18%,#ffd94a 19% 55%,#e39a14 56% 100%);
+  box-shadow:inset 0 0 0 1.5px #a86400, 0 0 7px rgba(255,200,60,.8);
+}
+.stat-badge.wallet-hit #prize-money { animation:wallet-hit .22s ease-out; }
+@keyframes wallet-hit {
+  0% { transform:scale(1); filter:brightness(1); }
+  35% { transform:scale(1.22); filter:brightness(1.7) drop-shadow(0 0 6px #7dff7d); }
+  100% { transform:scale(1); filter:brightness(1); }
+}
+#prize-money { display:inline-block; }
+.wallet-tag {
+  position:absolute; left:100%; top:50%; margin-left:4px; transform:translateY(-50%);
+  font-family:'Teko','Impact',sans-serif; font-size:18px; font-weight:800; color:#7dff7d; white-space:nowrap;
+  text-shadow:0 1px 0 #0b3d0b, 0 0 6px rgba(80,255,80,.5); pointer-events:none;
+  animation:wallet-tag-fade 1.1s ease-out forwards;
+}
+.wallet-tag.bump { animation:wallet-tag-bump .18s ease-out, wallet-tag-fade 1.1s ease-out forwards; }
+@keyframes wallet-tag-bump { 0% { font-size:22px; } 100% { font-size:18px; } }
+@keyframes wallet-tag-fade { 0%,55% { opacity:1; } 100% { opacity:0; } }
+/* A price the wallet just climbed past, so the player notices it. */
+.just-affordable { animation:just-affordable .55s ease-out; }
+@keyframes just-affordable {
+  0% { box-shadow:0 0 0 0 rgba(125,255,125,0); }
+  30% { box-shadow:0 0 12px 4px rgba(125,255,125,.85); filter:brightness(1.35); }
+  100% { box-shadow:0 0 0 0 rgba(125,255,125,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stat-badge.wallet-hit #prize-money, .wallet-tag.bump, .prize-pop.prize-lg .prize-amount { animation:none; }
+  .wallet-tag { animation:wallet-tag-fade 1.1s ease-out forwards; }
+}
 .catch-tag {
   position:absolute; left:0; top:0; height:var(--catch-tag-height, 24px); display:flex; align-items:center; gap:5px;
   padding:0 8px 0 4px; border:2px solid #fff3a6; border-radius:12px; cursor:pointer; pointer-events:auto;

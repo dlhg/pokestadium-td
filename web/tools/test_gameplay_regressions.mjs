@@ -21,7 +21,7 @@ const result = await build({
       "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
       "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups } from './src/td/Cups.ts';",
       "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
-      "export { generateWave, rollWave } from './src/td/WaveManager.ts';",
+      "export { generateWave, rollWave, getMilestone } from './src/td/WaveManager.ts';",
       "export { createRental, isRental, RENTALS, rentalLevel } from './src/td/progression/Rentals.ts';",
       "export { MatchProgress } from './src/td/progression/MatchProgress.ts';",
       "export { getSpecies, SPECIES } from './src/td/progression/Species.ts';",
@@ -43,7 +43,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep, Tower, rankTargets, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, deployCostOf, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, generateWave, rollWave, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, deployCostOf, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, generateWave, rollWave, getMilestone, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Losing browser focus clears held keys, and touch distinguishes a camera
@@ -278,12 +278,15 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   Object.assign(game, {
     balls: { poke: 0, great: 0, ultra: 0 }, towers: [], map: { id: 'test' },
     store: { data: { maps: {} }, recordMap() {}, commit() {} }, progress: { awardWaveClear: () => [] },
-    waveManager: { winRound: 40 }, ui: { showMilestone() {} },
+    waveManager: { winRound: 40 },
+    ui: { showMilestone() {}, trophyCenter: () => ({ x: 0, y: 0 }), prizeFx: { earn() {} } },
     announcer: { trigger() {} }, audio: { playFanfare() {} }, camera: { shake() {} },
   });
   game.handleRoundCleared(9);
   assert.equal(game.balls.poke, 1, 'round 9 clear grants a regular ball');
+  const moneyBefore = game.money;
   game.handleRoundCleared(10);
+  assert.equal(game.money, moneyBefore + getMilestone(10, 40).money, 'round 10 pays its milestone prize money at once');
   assert.equal(game.balls.poke, 1, 'round 10 does not extend the opening regular-ball grant');
   assert.equal(game.balls.great, 1, 'round 10 retains its premium milestone reward');
 }
@@ -357,7 +360,7 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
     waveManager: { update() {}, currentWaveIndex: 0, round: 1, winRound: 40, inWave: true,
       getCurrentWave: () => ({ round: 1, cupName: 'TEST' }) },
     particles: { update() {} }, arena: { update() {}, updateJumbotron() {} },
-    ui: { showDefeat: (_map, _round, _win, report) => shownReports.push(report), update() {} },
+    ui: { showDefeat: (_map, _round, _win, report) => shownReports.push(report), update() {}, prizeFx: { update() {} } },
     handleInput() {}, clearSelection() {}, towers: [], projectiles: [],
     creeps: [0, 1].map(() => ({ update() {}, reachedEnd: true, destroy() {} })),
   });

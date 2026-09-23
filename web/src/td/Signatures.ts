@@ -78,7 +78,8 @@ export interface SignatureContext {
   /** Runs `tick` every `interval` seconds of match time until `duration` is spent. */
   channel: (duration: number, interval: number, tick: () => void) => void;
   addHazard: (hazard: HazardId, position: THREE.Vector3, tower: Tower) => void;
-  addMoney: (amount: number) => void;
+  /** Pays prize money out of this tower. */
+  addMoney: (amount: number, from: Tower) => void;
   revealPhantoms: (seconds: number) => void;
 }
 
@@ -475,7 +476,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
     }
 
     case 'gainMoney': {
-      ctx.addMoney(effect.amount);
+      ctx.addMoney(effect.amount, tower);
       ctx.particles.emitImpact(tower.position.clone().add(up(1.5)), 0xffd700, 40, 7);
       return true;
     }

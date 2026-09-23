@@ -20,6 +20,8 @@ export interface WaveDefinition {
   spawns: { config: CreepConfig; count: number; interval: number }[];
   /** True for a generated round rolled unweighted, with a random modifier. */
   isMystery?: boolean;
+  /** A mystery modifier's prize multiplier (Bounty Round pays 1.6×). */
+  payMult?: number;
 }
 
 /** Density/toughness tradeoff applied to rank-and-file creeps at spawn time. */
@@ -477,7 +479,7 @@ export function rollWave(round: number, winRound: number, typeWeights?: Partial<
 
   const lead = spawns[0].config.name;
   const name = modifier ? `${cupName}: MYSTERY ROUND — ${modifier.label}` : `${cupName}: ${lead} Assault`;
-  return { round, cupName, name, spawns, isMystery };
+  return { round, cupName, name, spawns, isMystery, payMult: modifier?.payMult };
 }
 
 // --------------------------------------------------------------------------

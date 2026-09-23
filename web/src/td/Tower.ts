@@ -432,6 +432,18 @@ export class Tower {
   }
 
   /** Tops every unlocked signature back up to full PP. */
+  /** A point at the Pokémon's middle, for effects aimed at it. */
+  public get chestPoint(): THREE.Vector3 {
+    const height = worldHeightFor(dexNumber(this.pokemon.speciesId, this.pokemon.stage));
+    return this.position.clone().setY(this.position.y + height * 0.6);
+  }
+
+  /** A short hop of delight, for a bounty coin arriving at the tower. */
+  public celebrate(): void {
+    this.isAttackingAnim = true;
+    this.attackAnimTimer = Math.max(this.attackAnimTimer, 0.3);
+  }
+
   public refillPP(): void {
     this.pp = Object.fromEntries(this.attack.signatures.map(id => [id, SIGNATURES[id].pp]));
   }

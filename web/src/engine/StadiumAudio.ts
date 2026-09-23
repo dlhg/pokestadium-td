@@ -81,6 +81,7 @@ export class StadiumAudio {
   private musicIds: string[] = [];
   /** Context time of the last stone impact, for the crowding check in `playStoneImpact`. */
   private lastStoneHit = -Infinity;
+  private lastCoin = -Infinity;
 
   /** Called after the optional local music manifest has been discovered. */
   public onMusicCatalogChanged: (() => void) | null = null;
@@ -690,6 +691,36 @@ export class StadiumAudio {
     this.noiseBurst(0.45, 400, 3200, 0.3);
     this.tone('sawtooth', 320, 1200, 0.28, 0.18);
     this.tone('square', 220, 90, 0.3, 0.16, 0.05);
+  }
+
+  /**
+   * A coin landing in the wallet: a bright two-note chime, climbing a semitone
+   * per landing through a streak so a multi-knockout rings up as a run. Coins
+   * can land a frame apart, so ones on top of each other stay silent rather
+   * than summing into a buzz.
+   */
+  public playCoin(step: number = 0): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    const now = this.ctx.currentTime;
+    if (now - this.lastCoin < 0.045) return;
+    this.lastCoin = now;
+    if (this.playNative('coin')) return;
+    const pitch = Math.pow(2, Math.min(step, 12) / 12);
+    this.tone('square', 988 * pitch, 988 * pitch, 0.05, 0.05);
+    this.tone('square', 1319 * pitch, 1319 * pitch, 0.16, 0.05, 0.05);
+  }
+
+  /** Pay Day: coins spilling out, a quick descending-then-rising scatter. */
+  public playPayDay(): void {
+    this.initContext();
+    if (!this.ctx || !this.enabled) return;
+    if (this.playNative('pay_day')) return;
+    [0, 4, 2, 7, 5, 9, 12].forEach((semi, idx) => {
+      const freq = 1319 * Math.pow(2, semi / 12);
+      this.tone('square', freq, freq, 0.09, 0.045, idx * 0.055);
+    });
+    this.noiseBurst(0.35, 5200, 2400, 0.06);
   }
 
   /** Rising, shimmering charge as the tower begins to glow. Longer and stranger than a capture windup. */
