@@ -87,8 +87,8 @@ Build one vertical slice for **Viridian Gardens**:
    shared camera, palette, and lighting rules above.
 3. Bake it down to a 6:5 card image at roughly 256 by 213 texels, five bits per RGB
    channel, and display it with `image-rendering: pixelated`.
-4. Preserve the existing `MapPreview.ts` route drawing as an information layer:
-   either a compact inset or a focus/hover overlay. Do not sacrifice route clarity.
+4. Keep the scenic card stable on hover and focus. `MapPreview.ts` retains its
+   procedural route drawing only as a fallback for a future map without card art.
 5. Put the changed card beside the untouched cards and capture the complete course
    select. Judge the system in context, not the image by itself.
 
@@ -99,7 +99,7 @@ expand.
 
 #### P0 acceptance criteria
 
-- The player can still understand the route before choosing the course.
+- The route in the postcard is clear enough to understand before choosing the course.
 - The art reads at actual card size; details that only work enlarged do not count.
 - Viridian and Power Plant share camera, contrast, texture scale, and finishing.
 - The generated scene does not contradict a major route, landmark, or elevation.
@@ -221,7 +221,7 @@ generation scaffold is:
 
 ```text
 Use case: stylized-concept
-Asset type: 6:5 course-select scenic postcard behind a live route overlay
+Asset type: 6:5 course-select scenic postcard
 Primary request: depict <course and its authored landmarks>
 Input images: Image 1 is the geometry reference; Image 2 is the style reference
 Style/medium: late-1990s low-poly console sports-broadcast environment,
@@ -304,8 +304,8 @@ Start with **one Viridian Gardens map-card prototype**, not a full asset batch.
 It has the best risk/reward profile: the surface area is small, the before/after is
 easy to judge, integration does not touch gameplay, and its simple green garden forms
 will immediately reveal whether generated art survives the N64 processing pass. Use an
-in-game Viridian view as the geometry reference, integrate the result behind the real
-route overlay, and review the entire course-select screenshot.
+in-game Viridian view as the geometry reference, integrate the result as the stable
+card image, and review the entire course-select screenshot.
 
 Only after that card is accepted should Power Plant be generated as the style-range
 test. This keeps image-generation usage low and prevents an unproven look from being

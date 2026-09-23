@@ -124,5 +124,5 @@ ffmpeg -y -loglevel error \
 ```
 
 Then add the runtime path to `CARD_ART` in `src/td/MapPreview.ts`, build, run the map
-tests, and inspect the entire course-select screen. The scenic card is presentation;
-the live SVG diagram remains the authoritative route view on hover and focus.
+tests, and inspect the entire course-select screen. The scenic card remains stable on
+hover and focus; the procedural SVG is only a fallback for maps without card art.
