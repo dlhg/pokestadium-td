@@ -237,7 +237,8 @@ One line each; full paths come in phase 4. The goal is that no two species share
 | Lapras | Frost aura | Big chill aura; must stand next to water |
 | Magikarp line | Late bloomer | Useless until Gyarados, then a rampaging beam |
 | Dratini line | Carry | Weak for a long time, strongest tower at full level |
-| Rattata line | Utility | Cheap; Super Fang removes a % of HP |
+| Rattata line | Utility | Cheap; Super Fang removes a % of HP; Crunch scales with crowds |
+| Meowth line | Earner | Pays prize money for every knockout it helps with; Pay Day |
 
 ---
 

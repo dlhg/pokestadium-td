@@ -50,6 +50,7 @@ export const EARLY_ROSTER: RosterEntry[] = [
   { name: 'Pidgey', type: 'Normal', secondaryType: 'Flying', maxHp: 180, speed: 5.0, reward: 22, modelType: 'zubat' },
   { name: 'Zubat', type: 'Poison', secondaryType: 'Flying', maxHp: 190, speed: 5.2, reward: 22, modelType: 'zubat' },
   { name: 'Paras', type: 'Bug', secondaryType: 'Grass', maxHp: 230, speed: 3.6, reward: 24, modelType: 'rattata' },
+  { name: 'Meowth', type: 'Normal', maxHp: 210, speed: 5.0, reward: 26, modelType: 'rattata' },
   { name: 'Geodude', type: 'Rock', secondaryType: 'Ground', maxHp: 260, speed: 3.0, reward: 26, modelType: 'geodude' },
   { name: 'Machop', type: 'Fighting', maxHp: 280, speed: 3.4, reward: 27, modelType: 'geodude' },
   { name: 'Ponyta', type: 'Fire', maxHp: 230, speed: 4.9, reward: 24, modelType: 'rattata' },
@@ -253,6 +254,7 @@ export function getMilestone(round: number, winRound: number): MilestoneReward |
 export const ROSTER: RosterEntry[] = [
   { name: 'Raticate', type: 'Normal', maxHp: 300, speed: 5.2, reward: 30, modelType: 'rattata' },
   { name: 'Golbat', type: 'Poison', secondaryType: 'Flying', maxHp: 280, speed: 5.6, reward: 30, modelType: 'zubat' },
+  { name: 'Persian', type: 'Normal', maxHp: 290, speed: 5.8, reward: 36, modelType: 'rattata' },
   { name: 'Haunter', type: 'Ghost', secondaryType: 'Poison', maxHp: 260, speed: 4.6, reward: 32, modelType: 'zubat' },
   { name: 'Graveler', type: 'Rock', secondaryType: 'Ground', maxHp: 400, speed: 3.2, reward: 36, modelType: 'geodude' },
   { name: 'Machoke', type: 'Fighting', maxHp: 420, speed: 3.1, reward: 38, modelType: 'geodude' },

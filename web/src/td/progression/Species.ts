@@ -293,17 +293,50 @@ export const SPECIES: Record<string, SpeciesDef> = {
         tier('Scurry', 340, 20, 'Attacks 10% faster. Unlocks Scurry.',
           { kind: 'scale', rate: 1.1 }, { kind: 'signature', signatureId: 'scurry' }),
       ] },
-      { id: 'scavenge', label: 'SCAVENGE', tiers: [
-        tier('Scavenge', 100, undefined, 'Earns $2 for every knockout it helps with.',
-          { kind: 'bounty', money: 2 }),
-        tier('Hoard', 210, 8, 'Earns $4 for every knockout it helps with.',
-          { kind: 'bounty', money: 4 }),
-        tier('Treasure Hunt', 360, 20, 'Earns $6 per knockout. Unlocks Treasure Hunt.',
-          { kind: 'bounty', money: 6 }, { kind: 'signature', signatureId: 'treasure_hunt' }),
+      { id: 'pack', label: 'PACK', tiers: [
+        tier('Tail Whip', 100, undefined, 'Hits 5% harder for each enemy in range, up to 25%.',
+          { kind: 'crowdPower', perCreep: 0.05, max: 0.25 }),
+        tier('Pack Hunt', 210, 8, 'Hits 7% harder per enemy in range, up to 35%, and reaches further.',
+          { kind: 'crowdPower', perCreep: 0.07, max: 0.35 }, { kind: 'scale', range: 1.15 }),
+        tier('Crunch', 360, 20, 'Hits 10% harder per enemy in range, up to 50%. Unlocks Crunch.',
+          { kind: 'crowdPower', perCreep: 0.1, max: 0.5 }, { kind: 'signature', signatureId: 'crunch' }),
       ] },
     ],
     createModel: () => M.createRattata(),
     description: 'Cheap and quick, with a bite for everything.',
+  },
+  meowth: {
+    id: 'meowth', deployCost: 90, expYield: 69, role: 'THE EARNER',
+    forms: [form('Meowth', 'Normal', 0, 45, 90, 40), form('Persian', 'Normal', 28, 70, 115, 65)],
+    basicAttack: 'scratch',
+    paths: [
+      { id: 'coin', label: 'COIN', tiers: [
+        tier('Pickup', 100, undefined, 'Earns $2 for every knockout it helps with.',
+          { kind: 'bounty', money: 2 }),
+        tier('Amulet Coin', 210, 8, 'Earns $4 for every knockout it helps with.',
+          { kind: 'bounty', money: 4 }),
+        tier('Pay Day', 360, 20, 'Earns $6 per knockout. Unlocks Pay Day.',
+          { kind: 'bounty', money: 6 }, { kind: 'signature', signatureId: 'pay_day' }),
+      ] },
+      { id: 'claw', label: 'CLAW', tiers: [
+        tier('Sharp Claws', 90, undefined, 'Attacks 40% faster.',
+          { kind: 'scale', rate: 1.4 }),
+        tier('Slash', 200, 8, 'Claws hit 15% harder and can crit.',
+          { kind: 'scale', damage: 1.15 }, { kind: 'crit', chance: 0.3, multiplier: 2 }),
+        tier('Fury Swipes', 360, 20, 'Claws hit 30% harder. Unlocks Fury Swipes.',
+          { kind: 'scale', damage: 1.3 }, { kind: 'signature', signatureId: 'fury_swipes' }),
+      ] },
+      { id: 'taunt', label: 'TAUNT', tiers: [
+        tier('Growl', 100, undefined, 'Enemies in range move 15% slower.',
+          { kind: 'slowAura', slow: 0.15 }),
+        tier('Bite', 210, 8, 'Hits may make enemies flinch in place.',
+          { kind: 'onHitStatus', status: 'stun', chance: 0.3, duration: 0.8 }),
+        tier('Fake Out', 380, 20, 'Enemies in range move 30% slower. Unlocks Fake Out.',
+          { kind: 'slowAura', slow: 0.3 }, { kind: 'signature', signatureId: 'fake_out' }),
+      ] },
+    ],
+    createModel: () => M.createRattata(),
+    description: 'A light scratcher that pays out on every knockout it touches.',
   },
   pidgey: {
     id: 'pidgey', deployCost: 90, expYield: 55, role: 'THE SPOTTER',
@@ -861,7 +894,7 @@ export function speciesForCreepName(name: string): { speciesId: string; stage: n
 /** National Pokédex number of each line's first form; every line here evolves in dex order. */
 const BASE_DEX: Record<string, number> = {
   bulbasaur: 1, charmander: 4, squirtle: 7, pidgey: 16, rattata: 19, pikachu: 25, zubat: 41, oddish: 43,
-  paras: 46, psyduck: 54, abra: 63, machop: 66, geodude: 74, ponyta: 77, gastly: 92, onix: 95, voltorb: 100,
+  paras: 46, meowth: 52, psyduck: 54, abra: 63, machop: 66, geodude: 74, ponyta: 77, gastly: 92, onix: 95, voltorb: 100,
   exeggcute: 102, rhyhorn: 111, scyther: 123, magikarp: 129, lapras: 131, dratini: 147,
 };
 

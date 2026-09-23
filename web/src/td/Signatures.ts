@@ -168,8 +168,15 @@ export const SIGNATURES: Record<string, SignatureDef> = Object.fromEntries([
     { kind: 'dive', move: hit('bite', { name: 'Super Fang', basePower: 20 }), percent: { share: 0.5, bossShare: 0.1 } }),
   def('scurry', 'Scurry', 'Normal', 2, 'Attacks 150% faster for 8 s.',
     { kind: 'selfBoost', bonus: 1.5, duration: 8 }),
-  def('treasure_hunt', 'Treasure Hunt', 'Normal', 1, 'Digs up $120 of prize money.',
+  def('crunch', 'Crunch', 'Normal', 2, 'Bites every enemy in range at once.',
+    { kind: 'strikeArea', reach: 1, move: hit('bite', { name: 'Crunch', basePower: 90 }) }),
+  // ---- Meowth -------------------------------------------------------------
+  def('pay_day', 'Pay Day', 'Normal', 1, 'Scatters $120 of prize money.',
     { kind: 'gainMoney', amount: 120 }),
+  def('fury_swipes', 'Fury Swipes', 'Normal', 2, 'Pounces on the enemy with the most HP for a flurry of claws.',
+    { kind: 'dive', move: hit('scratch', { name: 'Fury Swipes', basePower: 200 }) }),
+  def('fake_out', 'Fake Out', 'Normal', 2, 'Every enemy in range flinches in place for 2 s.',
+    { kind: 'areaStatus', status: 'stun', duration: 2, reach: 1.2 }),
   // ---- Pidgey -------------------------------------------------------------
   def('foresight', 'Foresight', 'Normal', 2, 'Every tower can aim at Phantoms for 10 s.',
     { kind: 'revealPhantoms', duration: 10 }),
