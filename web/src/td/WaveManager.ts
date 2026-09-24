@@ -271,7 +271,7 @@ export class WaveManager {
         this.inWave = false;
         this.waveCompleted = true;
         this.currentWaveIndex++;
-        this.intermissionTimer = 7.0; // 7s break between rounds
+        this.intermissionTimer = INTERMISSION_SECONDS;
         this.announcer.trigger('wave_cleared');
         onRoundCleared(cleared);
       }
@@ -514,6 +514,9 @@ export function finalRosterEntry(name: string, cup: CupRules): RosterEntry | nul
 
 /** Elites hit this much harder, pay this much more, and walk this much slower than their group. */
 const ELITE_HP = 4;
+
+/** Seconds between rounds before the next one starts on its own. */
+export const INTERMISSION_SECONDS = 14;
 const ELITE_REWARD = 5;
 const ELITE_SPEED = 0.8;
 

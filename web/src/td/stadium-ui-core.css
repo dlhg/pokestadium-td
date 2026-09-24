@@ -100,6 +100,15 @@
   text-overflow: ellipsis;
 }
 
+#btn-wave { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+#wave-clock { position: relative; flex: none; width: 34px; height: 34px; display: grid; place-items: center; }
+#wave-clock[hidden] { display: none; }
+#wave-clock svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.wave-clock-track, .wave-clock-fill { fill: none; stroke-width: 4; }
+.wave-clock-track { stroke: rgba(0, 0, 0, .38); fill: rgba(0, 0, 0, .22); }
+.wave-clock-fill { stroke: #ffd24a; stroke-linecap: round; stroke-dasharray: 100; }
+#wave-clock-count { position: relative; font-size: 16px; line-height: 1; font-variant-numeric: tabular-nums; }
+
 .stat-label {
   font-size: 13px;
   font-weight: 700;

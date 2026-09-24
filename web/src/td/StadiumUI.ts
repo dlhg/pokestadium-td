@@ -23,7 +23,7 @@ import { BALL_ORDER, BALL_PRICES, BallType, CaptureHud } from './CaptureSequence
 import type { Creep } from './Creep';
 import { EvolutionHud } from './EvolutionSequence';
 import { SummonHud } from './SummonSequence';
-import type { MilestoneReward } from './WaveManager';
+import { INTERMISSION_SECONDS, type MilestoneReward } from './WaveManager';
 import { TrophyModelView } from './TrophyModelView';
 import { PrizeMoneyFx } from './PrizeMoneyFx';
 import { RosterModelView } from './RosterModelView';
@@ -348,7 +348,7 @@ export class StadiumUI {
 
         <!-- Start Round -->
         <div id="start-match-bar">
-          <button class="stadium-btn active" id="btn-wave">START ROUND</button>
+          <button class="stadium-btn active" id="btn-wave"><span id="wave-clock" hidden><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="wave-clock-track" cx="18" cy="18" r="15.5"/><circle class="wave-clock-fill" id="wave-clock-fill" cx="18" cy="18" r="15.5" pathLength="100"/></svg><span id="wave-clock-count"></span></span><span id="wave-label">START ROUND</span></button>
         </div>
 
         <!-- Controls -->
@@ -1808,7 +1808,14 @@ export class StadiumUI {
     const waveBtn = document.getElementById('btn-wave')!;
     waveBtn.style.display = state.inWave ? 'none' : '';
     if (!state.inWave) {
-      waveBtn.innerText = state.intermissionTimer > 0 ? `NEXT ROUND (${Math.ceil(state.intermissionTimer)}S)` : 'START ROUND';
+      const counting = state.intermissionTimer > 0;
+      document.getElementById('wave-label')!.innerText = counting ? 'NEXT ROUND' : 'START ROUND';
+      document.getElementById('wave-clock')!.hidden = !counting;
+      if (counting) {
+        const left = Math.min(1, state.intermissionTimer / INTERMISSION_SECONDS);
+        document.getElementById('wave-clock-fill')!.style.strokeDashoffset = String(100 * (1 - left));
+        document.getElementById('wave-clock-count')!.innerText = String(Math.ceil(state.intermissionTimer));
+      }
     }
 
     // Card Deck affordability & selection highlight
