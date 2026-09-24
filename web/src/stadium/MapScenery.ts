@@ -41,9 +41,10 @@ function vertexMaterial(): THREE.MeshLambertMaterial {
 /**
  * A faceted lump: an icosahedron with each corner pushed in or out by a hash of
  * its position, so shared corners move together and the surface never cracks.
- * `floor` flattens everything below that fraction of the radius into a base.
+ * `floor` flattens everything below that fraction of the radius into a base,
+ * and `ceiling` shears the top off into a flat cap.
  */
-function lumpyGeometry(radius: number, detail: number, bumpiness: number, seed: number, floor = -1): THREE.BufferGeometry {
+function lumpyGeometry(radius: number, detail: number, bumpiness: number, seed: number, floor = -1, ceiling = 2): THREE.BufferGeometry {
   const geometry = new THREE.IcosahedronGeometry(radius, detail);
   const position = geometry.attributes.position as THREE.BufferAttribute;
   const corner = new THREE.Vector3();
@@ -51,7 +52,7 @@ function lumpyGeometry(radius: number, detail: number, bumpiness: number, seed: 
     corner.fromBufferAttribute(position, i);
     const n = hash2(corner.x*3.1 + seed, corner.y*5.7 + corner.z*2.3 - seed*0.37);
     corner.multiplyScalar(1 + (n - 0.5)*bumpiness);
-    corner.y = Math.max(corner.y, floor*radius);
+    corner.y = THREE.MathUtils.clamp(corner.y, floor*radius, ceiling*radius);
     position.setXYZ(i, corner.x, corner.y, corner.z);
   }
   geometry.computeVertexNormals();
@@ -477,7 +478,9 @@ export function buildMapObstacle(zone: MapObstacle, map: StadiumMap, terrain: Ma
     : zone.style==='pillar' || zone.style==='brick' ? '#cfc6b0'
     : zone.style==='tree' || zone.style==='single-tree' || zone.style==='pine' ? '#3f6a3e'
     // Garden stones sit in trodden, mossy soil rather than a bare dirt plate.
-    : zone.style==='rock' && map.theme==='garden' ? '#6b6642' : map.palette.edge;
+    : zone.style==='rock' && map.theme==='garden' ? '#6b6642'
+    // Mt. Moon's stones stand in loose scree, not a pit.
+    : zone.style==='rock' && map.theme==='canyon' ? '#76645c' : map.palette.edge;
   // The visible base fills exactly the blocked circle, including small gaps between props.
   disc(prop,r,base,0.06);
   if (zone.style==='single-tree') {
@@ -651,6 +654,81 @@ export function buildMapObstacle(zone: MapObstacle, map: StadiumMap, terrain: Ma
       const a=random()*Math.PI*2, d=r*(0.55+random()*0.35);
       grassTuft(prop,Math.cos(a)*d,Math.sin(a)*d,0.8+random()*0.6,random()<0.5?'#5f944f':'#72a65a',random);
     }
+  } else if (zone.style==='rock' && map.theme==='canyon') {
+    // Mt. Moon: cool cave stone against the warm pass floor. Ridges run as a
+    // spine of stones, tallest mid-way; outcrops are stepped, flat-topped
+    // mesas. Moonstone clusters glow out of the foot of each.
+    const stones=['#857d8f','#776f82','#938b9c','#6b6477'];
+    const dust=new THREE.Color('#b4a79f');
+    const stoneMaterial=(size: number, geometry: THREE.BufferGeometry): THREE.Material => {
+      const stone=new THREE.Color(stones[Math.floor(random()*stones.length)]);
+      const seed=random()*50;
+      paintFaces(geometry,(centre,normal)=>{
+        const grain=hash2(centre.x*3+seed,centre.z*3+centre.y*2);
+        const t=THREE.MathUtils.clamp((centre.y/size+0.3)/1.3,0,1);
+        const color=stone.clone().multiplyScalar(0.7+t*0.34+(grain-0.5)*0.12);
+        // Pass dust settles on the ledges.
+        return normal.y>0.75 ? color.lerp(dust,0.45+grain*0.2) : color;
+      });
+      return vertexMaterial();
+    };
+    const heading=random()*Math.PI;
+    // `stretch` elongates a stone along the ridge line so the spine reads as one form.
+    const stoneAt=(x: number, z: number, size: number, height: number, ceiling=2, bumpiness=0.38, stretch=1): void => {
+      const geometry=lumpyGeometry(size,1,bumpiness,random()*100,-0.3,ceiling);
+      const rock=mesh(prop,geometry,stoneMaterial(size,geometry),x,size*0.3*height-size*0.06,z);
+      rock.scale.set((1+random()*0.2)*stretch,height,1+random()*0.2);
+      rock.rotation.y=stretch>1 ? -heading+(random()-0.5)*0.4 : random()*Math.PI*2;
+    };
+    const along=(t: number, side: number): [number,number] =>
+      [Math.cos(heading)*t-Math.sin(heading)*side, Math.sin(heading)*t+Math.cos(heading)*side];
+    // Moonstones sprout where the rock meets the floor, on whichever flank is open.
+    const moonstones: [number,number][]=[];
+    if (zone.label.startsWith('Cliff')) {
+      const [cx,cz]=along((random()-0.5)*r*0.2,0);
+      // A tall table of rock, then a lower step and loose blocks around its foot.
+      stoneAt(cx,cz,r*0.55,2+random()*0.3,0.3,0.22);
+      const [sx,sz]=along(r*0.42,r*0.12);
+      stoneAt(cx+sx,cz+sz,r*0.4,1.5,0.25,0.22);
+      for (let i=0;i<2;i++) {
+        const a=heading+Math.PI*(0.8+i*0.55)+(random()-0.5)*0.4, d=r*0.62;
+        stoneAt(cx+Math.cos(a)*d,cz+Math.sin(a)*d,r*(0.22+random()*0.06),1+random()*0.3,0.4);
+      }
+      moonstones.push(along(-r*0.1,r*0.7),along(-r*0.45,-r*0.62));
+    } else {
+      const count=3+Math.floor(random()*2);
+      for (let i=0;i<count;i++) {
+        const t=(i/(count-1)-0.5)*2;
+        const [x,z]=along(t*r*0.55,(random()-0.5)*r*0.16);
+        const size=r*(0.36-Math.abs(t)*0.12+random()*0.05);
+        stoneAt(x,z,size,1.65-Math.abs(t)*0.6+random()*0.25,2,0.38,1.35);
+      }
+      const side=random()<0.5?1:-1;
+      moonstones.push(along((random()-0.5)*r*0.4,side*r*0.55));
+      if (random()<0.5) moonstones.push(along((random()-0.5)*r*0.8,-side*r*0.52));
+    }
+    const glows=[['#d9b8f2','#a77bd6'],['#b8e6f5','#6fb6d6']];
+    for (const [mx,mz] of moonstones) {
+      const [tip,glow]=glows[random()<0.65?0:1];
+      const crystal=new THREE.MeshLambertMaterial({ color: tip, emissive: glow, emissiveIntensity: 0.55, flatShading: true });
+      const cluster=new THREE.Group(); cluster.position.set(mx,0,mz);
+      // Lean the whole cluster away from the rock it grows out of.
+      cluster.rotation.set(0,Math.atan2(mx,mz),0); prop.add(cluster);
+      const shards=3+Math.floor(random()*3);
+      for (let i=0;i<shards;i++) {
+        const length=r*(i===0?0.72:0.32+random()*0.26), width=r*(i===0?0.09:0.05+random()*0.025);
+        const shard=new THREE.Group(); shard.rotation.set(i===0?0.25:0.45+random()*0.4,(i/shards)*Math.PI*2*0.6-0.6,0);
+        shard.rotation.order='YXZ';
+        cluster.add(shard);
+        mesh(shard,new THREE.CylinderGeometry(width,width,length*0.75,6),crystal,0,length*0.375,0);
+        mesh(shard,new THREE.ConeGeometry(width,length*0.25,6),crystal,0,length*0.875,0);
+      }
+    }
+    for (let i=0;i<9;i++) {
+      const a=random()*Math.PI*2, d=r*(0.55+random()*0.4);
+      const pebble=mesh(prop,new THREE.DodecahedronGeometry(0.1+random()*0.2,0),material(stones[Math.floor(random()*stones.length)]),Math.cos(a)*d,0.06,Math.sin(a)*d);
+      pebble.scale.y=0.6; pebble.rotation.set(random()*3,random()*3,random()*3);
+    }
   } else if (zone.style==='rock') {
     const count=3+Math.floor(random()*4);
     const shades=['#b29b8c','#927b73','#c0a996','#827074','#a48f7d'];
@@ -661,13 +739,6 @@ export function buildMapObstacle(zone: MapObstacle, map: StadiumMap, terrain: Ma
       const rock=mesh(prop,new THREE.DodecahedronGeometry(size),material(shades[Math.floor(random()*shades.length)]),Math.cos(angle)*spread,size*0.8,Math.sin(angle)*spread);
       rock.scale.set(1+random()*0.3,0.8+random()*(i===0?1.1:0.5),1+random()*0.3);
       rock.rotation.set(random()*0.6,random()*6,random()*0.6);
-    }
-    if (map.theme==='canyon') {
-      for (let c=Math.floor(random()*3);c>0;c--) {
-        const a=random()*Math.PI*2;
-        const crystal=mesh(prop,new THREE.ConeGeometry(r*(0.1+random()*0.08),r*(0.5+random()*0.4),5),material(random()<0.6?'#ccabdf':'#9fd4e8'),Math.cos(a)*r*0.55,r*0.4,Math.sin(a)*r*0.55);
-        crystal.rotation.set((random()-0.5)*0.8,0,(random()-0.5)*0.8);
-      }
     }
   } else {
     for (let i=0;i<16;i++) {
