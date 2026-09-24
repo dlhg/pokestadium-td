@@ -136,6 +136,20 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // props_<id>_<n>: a close orbit on one of a course's obstacles, for judging prop art.
+  const propShot = shot?.match(/^props_(.+)_(\d+)$/);
+  const propMap = propShot && STADIUM_MAPS.find(map => map.id === propShot[1]);
+  if (propShot && propMap) {
+    game.loadMap(propMap);
+    game.announcer.update(60);
+    game.isPaused = true;
+    game.camera.setMode('stadium');
+    const zone = propMap.obstacles[Number(propShot[2])];
+    const focus = new THREE.Vector3(zone.x, game.arena.terrain.heightAt(zone.x, zone.z) + zone.radius*0.6, zone.z);
+    game.camera.beginCinematic(focus, zone.radius*4.2, zone.radius*2.4, 0, Math.PI*0.25, 0);
+    for (let i = 0; i < 240; i++) game.camera.update(1 / 60);
+  }
+
   // scale_lineup: the size ladder on the narrowest lane, with fully evolved towers
   // parked as close to the lane as placement allows, so any clipping shows.
   if (shot?.startsWith('scale_')) {
@@ -221,7 +235,32 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  if (shot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && shot !== 'pokemon_summary' && !shot.startsWith('starter_') && !titleShot && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_')) {
+  // final<N>_<course>[@frames]: a course's hand-made final, round N of 5,
+  // `frames` (default 420, 7 s) in — the real wave, spawned and walked by the
+  // real wave manager, framed on the Titan when there is one.
+  const finalShot = shot?.match(/^final([1-5])_([a-z-]+)(?:@(\d+))?$/);
+  const finalMap = finalShot ? STADIUM_MAPS.find(map => map.id === finalShot[2]) : undefined;
+  if (finalShot && finalMap) {
+    game.loadMap(finalMap);
+    game.isPaused = true;
+    game.camera.setMode('stadium');
+    const cup = CUPS[finalMap.cup];
+    game.waveManager.currentWaveIndex = cup.winRound - 5 + Number(finalShot[1]) - 1;
+    window.setTimeout(() => {
+      game.isPaused = false;
+      game.waveManager.startNextWave();
+      const step = (frames: number) => { for (let i = 0; i < frames; i++) game.update(1 / 60, input); };
+      step(Number(finalShot[3] ?? 420));
+      const boss = game.creeps.find(creep => creep.isBoss && creep.alive);
+      if (boss) {
+        game.camera.beginCinematic(boss.position.clone(), 15, 10, 0);
+        for (let i = 0; i < 240; i++) game.camera.update(1 / 60);
+      }
+      frozenShot = true;
+    }, 1200);
+  }
+
+  if (shot && !finalShot && shot !== 'map_select' && shot !== 'team_select' && shot !== 'team_rentals' && shot !== 'pokemon_summary' && !shot.startsWith('starter_') && !titleShot && !courseShot && !shot.startsWith('scale_') && !shot.startsWith('evolution_') && !shot.startsWith('summon_') && !shot.startsWith('props_')) {
     // Disable voice synthesis during headless screenshot capture
     game.announcer.setVoiceEnabled(false);
     game.loadMap(STADIUM_MAPS[0]);

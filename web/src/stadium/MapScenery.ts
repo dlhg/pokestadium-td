@@ -34,6 +34,56 @@ function hash2(x: number, z: number): number {
   return s - Math.floor(s);
 }
 
+function vertexMaterial(): THREE.MeshLambertMaterial {
+  return new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+}
+
+/**
+ * A faceted lump: an icosahedron with each corner pushed in or out by a hash of
+ * its position, so shared corners move together and the surface never cracks.
+ * `floor` flattens everything below that fraction of the radius into a base.
+ */
+function lumpyGeometry(radius: number, detail: number, bumpiness: number, seed: number, floor = -1): THREE.BufferGeometry {
+  const geometry = new THREE.IcosahedronGeometry(radius, detail);
+  const position = geometry.attributes.position as THREE.BufferAttribute;
+  const corner = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    corner.fromBufferAttribute(position, i);
+    const n = hash2(corner.x*3.1 + seed, corner.y*5.7 + corner.z*2.3 - seed*0.37);
+    corner.multiplyScalar(1 + (n - 0.5)*bumpiness);
+    corner.y = Math.max(corner.y, floor*radius);
+    position.setXYZ(i, corner.x, corner.y, corner.z);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Colours each triangle flat, N64-style, from its centre height and facing. */
+function paintFaces(geometry: THREE.BufferGeometry, shade: (centre: THREE.Vector3, normal: THREE.Vector3) => THREE.Color): void {
+  const position = geometry.attributes.position as THREE.BufferAttribute;
+  const colors = new Float32Array(position.count*3);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const centre = new THREE.Vector3(), normal = new THREE.Vector3(), edge = new THREE.Vector3();
+  for (let i = 0; i < position.count; i += 3) {
+    a.fromBufferAttribute(position, i); b.fromBufferAttribute(position, i+1); c.fromBufferAttribute(position, i+2);
+    centre.copy(a).add(b).add(c).divideScalar(3);
+    normal.subVectors(c, b).cross(edge.subVectors(a, b)).normalize();
+    const color = shade(centre, normal);
+    for (let k = 0; k < 3; k++) color.toArray(colors, (i+k)*3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+
+/** A short three-blade grass tuft, the cheapest way to seat a prop in the lawn. */
+function grassTuft(parent: THREE.Object3D, x: number, z: number, scale: number, color: THREE.ColorRepresentation, random: () => number): void {
+  const mat = material(color);
+  for (let i = 0; i < 3; i++) {
+    const blade = mesh(parent, new THREE.ConeGeometry(0.07*scale, 0.42*scale, 3), mat, x + (random()-0.5)*0.18*scale, 0.2*scale, z + (random()-0.5)*0.18*scale);
+    blade.rotation.set((random()-0.5)*0.6, random()*3, (random()-0.5)*0.6);
+    blade.castShadow = false;
+  }
+}
+
 type ClearableGroundProps = {
   matrices: THREE.Matrix4[];
   positions: THREE.Vector2[];
@@ -425,18 +475,67 @@ export function buildMapObstacle(zone: MapObstacle, map: StadiumMap, terrain: Ma
   const random=seeded(hash2(zone.x,zone.z)*1e6+r*97);
   const base = map.theme==='industrial' ? '#253746'
     : zone.style==='pillar' || zone.style==='brick' ? '#cfc6b0'
-    : zone.style==='tree' || zone.style==='single-tree' || zone.style==='pine' ? '#3f6a3e' : map.palette.edge;
+    : zone.style==='tree' || zone.style==='single-tree' || zone.style==='pine' ? '#3f6a3e'
+    // Garden stones sit in trodden, mossy soil rather than a bare dirt plate.
+    : zone.style==='rock' && map.theme==='garden' ? '#6b6642' : map.palette.edge;
   // The visible base fills exactly the blocked circle, including small gaps between props.
   disc(prop,r,base,0.06);
   if (zone.style==='single-tree') {
-    disc(prop,r*0.95,'#385e3c',0.08);
-    const height=r*(1.22+random()*0.18);
-    const bark=['#69472f','#755335','#805b38'][Math.floor(random()*3)];
-    mesh(prop,new THREE.CylinderGeometry(r*0.1,r*0.16,height,6),material(bark),0,height/2,0).rotation.y=random()*Math.PI;
-    const leaves=['#568c55','#679e58','#77a85a'];
-    const canopy=mesh(prop,new THREE.DodecahedronGeometry(r*(0.57+random()*0.05),1),material(leaves[Math.floor(random()*leaves.length)]),0,height+r*0.18,0);
-    canopy.scale.set(0.92+random()*0.12,0.78+random()*0.12,0.9+random()*0.14);
-    canopy.rotation.set((random()-0.5)*0.12,random()*Math.PI,(random()-0.5)*0.12);
+    // A Viridian shade tree: flared trunk forking into a crown of clumped
+    // foliage, shaded dark underneath and sunlit on top so it reads as round
+    // from the stands and fills its blocked circle from the tactical view.
+    const bark=material(['#69472f','#755335','#805b38'][Math.floor(random()*3)]);
+    const lean=new THREE.Group(); lean.rotation.set((random()-0.5)*0.1,random()*Math.PI*2,(random()-0.5)*0.1); prop.add(lean);
+    const height=r*(0.95+random()*0.15);
+    mesh(lean,new THREE.CylinderGeometry(r*0.08,r*0.13,height,7),bark,0,height/2,0);
+    mesh(lean,new THREE.CylinderGeometry(r*0.12,r*0.24,r*0.24,7),bark,0,r*0.12,0);
+    const roots=3+Math.floor(random()*2);
+    for (let i=0;i<roots;i++) {
+      const a=i*Math.PI*2/roots+random()*0.8;
+      const root=mesh(lean,new THREE.CylinderGeometry(r*0.035,r*0.07,r*0.42,5),bark,Math.cos(a)*r*0.2,r*0.05,Math.sin(a)*r*0.2);
+      root.rotation.set(0,-a,-(Math.PI/2+0.35)); // thin end outward, dipping into the lawn
+      root.rotation.order='YZX';
+    }
+    for (let i=0;i<2;i++) {
+      const a=random()*Math.PI*2, tilt=0.55+random()*0.25;
+      const branch=new THREE.Group(); branch.position.y=height*0.72; branch.rotation.set(0,a,tilt); lean.add(branch);
+      mesh(branch,new THREE.CylinderGeometry(r*0.035,r*0.06,r*0.6,5),bark,0,r*0.3,0);
+    }
+    const crown=new THREE.Group(); crown.position.y=height+r*0.4; lean.add(crown);
+    crown.scale.y=0.86;
+    // [x, y, z, size] in units of r: a heavy core, a skirt around it, a cap on top.
+    const clumps: [number,number,number,number][]=[[0,0,0,0.56]];
+    const skirt=5+Math.floor(random()*2);
+    for (let i=0;i<skirt;i++) {
+      const a=i*Math.PI*2/skirt+(random()-0.5)*0.5;
+      const reach=0.5+random()*0.08;
+      clumps.push([Math.cos(a)*reach,-0.08+random()*0.14,Math.sin(a)*reach,0.33+random()*0.08]);
+    }
+    for (let i=0;i<2;i++) {
+      const a=random()*Math.PI*2;
+      clumps.push([Math.cos(a)*0.18,0.32+random()*0.08,Math.sin(a)*0.18,0.3+random()*0.06]);
+    }
+    const shadow=new THREE.Color('#2f5a33'), mid=new THREE.Color('#4f8a47'), sun=new THREE.Color('#a3d26c');
+    const low=-0.45*r, high=0.72*r;
+    for (const [cx,cy,cz,size] of clumps) {
+      const geometry=lumpyGeometry(r*size,1,0.3,random()*100);
+      geometry.translate(cx*r,cy*r,cz*r);
+      paintFaces(geometry,(centre,normal)=>{
+        const t=THREE.MathUtils.clamp((centre.y-low)/(high-low),0,1);
+        const color=t<0.5 ? shadow.clone().lerp(mid,t*2) : mid.clone().lerp(sun,(t-0.5)*2);
+        // Upward faces catch the sun; a little per-face noise keeps the facets alive.
+        return color.lerp(sun,Math.max(0,normal.y)*0.18).multiplyScalar(0.94+hash2(centre.x,centre.z)*0.12);
+      });
+      mesh(crown,geometry,vertexMaterial());
+    }
+    for (let i=0;i<7;i++) {
+      const a=random()*Math.PI*2, d=r*(0.45+random()*0.45);
+      grassTuft(prop,Math.cos(a)*d,Math.sin(a)*d,0.8+random()*0.6,random()<0.5?'#5f944f':'#72a65a',random);
+    }
+    for (let i=0;i<3;i++) {
+      const a=random()*Math.PI*2, d=r*(0.6+random()*0.3);
+      mesh(prop,new THREE.IcosahedronGeometry(0.12,0),material(random()<0.5?'#f3d683':'#f7f3e8'),Math.cos(a)*d,0.16,Math.sin(a)*d).castShadow=false;
+    }
   } else if (zone.style==='tree') {
     disc(prop,r*0.95,'#385e3c',0.08);
     const trunks=2+Math.floor(random()*3);
@@ -513,6 +612,45 @@ export function buildMapObstacle(zone: MapObstacle, map: StadiumMap, terrain: Ma
     ball.rotation.x=Math.PI/2;
     const top=mesh(body,new THREE.CylinderGeometry(0.43,0.43,0.11,16,1,false,0,Math.PI),material('#e0463c'),0,2.2,d/2+0.21);
     top.rotation.set(Math.PI/2,Math.PI/2,0);
+  } else if (zone.style==='rock' && map.theme==='garden') {
+    // Garden boulders: one settled anchor stone with smaller companions leaning
+    // on it, sunk into the soil, moss collecting on every upward face.
+    const stones=['#8e8b7e','#9b978a','#817f76','#a6a193'];
+    const moss=[new THREE.Color('#7c8a46'),new THREE.Color('#8f9c50'),new THREE.Color('#6c7c40')];
+    const boulder=(x: number, z: number, size: number, squash: number): void => {
+      const stone=new THREE.Color(stones[Math.floor(random()*stones.length)]);
+      const geometry=lumpyGeometry(size,1,0.42,random()*100,-0.3);
+      const seed=random()*50;
+      paintFaces(geometry,(centre,normal)=>{
+        const grain=hash2(centre.x*4+seed,centre.z*4+centre.y*2);
+        if (normal.y>0.72 && grain>0.45) return moss[Math.floor(grain*moss.length)].clone();
+        // Darker toward the soil, as if the base were still damp.
+        const t=THREE.MathUtils.clamp((centre.y/size+0.3)/1.3,0,1);
+        return stone.clone().multiplyScalar(0.72+t*0.32+(grain-0.5)*0.1);
+      });
+      const rock=mesh(prop,geometry,vertexMaterial(),x,size*0.3*squash-size*0.06,z);
+      rock.scale.set(1+random()*0.25,squash,1+random()*0.25);
+      rock.rotation.y=random()*Math.PI*2;
+    };
+    const anchor=r*(0.5+random()*0.06);
+    const heading=random()*Math.PI*2;
+    boulder(Math.cos(heading)*r*0.1,Math.sin(heading)*r*0.1,anchor,1.05+random()*0.2);
+    const companions=2+Math.floor(random()*2);
+    for (let i=0;i<companions;i++) {
+      const a=heading+Math.PI*0.6+i*Math.PI*1.3/companions+(random()-0.5)*0.4;
+      const size=r*(0.25+random()*0.1);
+      const d=anchor*0.8+size*0.75;
+      boulder(Math.cos(a)*d,Math.sin(a)*d,size,0.9+random()*0.25);
+    }
+    for (let i=0;i<5;i++) {
+      const a=random()*Math.PI*2, d=r*(0.62+random()*0.28);
+      const pebble=mesh(prop,new THREE.DodecahedronGeometry(0.1+random()*0.14,0),material(stones[Math.floor(random()*stones.length)]),Math.cos(a)*d,0.06,Math.sin(a)*d);
+      pebble.scale.y=0.6; pebble.rotation.set(random()*3,random()*3,random()*3);
+    }
+    for (let i=0;i<8;i++) {
+      const a=random()*Math.PI*2, d=r*(0.55+random()*0.35);
+      grassTuft(prop,Math.cos(a)*d,Math.sin(a)*d,0.8+random()*0.6,random()<0.5?'#5f944f':'#72a65a',random);
+    }
   } else if (zone.style==='rock') {
     const count=3+Math.floor(random()*4);
     const shades=['#b29b8c','#927b73','#c0a996','#827074','#a48f7d'];
