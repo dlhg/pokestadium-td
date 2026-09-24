@@ -110,6 +110,8 @@ export class StadiumTDGame {
   public map: StadiumMap = DEFAULT_STADIUM_MAP;
   public isChoosingMap = true;
   private pauseMenuOpen = false;
+  /** Space froze the match; shows the PAUSED banner and holds ball throws. */
+  private playerPaused = false;
 
   // Entities
   public towers: Tower[] = [];
@@ -240,6 +242,7 @@ export class StadiumTDGame {
     };
     this.ui.onResumeGame = () => {
       this.pauseMenuOpen = false;
+      this.playerPaused = false;
       this.isPaused = this.namingHold;
       this.ui.setPauseVisible(false);
       this.audio.playSelect();
@@ -313,7 +316,9 @@ export class StadiumTDGame {
       this.ui.setRoster(this.roster);
       this.audio.playSelect();
     };
-    this.ui.onCatch = (creep) => this.tryCapture(creep, this.selectedBall);
+    this.ui.onCatch = (creep) => {
+      if (!this.isPaused) this.tryCapture(creep, this.selectedBall);
+    };
     this.ui.onSelectBall = (ball) => {
       if (this.balls[ball] <= 0) return;
       this.selectedBall = ball;
@@ -367,6 +372,7 @@ export class StadiumTDGame {
         // an explicit request to resume play, otherwise the HUD says the match
         // is running while the spawn queue remains frozen indefinitely.
         this.isPaused = false;
+        this.playerPaused = false;
         this.waveManager.startNextWave();
         this.audio.playSelect();
         this.audio.startMusic();
@@ -437,6 +443,7 @@ export class StadiumTDGame {
     this.victory = false;
     this.ui.hideDefeat();
     this.pauseMenuOpen = false;
+    this.playerPaused = false;
     this.ui.setPauseVisible(false);
     this.isPaused = false;
     this.isChoosingMap = false;
@@ -488,14 +495,17 @@ export class StadiumTDGame {
       const modes: CameraMode[] = ['tactical', 'stadium', 'action'];
       this.camera.setMode(modes[(modes.indexOf(this.camera.mode) + 1) % modes.length]);
     }
-    if (input.isKeyJustPressed('KeyQ')) {
+    if (input.isKeyJustPressed('KeyQ') && !this.isPaused) {
       const catchable = this.catchableCreeps();
       if (catchable.length) this.tryCapture(catchable[0], this.selectedBall);
     }
     this.signatureSlots().slice(0, 9).forEach((slot, i) => {
       if (input.isKeyJustPressed(`Digit${i + 1}`)) this.requestSignature(slot.tower, slot.def.id);
     });
-    if (input.isKeyJustPressed('Space') && !this.pauseMenuOpen) this.isPaused = !this.isPaused;
+    if (input.isKeyJustPressed('Space') && !this.pauseMenuOpen) {
+      this.isPaused = !this.isPaused;
+      this.playerPaused = this.isPaused;
+    }
     if (input.isKeyJustPressed('Escape')) {
       if (this.pauseMenuOpen) {
         this.ui.onResumeGame();
@@ -1303,6 +1313,7 @@ export class StadiumTDGame {
         mapName: this.map.name,
         mapStrategy: this.map.strategy,
         signatures: this.signatureSlots(),
+        paused: this.playerPaused && this.isPaused && !this.pauseMenuOpen,
       }
     );
   }

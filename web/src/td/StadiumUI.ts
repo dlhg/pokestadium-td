@@ -132,6 +132,8 @@ export interface UIState {
   mapStrategy: string;
   /** Every signature move on the pitch, in hotkey order. */
   signatures: SignatureSlot[];
+  /** The player froze the match with Space; the Escape sheet has its own title. */
+  paused: boolean;
 }
 
 export interface CatchSlot {
@@ -412,6 +414,8 @@ export class StadiumUI {
 
       <!-- Prize money: popups off each payout and coins flying into the wallet -->
       <div id="prize-layer"></div>
+
+      <div id="paused-banner" aria-live="polite" hidden>PAUSED</div>
 
       <div id="pause-screen" class="interactive" hidden>
         <section class="pause-card stadium-panel" aria-labelledby="pause-title">
@@ -1713,6 +1717,7 @@ export class StadiumUI {
 
   public update(state: UIState): void {
     this.currentSelectedTower = state.selectedTower;
+    document.getElementById('paused-banner')!.hidden = !state.paused;
     this.renderSignatureBar(state.signatures, !!state.captureCinema || !!state.evolutionCinema || !!state.summonCinema);
     ([['half',0.5],['1',1],['2',2],['3',3],['4',4]] as const).forEach(([key,speed]) => document.getElementById(`btn-speed-${key}`)!.classList.toggle('active',state.gameSpeed===speed));
     document.getElementById('btn-catch-slowmo')!.classList.toggle('expanded', state.gameSpeed > 1);

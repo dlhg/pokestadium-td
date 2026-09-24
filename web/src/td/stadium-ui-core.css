@@ -554,6 +554,8 @@
 }
 /* Prize money: world-anchored popups, coins flying to the wallet (PrizeMoneyFx.ts). */
 #prize-layer { position:absolute; inset:0; z-index:35; pointer-events:none; overflow:hidden; }
+#paused-banner { position:absolute; inset:0; z-index:36; display:grid; place-items:center; pointer-events:none; font:700 72px/1 'Teko','Impact',sans-serif; letter-spacing:4px; color:#fff3c4; text-shadow:3px 4px #08152b; }
+#paused-banner[hidden] { display:none; }
 .prize-pop {
   position:absolute; left:0; top:0; display:flex; flex-direction:column; align-items:center;
   font-family:'Teko','Impact',sans-serif; font-weight:800; line-height:.9; white-space:nowrap;
