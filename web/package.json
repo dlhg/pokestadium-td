@@ -10,8 +10,10 @@
     "test:gameplay": "node tools/test_gameplay_regressions.mjs",
     "test:maps": "node tools/test_map_layouts.mjs",
     "test:species": "node tools/test_species.mjs",
+    "test:finals": "node tools/test_finals.mjs",
     "balance:xp": "node tools/xp_pacing.mjs",
     "balance:towers": "node tools/balance_towers.mjs",
+    "balance:economy": "node tools/economy.mjs",
     "extract:stadium": "python3 tools/extract_stadium_assets.py && python3 tools/extract_stadium_announcer.py --if-missing && python3 tools/extract_stadium_icons.py --if-missing"
   },
   "dependencies": {

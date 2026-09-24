@@ -30,6 +30,7 @@ import {
   castSignature, SIGNATURES, signatureLineReach, signatureRadius, signatureTargeting, type SignatureContext,
 } from './Signatures';
 import { WaveManager, getMilestone } from './WaveManager';
+import { TitanAbilities, type TitanAbilityContext } from './TitanAbility';
 import { MOVES } from '../stadium/MoveDatabase';
 import { TYPE_COLORS } from '../stadium/TypeMatrix';
 import { HitContext, hitExtrasFor, moveGeometry, playInstantDelivery, resolveMoveHit } from './MoveDelivery';
@@ -117,6 +118,8 @@ export class StadiumTDGame {
   public hazards: Hazard[] = [];
   /** Seconds left on a signature that lets every tower aim at Phantoms. */
   private phantomRevealTimer = 0;
+  /** Every Titan on the lane and the ability it's running. */
+  private titanAbilities = new TitanAbilities();
   /** Signatures that keep firing for a while after the button press (Hydro Pump). */
   private channels: { remaining: number; interval: number; timer: number; tick: () => void }[] = [];
   /** A `point` or `line` signature waiting for the player to click where it goes. */
@@ -189,7 +192,7 @@ export class StadiumTDGame {
     this.aimPreview.visible = false;
     this.renderer.scene.add(this.aimPreview);
 
-    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights);
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights, this.map.id);
     this.ui = new StadiumUI(uiContainer, this.announcer, this.camera, store);
     this.ui.prizeFx.onCoinLand = (step) => this.audio.playCoin(step);
 
@@ -388,6 +391,7 @@ export class StadiumTDGame {
     this.clearSelection();
     this.abortSummon();
     this.towers.forEach(tower => tower.destroy(this.renderer.scene));
+    this.titanAbilities.clear();
     this.creeps.forEach(creep => creep.destroy(this.renderer.scene));
     this.projectiles.forEach(projectile => projectile.destroy(this.renderer.scene));
     this.hazards.forEach(hazard => hazard.destroy(this.renderer.scene));
@@ -402,8 +406,8 @@ export class StadiumTDGame {
     this.arena.dispose();
     this.arena = new StadiumArena(map);
     this.renderer.scene.add(this.arena.group);
-    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights);
-    this.money = 420;
+    this.waveManager = new WaveManager(this.arena.walkRoutes, this.announcer, CUPS[this.map.cup], this.arena.walkLifts, this.map.typeWeights, this.map.id);
+    this.money = CUPS[this.map.cup].startingMoney;
     this.ui.prizeFx.reset();
     this.lives = 6;
     // A brand-new trainer gets extra balls to build a team with.
@@ -706,6 +710,8 @@ export class StadiumTDGame {
     const chance = this.captureChance(target, ball);
     const ballsLeft = this.balls.poke + this.balls.great + this.balls.ultra;
     const guaranteed = this.devAlwaysCatch || this.store.shouldGuaranteeCatch(ballsLeft, target.threat);
+    // A Titan mid-ability drops it before the ball's light takes over its body.
+    this.titanAbilities.interrupt(target, this.titanContext());
     target.beginCapture();
     const sequence = new CaptureSequence(target, ball, chance, {
       particles: this.particles,
@@ -1101,12 +1107,14 @@ export class StadiumTDGame {
         this.renderer.scene.add(newCreep.group);
         this.creeps.push(newCreep);
         this.introduceTraits(newCreep);
+        this.titanAbilities.attach(newCreep);
       },
       (round) => this.handleRoundCleared(round)
     );
 
     // Auras are passive: refresh who is slowed and who is sped up before anyone acts.
     this.applyAuras();
+    this.titanAbilities.update(dt, this.titanContext());
 
     // Update Towers
     this.towers.forEach(tower => {
@@ -1282,6 +1290,7 @@ export class StadiumTDGame {
         round: currentWave.round,
         winRound: this.waveManager.winRound,
         isMystery: !!currentWave.isMystery,
+        finalTitle: currentWave.beat ? currentWave.title ?? null : null,
         freeplay: this.waveManager.isFreeplay,
         inWave: this.waveManager.inWave,
         intermissionTimer: this.waveManager.intermissionTimer,
@@ -1428,6 +1437,30 @@ export class StadiumTDGame {
       this.aimPreview.visible = false;
       this.fireSignature(tower, signatureId, ground);
     }
+  }
+
+  /** Everything a Titan's ability reaches into the match for. */
+  private titanContext(): TitanAbilityContext {
+    return {
+      scene: this.renderer.scene,
+      creeps: this.creeps,
+      particles: this.particles,
+      camera: this.camera,
+      announcer: this.announcer,
+      audio: this.audio,
+      eye: this.camera.camera.position,
+      cinematicCuts: this.signatureCuts,
+      spawn: (config, leader) => {
+        const { waypoints, lifts } = leader.route;
+        const creep = new Creep(config, waypoints, lifts);
+        creep.joinAt(leader);
+        this.renderer.scene.add(creep.group);
+        this.creeps.push(creep);
+        this.introduceTraits(creep);
+        return creep;
+      },
+      popup: (world, text, color, size) => this.spawnCombatPopup(world, text, color, size),
+    };
   }
 
   private signatureContext(): SignatureContext {
@@ -1600,7 +1633,7 @@ export class StadiumTDGame {
     let nearest: Creep | null = null;
     let best = radius;
     for (const creep of this.creeps) {
-      if (creep === fallen || !creep.alive || creep.captureLocked) continue;
+      if (creep === fallen || !creep.alive || creep.untouchable) continue;
       const distance = creep.position.distanceTo(fallen.position);
       if (distance <= best) {
         best = distance;

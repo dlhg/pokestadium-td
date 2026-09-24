@@ -290,6 +290,48 @@ export const SIGNATURES: Record<string, SignatureDef> = Object.fromEntries([
     { kind: 'pushWave', move: hit('surf', { basePower: 80 }), distance: 8, reach: 1.6, grounded: true }),
   def('roar', 'Roar', 'Normal', 1, 'Every enemy in wide range freezes in fear for 3 s.',
     { kind: 'areaStatus', status: 'stun', duration: 3, reach: 1.5 }),
+  // ---- Weedle -------------------------------------------------------------
+  def('pin_missile', 'Pin Missile', 'Bug', 2, 'Six barbs rain down around where you aim, poisoning what they hit.',
+    { kind: 'strikePoint', radius: 2.5, bombs: 6, move: hit('twineedle', { name: 'Pin Missile', basePower: 70, statusEffect: 'poison', statusChance: 1, statusDuration: 6 }) }),
+  def('fell_stinger', 'Fell Stinger', 'Bug', 2, 'Dives on the enemy with the most HP for a Heavy sting.',
+    { kind: 'dive', move: hit('twineedle', { name: 'Fell Stinger', basePower: 240, heavy: true }) }),
+  def('toxic_sting', 'Toxic', 'Poison', 1, 'Every poisoned enemy takes one and a half times its remaining poison at once.',
+    { kind: 'cashDot', effect: 'poison', multiplier: 1.5 }),
+  // ---- Staryu -------------------------------------------------------------
+  def('star_psychic', 'Psychic', 'Psychic', 1, 'A psychic blow to every enemy on the pitch.',
+    { kind: 'strikeArea', reach: 'map', move: hit('psychic', { basePower: 80, delivery: 'aura' }) }),
+  def('star_hydro', 'Hydro Pump', 'Water', 1, 'A 3 s Heavy beam that pierces everything in its line.',
+    { kind: 'strikeLine', move: hit('hydro_pump', { basePower: 45, heavy: true }), reach: 1.8, duration: 3 }),
+  def('swift_storm', 'Swift', 'Normal', 2, 'Star rays strike every enemy in wide range.',
+    { kind: 'strikeArea', reach: 1.5, move: hit('swift', { basePower: 110, delivery: 'aura' }) }),
+  // ---- Zapdos -------------------------------------------------------------
+  def('zapdos_thunder', 'Thunder', 'Electric', 2, 'A huge Heavy strike from the sky, anywhere on the pitch, that may paralyze.',
+    { kind: 'strikePoint', radius: 7, fromSky: true, move: hit('thunder', { basePower: 240, heavy: true, statusEffect: 'paralyze', statusChance: 0.6, statusDuration: 3 }) }),
+  def('zapdos_wave', 'Zap Cannon', 'Electric', 1, 'Paralyzes every enemy in wide range for 5 s. Ground types shrug it off.',
+    { kind: 'areaStatus', status: 'paralyze', duration: 5, reach: 1.6 }),
+  def('zapdos_agility', 'Agility', 'Psychic', 2, 'Triples the tower\'s attack rate for 7 s.',
+    { kind: 'selfBoost', bonus: 2, duration: 7 }),
+  // ---- Moltres ------------------------------------------------------------
+  def('sky_blaze', 'Fire Blast', 'Fire', 1, 'A colossal Heavy blast from the sky that burns everything it catches.',
+    { kind: 'strikePoint', radius: 8, fromSky: true, move: hit('fire_blast', { basePower: 260, heavy: true, statusEffect: 'burn', statusChance: 1, statusDuration: 6 }) }),
+  def('moltres_inferno', 'Inferno', 'Fire', 1, 'Sets every enemy in wide range ablaze.',
+    { kind: 'strikeArea', reach: 1.6, move: hit('fire_spin', { name: 'Inferno', basePower: 140, delivery: 'aura', statusEffect: 'burn', statusChance: 1, statusDuration: 6 }) }),
+  def('moltres_sky_attack', 'Sky Attack', 'Flying', 2, 'Dives on the enemy with the most HP for a massive Heavy hit.',
+    { kind: 'dive', move: hit('wing_attack', { name: 'Sky Attack', basePower: 280, heavy: true }) }),
+  // ---- Articuno -----------------------------------------------------------
+  def('articuno_ice_beam', 'Ice Beam', 'Ice', 1, 'A Heavy freezing beam the length of the pitch.',
+    { kind: 'strikeLine', reach: 'map', move: hit('ice_beam', { basePower: 220, heavy: true, statusEffect: 'freeze', statusChance: 1, statusDuration: 4 }) }),
+  def('articuno_air_cutter', 'Air Cutter', 'Flying', 2, 'Dives on the enemy with the most HP for a Heavy hit.',
+    { kind: 'dive', move: hit('wing_attack', { name: 'Air Cutter', basePower: 240, heavy: true }) }),
+  def('articuno_blizzard', 'Blizzard', 'Ice', 1, 'Freezes every enemy in wide range solid for 4 s.',
+    { kind: 'strikeArea', reach: 1.6, move: hit('blizzard', { basePower: 60, heavy: false, statusEffect: 'stun', statusChance: 1, statusDuration: 4 }) }),
+  // ---- Mewtwo -------------------------------------------------------------
+  def('psystrike', 'Psystrike', 'Psychic', 1, 'A crushing Heavy psychic blow to every enemy on the pitch.',
+    { kind: 'strikeArea', reach: 'map', move: hit('psychic', { name: 'Psystrike', basePower: 160, heavy: true, delivery: 'aura' }) }),
+  def('mewtwo_teleport', 'Teleport', 'Psychic', 2, 'Blinks behind the enemy with the most HP for a crushing Heavy strike.',
+    { kind: 'dive', move: hit('psychic', { name: 'Teleport', basePower: 300, heavy: true }) }),
+  def('mind_link', 'Mind Link', 'Psychic', 1, 'Towers in range attack 75% faster for 8 s.',
+    { kind: 'allyBoost', bonus: 0.75, duration: 8 }),
 ].map(signature => [signature.id, signature]));
 
 const colorOf = (signature: SignatureDef) => TYPE_COLORS[signature.type]?.num ?? 0xffffff;
@@ -301,7 +343,7 @@ function inReach(tower: Tower, creep: Creep, reach: Reach): boolean {
 }
 
 function targetable(creep: Creep, grounded = false): boolean {
-  return creep.alive && !creep.captureLocked && !(grounded && creep.hasTrait('airborne'));
+  return creep.alive && !creep.untouchable && !(grounded && creep.hasTrait('airborne'));
 }
 
 /**
@@ -440,7 +482,7 @@ export function castSignature(signature: SignatureDef, tower: Tower, aim: THREE.
       let prey: Creep | null = null;
       for (const creep of ctx.creeps) {
         if (!targetable(creep, !!effect.move.groundOnly)) continue;
-        if (creep.hasTrait('phantom') && !tower.seesPhantoms) continue;
+        if (creep.untargetable || (creep.hasTrait('phantom') && !tower.seesPhantoms)) continue;
         if (!prey || creep.hp > prey.hp) prey = creep;
       }
       if (!prey) return false;

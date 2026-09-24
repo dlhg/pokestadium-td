@@ -28,7 +28,8 @@ web/
 │   ├── capture-sequence.md  # The catch set piece's anime beat sheet and per-beat shots
 │   ├── summon-sequence.md   # The send-out set piece and its reversed energy conversion
 │   ├── generated-art-plan.md # Generated imagery/texture priorities, pipeline, and checkpoints
-│   └── cup-rules.md         # Cup level brackets, entry rules, rentals (phases 1–4 in; tuning next)
+│   ├── cup-rules.md         # Cup level brackets, entry rules, rentals (phases 1–4 in; tuning next)
+│   └── match-length.md      # Shorter matches, cup bands, economy, hand-made finals, course Titans and abilities
 ├── ROM_ASSETS.md            # Optional, gitignored ROM-extraction workflow
 └── src/
     ├── engine/               # Reusable 3D engine (renderer, camera, audio, input, particles, FX)
@@ -51,6 +52,7 @@ The full, current file list always wins over any summary here — see the source
 - **`engine/StadiumCamera.ts`** — *Cinematic Multi-Angle Director.* Smooth transitions between Tactical Top-Down, Stadium Isometric, and Dramatic Action Battle Cams.
 - **`td/CaptureSequence.ts`, `engine/EnergyForm.ts`, `engine/JaggedBeam.ts`** — *The Catch Set Piece.* Staged the way the anime does it: the ball strikes the Pokémon and rebounds open, freezes mid-air, converts the body to light (`EnergyForm` swaps material references, so shared GLB materials are safe), drags it down a crackling tether (`JaggedBeam`, reusable for electric moves), snaps shut, and ticks there suspended with the centre button flashing. The ball never touches the pitch: a catch lifts away from mid-air, a break bursts where it hangs. Beat sheet, timing budget and per-beat screenshots: `docs/capture-sequence.md`.
 - **`td/StadiumUI.ts`** — *90s Stadium Presentation.* Catch tags over weakened creeps with a ball picker, tower path shop, signature bar, metallic tournament headers, 3D floating HP bars, and the team roster deck.
+- **`td/Finals.ts`, `td/Titans.ts`, `td/TitanAbility.ts`** — *Course Finals & Titans.* Every course ends on a hand-made five-round final (showcase, exam, breather, gauntlet, Titan) written as a mix and a timing — groups can overlap (`at`) and pin to one entrance (`route`) — and budgeted against a standard procedural round of the same scaling, so finals retune with the cup's band. Each final closes on the course's own Titan (Beedrill, Onix, Starmie, Zapdos, Moltres, Gengar, Mewtwo, Articuno), caught like any creep. Each Titan has one ability, built on the rule that enemies never touch towers — it changes itself or the lane (Dig, Agility, Fire Trail, Shadow Fade, Haze, Barrier...) — and all eight share one telegraph-and-cast presentation. Cups walk their own slice of the original difficulty ladder (`Cups.ts` `roundBand`, `equivalentRound`), with starting money, pay and XP scaled per cup. Design, numbers and rationale: `docs/match-length.md`.
 - **`td/PrizeMoneyFx.ts`** — *Prize Money Juice.* Every payout (`StadiumTDGame.earn`) rises as a world-anchored popup and flies to the wallet as coins; the wallet shows `money − pending` and counts up as coins land, with a streak-pitched chime. Nearby payouts merge, popups cap, and coin bursts queue, so late waves stay readable. Bounty coins visit their tower first; prices the wallet climbs past flash.
 - **`tools/test_species.mjs`, `tools/balance_towers.mjs`** — *The Species Harness.* `test:species`
   checks every invariant `Species.ts` relies on but cannot express in its types — path and tier
@@ -131,7 +133,9 @@ npm run build      # Typecheck and bundle production distribution
 npm run test:gameplay   # Headless gameplay regression tests (node)
 npm run test:maps       # Headless map-layout tests (node)
 npm run test:species    # Species table validation (node) — run after touching Species.ts
+npm run test:finals     # Course finals validation and budget report (node) — run after touching Finals.ts
 npm run balance:xp      # XP pacing report: the round a team caps in each cup
 npm run balance:towers  # Tower balance lab: solo/pack damage per species, per cup
+npm run balance:economy # Prize money by round against a full team build, per course
 python3 take_screenshot.py  # Capture headless screenshots for visual verification
 ```

@@ -76,7 +76,7 @@ export class MatchProgress {
   public awardKnockout(creep: Creep, towers: Tower[]): XpAward[] {
     const match = speciesForCreepName(creep.name);
     const expYield = match ? getSpecies(match.speciesId).expYield : FALLBACK_EXP_YIELD;
-    const pool = knockoutPool(expYield, creep.level, creep.threat);
+    const pool = knockoutPool(expYield, creep.level, creep.threat) * (this.cup?.xpScale ?? 1);
     this.wavePool += pool;
     this.waveLevel = creep.level;
 

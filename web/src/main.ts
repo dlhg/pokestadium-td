@@ -235,10 +235,12 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1200);
   }
 
-  // final<N>_<course>[@frames]: a course's hand-made final, round N of 5,
-  // `frames` (default 420, 7 s) in — the real wave, spawned and walked by the
-  // real wave manager, framed on the Titan when there is one.
-  const finalShot = shot?.match(/^final([1-5])_([a-z-]+)(?:@(\d+))?$/);
+  // final<N>_<course>[@frames][-hurt]: a course's hand-made final, round N of
+  // 5, `frames` (default 420, 7 s) in — the real wave, spawned and walked by the
+  // real wave manager, framed on the Titan when there is one. `-hurt` stands in
+  // for towers at 3 s: every creep takes a third of its HP and is paralyzed,
+  // which is what sets off Recover and Haze.
+  const finalShot = shot?.match(/^final([1-5])_([a-z-]+?)(?:@(\d+))?(-hurt)?$/);
   const finalMap = finalShot ? STADIUM_MAPS.find(map => map.id === finalShot[2]) : undefined;
   if (finalShot && finalMap) {
     game.loadMap(finalMap);
@@ -246,11 +248,24 @@ window.addEventListener('DOMContentLoaded', () => {
     game.camera.setMode('stadium');
     const cup = CUPS[finalMap.cup];
     game.waveManager.currentWaveIndex = cup.winRound - 5 + Number(finalShot[1]) - 1;
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       game.isPaused = false;
       game.waveManager.startNextWave();
-      const step = (frames: number) => { for (let i = 0; i < frames; i++) game.update(1 / 60, input); };
-      step(Number(finalShot[3] ?? 420));
+      // Stepped in slices, yielding between them, so each creep's extracted
+      // model finishes loading the way it would in play instead of after the shot.
+      const frames = Number(finalShot[3] ?? 420);
+      for (let done = 0; done < frames; done += 20) {
+        for (let i = 0; i < Math.min(20, frames - done); i++) {
+          if (finalShot[4] && done + i === 180) {
+            for (const creep of game.creeps) {
+              creep.takeDamage(creep.maxHp / 3, null, false, true);
+              creep.applyStatus('paralyze', 6);
+            }
+          }
+          game.update(1 / 60, input);
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 0));
+      }
       const boss = game.creeps.find(creep => creep.isBoss && creep.alive);
       if (boss) {
         game.camera.beginCinematic(boss.position.clone(), 15, 10, 0);

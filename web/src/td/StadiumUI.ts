@@ -116,6 +116,8 @@ export interface UIState {
   winRound: number;
   /** Full roster, ignoring the map's type bias, plus a random modifier. */
   isMystery: boolean;
+  /** The final round's own name while the course's final plays. */
+  finalTitle: string | null;
   freeplay: boolean;
   inWave: boolean;
   intermissionTimer: number;
@@ -327,7 +329,7 @@ export class StadiumUI {
       <div id="top-row" class="interactive">
         <!-- Top Bar -->
         <div id="top-bar" class="stadium-panel">
-          <div class="stat-badge">
+          <div class="stat-badge" id="round-badge">
             <span class="stat-label" id="cup-title">QUALIFIERS</span>
             <span class="stat-value gold-glow" id="round-number">ROUND 1</span>
           </div>
@@ -1717,10 +1719,13 @@ export class StadiumUI {
     ['tactical','stadium','action'].forEach(mode => document.getElementById(`btn-cam-${mode}`)!.classList.toggle('active',state.cameraMode===mode));
 
     // Top Bar updates
-    document.getElementById('cup-title')!.innerText = state.mapName.toUpperCase();
+    // The final takes over the round badge: its stage and the round's own name.
+    const inFinal = !!state.finalTitle && !state.freeplay;
+    document.getElementById('cup-title')!.innerText = inFinal ? state.finalTitle!.toUpperCase() : state.mapName.toUpperCase();
     document.getElementById('round-number')!.innerText = state.freeplay
       ? `ROUND ${state.round} · FREEPLAY`
-      : `ROUND ${state.round} / ${state.winRound}`;
+      : inFinal ? state.cupName : `ROUND ${state.round} / ${state.winRound}`;
+    document.getElementById('round-badge')!.classList.toggle('in-final', inFinal);
     document.getElementById('mystery-badge')!.hidden = !state.isMystery;
     // The wallet's text belongs to prizeFx, which counts up as coins land.
     const walletShown = this.prizeFx.displayed;

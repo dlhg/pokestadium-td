@@ -102,7 +102,7 @@ export class Hazard {
     const statusScale = this.source?.modifiers.status ?? 1;
 
     for (const creep of creeps) {
-      if (!creep.alive || creep.captureLocked || creep.hasTrait('airborne')) continue;
+      if (!creep.alive || creep.untouchable || creep.hasTrait('airborne')) continue;
       if (Math.hypot(creep.position.x - this.position.x, creep.position.z - this.position.z) > this.spec.radius) continue;
       const effectiveness = getCombinedEffectiveness(this.spec.type, creep.types);
       if (effectiveness <= 0) continue;

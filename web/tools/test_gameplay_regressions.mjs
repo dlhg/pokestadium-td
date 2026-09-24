@@ -19,9 +19,10 @@ const result = await build({
       "export { MOVES } from './src/stadium/MoveDatabase.ts';",
       "export { createPokemon, deployCostOf, formOf, statsOf, TrainerStore, STORAGE_MAX } from './src/td/progression/TrainerStore.ts';",
       "export { xpForLevel, creepLevel, MAX_LEVEL } from './src/td/progression/Stats.ts';",
-      "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups } from './src/td/Cups.ts';",
+      "export { CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, equivalentRound, finalStartRound, midTitanRound, FINAL_ROUNDS } from './src/td/Cups.ts';",
       "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
-      "export { generateWave, rollWave, getMilestone } from './src/td/WaveManager.ts';",
+      "export { generateWave, rollWave, getMilestone, hpScale, stageName, scheduleWave, standardRound } from './src/td/WaveManager.ts';",
+      "export { FINALS } from './src/td/Finals.ts';",
       "export { createRental, isRental, RENTALS, rentalLevel } from './src/td/progression/Rentals.ts';",
       "export { MatchProgress } from './src/td/progression/MatchProgress.ts';",
       "export { getSpecies, SPECIES } from './src/td/progression/Species.ts';",
@@ -43,7 +44,7 @@ const result = await build({
 });
 const source = Buffer.from(result.outputFiles[0].text).toString('base64');
 const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep, Tower, rankTargets, Creep, Projectile, resolveMoveHit, collectVictims, hitDamage, strikeCreeps, MOVES, maskGroundProps,
-  createPokemon, deployCostOf, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, STADIUM_MAPS, generateWave, rollWave, getMilestone, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
+  createPokemon, deployCostOf, formOf, statsOf, TrainerStore, STORAGE_MAX, xpForLevel, creepLevel, MAX_LEVEL, CUPS, CUP_ORDER, isEligible, nearOutgrowing, isCupUnlocked, unlockedCups, equivalentRound, finalStartRound, midTitanRound, FINAL_ROUNDS, STADIUM_MAPS, generateWave, rollWave, getMilestone, hpScale, stageName, scheduleWave, standardRound, FINALS, createRental, isRental, RENTALS, rentalLevel, MatchProgress, getSpecies, SPECIES, HAZARDS, Hazard, SummonSequence, CaptureSequence, castSignature, SIGNATURES, THREE } =
   await import(`data:text/javascript;base64,${source}`);
 
 // Losing browser focus clears held keys, and touch distinguishes a camera
@@ -340,6 +341,7 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   resolveMoveHit(MOVES.thundershock, target, context);
   target.types = ['Water'];
   target.captureLocked = true;
+  target.untouchable = true; // Creep derives this from captureLocked; the stand-in has to say so.
   resolveMoveHit(MOVES.thundershock, target, context);
   Math.random = random;
   assert.deepEqual(statusApplications, [], 'immune and capture-locked targets reject status');
@@ -761,6 +763,36 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   assert.equal(find(tower(false), MOVES.earthquake, [bird]), null, 'fields ignore airborne');
 }
 
+// Titan abilities (docs/match-length.md). Fade: nothing aims at it, not even
+// a seer, but untargeted attacks still find it. Dig: nothing reaches it at all.
+{
+  const tower = { position: new THREE.Vector3(), targetPriority: 'first', seesPhantoms: true, reachAgainst: range => range };
+  const faded = { alive: true, captureLocked: false, untargetable: true, position: new THREE.Vector3(2, 0, 0), pathProgress: 1, hasTrait: () => false };
+  const dug = { alive: true, captureLocked: false, burrowed: true, untouchable: true, position: new THREE.Vector3(2, 0, 0), pathProgress: 1, hasTrait: () => false };
+  assert.equal(rankTargets(tower, [faded], MOVES.ember, 1).length, 0, 'a faded Titan cannot be aimed at, even by a seer');
+  assert.equal(rankTargets(tower, [faded], { ...MOVES.ember, delivery: 'aura' }, 1)[0], faded, 'auras still reach a faded Titan');
+  assert.equal(rankTargets(tower, [dug], { ...MOVES.ember, delivery: 'aura' }, 1).length, 0, 'nothing reaches a Titan underground');
+
+  // Barrier: turns every hit aside; only a Heavy direct hit wears it down.
+  const mewtwo = Object.assign(Object.create(Creep.prototype), {
+    alive: true, captureLocked: false, burrowed: false, barrier: 100, hp: 1000, maxHp: 1000,
+    simulationTime: 5, barrierStruckAt: -Infinity, lastHitAt: -Infinity, contributors: new Map(), movementStatus: null,
+    updateHpBar() {},
+  });
+  assert.equal(mewtwo.takeDamage(80, null, false, false), false);
+  assert.deepEqual([mewtwo.hp, mewtwo.barrier], [1000, 100], 'a Light hit bounces off the Barrier');
+  mewtwo.takeDamage(30, null, true, true);
+  assert.deepEqual([mewtwo.hp, mewtwo.barrier], [1000, 100], 'a tick never wears the Barrier down');
+  mewtwo.takeDamage(60, null, false, true);
+  assert.deepEqual([mewtwo.hp, mewtwo.barrier], [1000, 40], 'a Heavy hit wears the Barrier down, and none of it gets through');
+  assert.equal(mewtwo.barrierStruckAt, 5, 'every deflected hit flashes the Barrier');
+  assert.equal(mewtwo.applyStatus('paralyze', 3), false, 'a Barrier turns statuses aside too');
+  mewtwo.takeDamage(60, null, false, true);
+  mewtwo.takeDamage(50, null, false, false);
+  assert.deepEqual([mewtwo.hp, mewtwo.barrier], [950, 0], 'once broken, hits land again');
+  assert.equal(mewtwo.lastHitAt, 5, 'and count as hits for Recover');
+}
+
 // Armor halves Light hits only; fixed damage and Heavy moves land in full.
 {
   const rock = { types: ['Normal'], hasTrait: trait => trait === 'armored' };
@@ -799,7 +831,7 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
   const creep = {
     simulationTime: 0, alive: true, captureLocked: false, threatAura: null,
     captureRing: { visible: false }, baseSpeed: 10, damageStatus: null,
-    movementStatus: { effect: 'paralyze', timer: 10 }, auraSlow: 0,
+    movementStatus: { effect: 'paralyze', timer: 10 }, auraSlow: 0, haste: 0, modelScale: 1,
     waypoints: [], currentWpIdx: 0, position: new THREE.Vector3(),
     group: { position: new THREE.Vector3() }, gait: { update() {} },
     animPokemon: { mesh: {}, update() {} }, lastPosition: new THREE.Vector3(),
@@ -1001,15 +1033,15 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
 // later rounds field it at full strength. A team with no answer to Phantoms
 // loses one life learning that, not four.
 {
-  const winRound = CUPS.little.winRound;
+  const little = CUPS.little;
   for (const weights of [undefined, ...STADIUM_MAPS.map(map => map.typeWeights)]) {
     const label = weights ? JSON.stringify(weights) : 'no bias';
     const debut = {};
     const traitsOf = config => [config.type, config.secondaryType].filter(Boolean)
       .flatMap(type => type === 'Flying' ? ['airborne'] : type === 'Ghost' ? ['phantom'] : type === 'Rock' ? ['armored'] : []);
 
-    for (let round = 1; round <= 20; round++) {
-      const wave = generateWave(round, winRound, weights);
+    for (let round = 1; round <= little.winRound; round++) {
+      const wave = generateWave(round, little, weights);
       const before = { ...debut };
       for (const group of wave.spawns) for (const trait of traitsOf(group.config)) debut[trait] ??= round;
       for (const group of wave.spawns) {
@@ -1036,15 +1068,95 @@ const { StadiumTDGame, StadiumCamera, Input, canUseSavedTeam, leadingActionCreep
     ? group.count : Math.max(1, Math.round(group.count * 0.5));
   for (const weights of [undefined, ...STADIUM_MAPS.map(map => map.typeWeights)]) {
     for (let round = 1; round <= 12; round++) {
-      const played = generateWave(round, winRound, weights);
-      const raw = rollWave(round, winRound, weights);
+      const played = generateWave(round, little, weights);
+      const raw = rollWave(round, little, weights);
       const purse = wave => wave.spawns.reduce((sum, group) => sum + group.config.reward * heads(group), 0);
       assert.ok(Math.abs(purse(played) - purse(raw)) <= played.spawns.length,
         `round ${round} pays the same whether or not a trait debuts in it`);
     }
   }
-  const flyer = generateWave(1, winRound).spawns.find(group => [group.config.type, group.config.secondaryType].includes('Flying'));
+  const flyer = generateWave(1, little).spawns.find(group => [group.config.type, group.config.secondaryType].includes('Flying'));
   assert.equal(flyer.count, 1, 'round 1 sends a single flyer');
+}
+
+// Match length (docs/match-length.md): every cup walks its own slice of the
+// original ladder, so difficulty climbs from round 1 to the win round and a
+// later cup never opens on the Little Cup's round-1 Rattatas.
+{
+  let previousStart = -Infinity;
+  for (const id of CUP_ORDER) {
+    const cup = CUPS[id];
+    assert.equal(equivalentRound(1, cup), cup.roundBand[0], `${id} opens at the bottom of its band`);
+    assert.equal(equivalentRound(cup.winRound, cup), cup.roundBand[1], `${id} wins at the top of its band`);
+    assert.ok(cup.roundBand[0] > previousStart, `${id} opens harder than the cup below it`);
+    previousStart = cup.roundBand[0];
+    for (let round = 2; round <= cup.winRound + 20; round++) {
+      assert.ok(hpScale(round, cup) > hpScale(round - 1, cup), `${id} round ${round} is tougher than the one before`);
+    }
+
+    // One Titan halfway through the procedural rounds, one to close the final.
+    const titanRounds = [];
+    for (let round = 1; round <= cup.winRound; round++) {
+      if (generateWave(round, cup).spawns.some(group => group.config.isBoss)) titanRounds.push(round);
+    }
+    assert.deepEqual(titanRounds, [midTitanRound(cup), cup.winRound], `${id} fields a mid-match Titan and a final Titan`);
+    assert.ok(midTitanRound(cup) < finalStartRound(cup), `${id}'s mid-match Titan comes before the final`);
+
+    // Stage names follow the match's shape.
+    assert.equal(stageName(1, cup), 'QUALIFIERS');
+    assert.equal(stageName(finalStartRound(cup) - 1, cup), 'MAIN DRAW');
+    assert.equal(stageName(finalStartRound(cup), cup), `FINAL 1/${FINAL_ROUNDS}`);
+    assert.equal(stageName(cup.winRound, cup), `FINAL ${FINAL_ROUNDS}/${FINAL_ROUNDS}`);
+    assert.equal(stageName(cup.winRound + 1, cup), 'FREEPLAY');
+  }
+
+  // A procedural round keeps its old cadence on the timeline: groups follow
+  // one another, trash at half density and twice the spacing.
+  {
+    const config = { id: 'r', name: 'Rattata', type: 'Normal', maxHp: 100, speed: 4, reward: 10, modelType: 'rattata' };
+    const schedule = scheduleWave({ round: 1, cupName: 'T', name: 'T', spawns: [
+      { config, count: 4, interval: 1 },
+      { config: { ...config, threat: 'elite' }, count: 1, interval: 2 },
+    ] });
+    assert.deepEqual(schedule.map(e => e.at), [0, 2, 4], 'trash spawns at half density, twice as far apart');
+    assert.equal(schedule[0].config.maxHp, 200, 'and twice as tough');
+    assert.equal(schedule[2].config.threat, 'elite', 'the next group starts one interval after the last spawn');
+
+    // Hand-made groups overlap and pin routes exactly as written.
+    const written = scheduleWave({ round: 1, cupName: 'T', name: 'T', spawns: [
+      { config, count: 3, interval: 1, route: 0, exact: true },
+      { config, count: 2, interval: 1, route: 1, at: 0, exact: true },
+    ] });
+    assert.deepEqual(written.map(e => [e.at, e.route]), [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0]], 'two entrances at once');
+    assert.equal(written[0].config.maxHp, 100, 'exact groups keep their written HP');
+  }
+
+  // Every course plays its own final: five beats, a Titan to close, and a
+  // shape that climbs, dips for the breather and peaks at the gauntlet.
+  for (const map of STADIUM_MAPS) {
+    const cup = CUPS[map.cup];
+    const rounds = [];
+    for (let round = finalStartRound(cup); round <= cup.winRound; round++) {
+      const wave = generateWave(round, cup, map.typeWeights, map.id);
+      const scheduled = scheduleWave(wave);
+      const crowd = scheduled.filter(e => !e.config.isBoss).reduce((sum, e) => sum + e.config.maxHp, 0);
+      rounds.push({ wave, share: crowd / standardRound(round, cup).hp, titan: scheduled.some(e => e.config.isBoss) });
+    }
+    const [showcase, exam, breather, gauntlet, finale] = rounds;
+    assert.deepEqual(rounds.map(r => r.wave.beat), ['showcase', 'exam', 'breather', 'gauntlet', 'titan'], `${map.name} final beats`);
+    assert.ok(breather.share < showcase.share && breather.share < gauntlet.share, `${map.name} breather is a breather`);
+    assert.ok(gauntlet.share > exam.share && exam.share > showcase.share, `${map.name} final climbs to the gauntlet`);
+    assert.deepEqual(rounds.map(r => r.titan), [false, false, false, false, true], `${map.name} ends on its Titan`);
+    const boss = scheduleWave(finale.wave).find(e => e.config.isBoss).config;
+    assert.equal(boss.titanId, FINALS[map.id].titan, `${map.name} ends on its own Titan`);
+  }
+
+  // Only the Little Cup thins a trait's debut to a scout; later cups assume the lesson.
+  for (const id of ['poke', 'great', 'prime']) {
+    for (let round = 1; round <= 6; round++) {
+      assert.deepEqual(generateWave(round, CUPS[id]), rollWave(round, CUPS[id]), `${id} round ${round} fields every group at full strength`);
+    }
+  }
 }
 
 console.log('PASS: gameplay timing, capture, summon, defeat, save repair, storage cap, release, evolution, pause, hit shape, armor, status, path cap, chain, knockback, hazard, signature, roster, confusion, bonus damage, trait debuts, and cup rules regressions.');

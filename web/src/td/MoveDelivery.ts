@@ -116,7 +116,7 @@ export function collectVictims(
   geometry: MoveGeometry | null,
 ): Creep[] {
   const groundOnly = isGroundOnly(move);
-  const hittable = (creep: Creep) => creep.alive && !creep.captureLocked && !(groundOnly && creep.hasTrait('airborne'));
+  const hittable = (creep: Creep) => creep.alive && !creep.untouchable && !(groundOnly && creep.hasTrait('airborne'));
   const shape = geometry ? move.delivery : 'projectile';
 
   switch (shape) {
@@ -158,7 +158,7 @@ export function creepsOnBeam(geometry: MoveGeometry, creeps: Creep[], pierce?: n
   const { origin, direction, reach } = geometry;
   const caught: { creep: Creep; along: number }[] = [];
   for (const creep of creeps) {
-    if (!creep.alive || creep.captureLocked) continue;
+    if (!creep.alive || creep.untouchable) continue;
     const dx = creep.position.x - origin.x;
     const dz = creep.position.z - origin.z;
     const along = dx * direction.x + dz * direction.z;
@@ -209,7 +209,7 @@ export function resolveMoveHit(
     let next: Creep | null = null;
     let nearest = CHAIN_JUMP_RANGE;
     for (const creep of ctx.creeps) {
-      if (struck.has(creep) || !creep.alive || creep.captureLocked) continue;
+      if (struck.has(creep) || !creep.alive || creep.untouchable) continue;
       const distance = creep.position.distanceTo(from.position);
       if (distance <= nearest) {
         nearest = distance;
@@ -290,14 +290,14 @@ export function strikeCreeps(
       const size = THREE.MathUtils.clamp(14 + Math.sqrt(finalDamage) * 1.3, 14, 34);
       ctx.popup(centerMass(victim), String(finalDamage), '#ffffff', size);
     }
-    const died = victim.takeDamage(finalDamage, source);
+    const died = victim.takeDamage(finalDamage, source, false, isHeavy(move));
     if (died) {
       ctx.onFaint(victim);
       continue;
     }
     // Elemental immunity blocks the whole move, including its secondary
     // effect. A capture target is also protected from splash while locked.
-    if (multiplier <= 0 || victim.captureLocked) continue;
+    if (multiplier <= 0 || victim.untouchable) continue;
 
     const statuses = [
       { status: move.statusEffect, chance: move.statusChance, duration: move.statusDuration },
@@ -308,7 +308,7 @@ export function strikeCreeps(
       const landed = victim.applyStatus(status, duration * mods.status, source);
       if (landed && extras.spreadStatusRadius && !isDamageStatus(status)) {
         for (const neighbour of ctx.creeps) {
-          if (neighbour === victim || !neighbour.alive || neighbour.captureLocked) continue;
+          if (neighbour === victim || !neighbour.alive || neighbour.untouchable) continue;
           if (neighbour.position.distanceTo(victim.position) > extras.spreadStatusRadius) continue;
           neighbour.applyStatus(status, duration * mods.status, source);
           ctx.particles.emitAura(centerMass(neighbour), color, 6, 0.8);

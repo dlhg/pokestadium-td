@@ -12,6 +12,7 @@ import { PokemonType, TYPE_COLORS } from '../stadium/TypeMatrix';
 import { DamageStatus, isDamageStatus, MovementStatus, StatusEffectType } from '../stadium/MoveDatabase';
 import type { Tower } from './Tower';
 import { STATUS_CONTRIBUTION } from './progression/Stats';
+import type { TitanId } from './Titans';
 
 /** A 0.4 grade stair roughly halves a creep's pace. */
 const CLIMB_SLOWDOWN = 2.6;
@@ -21,6 +22,13 @@ const HP_BAR_CLEARANCE = 0.7;
 export const CATCH_HP_FRACTION = 0.35;
 /** Canvas pixels below the HP bar reserved for trait badges. */
 const TRAIT_STRIP_HEIGHT = 16;
+/**
+ * A Titan stands at least this tall, grown up to TITAN_MAX_GROWTH times its
+ * Pokédex size: Onix and Gyarados are already huge, but a Titan Zapdos at
+ * true scale reads as an ordinary creep under a Titan's HP bar.
+ */
+const TITAN_MIN_HEIGHT = 6;
+const TITAN_MAX_GROWTH = 2.2;
 
 /**
  * The three things a creep can be, each read straight off its typing so a
@@ -70,6 +78,8 @@ export interface CreepConfig {
   modelType: 'rattata' | 'zubat' | 'geodude' | 'dragonair' | 'boss_titan';
   modelName?: string;
   titanType?: 'Onix' | 'Gyarados';
+  /** Which Titan this is, for its ability (`Titans.ts`). */
+  titanId?: TitanId;
   /** Assigned by the wave manager from the round and course difficulty. */
   level?: number;
 }
@@ -89,6 +99,8 @@ export class Creep {
   public threat: 'normal' | 'elite' | 'titan';
   public modelType: CreepConfig['modelType'];
   public level: number;
+  /** Which Titan this is, for its ability. */
+  public titanId?: TitanId;
   /**
    * Who helped bring this creep down: damage dealt plus a share of max HP for
    * each status landed. The knockout XP pool is split by these weights.
@@ -99,6 +111,22 @@ export class Creep {
   public removalReady: boolean = false;
   /** A Poké Ball is resolving against this target; it cannot move or be hit. */
   public captureLocked: boolean = false;
+  /** Underground (a Titan's Dig): nothing can aim at it or hit it, but it keeps moving. */
+  public burrowed = false;
+  /**
+   * Faded out (a Titan's Fade): no tower can aim at it, not even one that sees
+   * Phantoms. Untargeted attacks — splash, pierce, cones, fields, auras,
+   * hazards — still land.
+   */
+  public untargetable = false;
+  /** A Titan's Barrier: HP the shield has left. Only Heavy hits wear it down, and nothing gets through while it stands. */
+  public barrier = 0;
+  /** Simulation time the Barrier last turned a hit aside, for its flash. */
+  public barrierStruckAt = -Infinity;
+  /** Speed bonus from a fire trail underfoot, refreshed every frame. */
+  public haste = 0;
+  /** Simulation time of the last hit that landed. */
+  public lastHitAt = -Infinity;
 
   public position: THREE.Vector3 = new THREE.Vector3();
   public group: THREE.Group = new THREE.Group();
@@ -106,6 +134,8 @@ export class Creep {
   /** Turns toward the path so the gait can pose the model in its own frame. */
   private facing: THREE.Group = new THREE.Group();
   private gait: PokemonGait;
+  /** How much a Titan's body is grown past its Pokédex size. */
+  private modelScale = 1;
   private lastPosition = new THREE.Vector3();
 
   // Path following
@@ -137,6 +167,8 @@ export class Creep {
   private hpSprite: THREE.Sprite;
   private threatAura: THREE.Mesh | null = null;
   private captureRing: THREE.Mesh;
+  /** An animation a Titan's ability holds the model in, overriding the walk. */
+  private pose: { state: 'attack' | 'entrance' | 'hit'; timer: number } | null = null;
 
   constructor(config: CreepConfig, waypoints: THREE.Vector3[], lifts?: number[]) {
     this.id = `creep_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -151,6 +183,7 @@ export class Creep {
     this.reward = config.reward;
     this.modelType = config.modelType;
     this.level = config.level ?? 5;
+    this.titanId = config.titanId;
     this.threat = config.threat || (config.isBoss ? 'titan' : 'normal');
     this.isBoss = this.threat === 'titan' || !!config.isBoss;
     this.waypoints = waypoints;
@@ -205,7 +238,11 @@ export class Creep {
         this.animPokemon = loaded;
         this.facing.add(this.animPokemon.mesh);
         if (loaded.height !== undefined) {
-          this.hpSprite.position.y = loaded.height + HP_BAR_CLEARANCE;
+          if (this.threat === 'titan') {
+            this.modelScale = THREE.MathUtils.clamp(TITAN_MIN_HEIGHT / loaded.height, 1, TITAN_MAX_GROWTH);
+            this.facing.scale.setScalar(this.modelScale);
+          }
+          this.hpSprite.position.y = loaded.height * this.modelScale + HP_BAR_CLEARANCE;
           this.gait.height = loaded.height;
         }
       }
@@ -256,6 +293,69 @@ export class Creep {
     return this.traits.includes(trait);
   }
 
+  /** Out of reach of every attack: inside a Poké Ball, or underground. */
+  public get untouchable(): boolean {
+    return this.captureLocked || this.burrowed;
+  }
+
+  /** Seconds this creep has been on the lane. */
+  public get clock(): number {
+    return this.simulationTime;
+  }
+
+  /** The route this creep walks and the bridge lift at each waypoint. */
+  public get route(): { waypoints: THREE.Vector3[]; lifts: number[] } {
+    return { waypoints: this.waypoints, lifts: this.lifts };
+  }
+
+  /** The body a Titan's ability can sink, grow or fade, apart from its HP bar. */
+  public get body(): THREE.Group {
+    return this.facing;
+  }
+
+  /** Holds the model in an animation for a while, over the walk cycle. */
+  public playPose(state: 'attack' | 'entrance' | 'hit', seconds: number): void {
+    this.pose = { state, timer: seconds };
+  }
+
+  /** Puts HP back, never past full. */
+  public heal(amount: number): void {
+    if (!this.alive || amount <= 0) return;
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+    this.updateHpBar();
+  }
+
+  /** Starts this creep where another stands on the same route, as if it had walked there. */
+  public joinAt(leader: Creep): void {
+    this.currentWpIdx = leader.currentWpIdx;
+    this.position.copy(leader.position);
+    this.pathProgress = leader.pathProgress;
+    this.group.position.copy(this.position);
+    this.lastPosition.copy(this.position);
+  }
+
+  /** Carries the creep forward along its route, never past the exit. Returns the distance covered. */
+  public advance(distance: number): number {
+    let remaining = distance;
+    while (remaining > 0 && this.currentWpIdx < this.waypoints.length - 1) {
+      const next = this.waypoints[this.currentWpIdx];
+      const gap = this.position.distanceTo(next);
+      if (gap > remaining) {
+        this.position.lerp(next, remaining / gap);
+        remaining = 0;
+      } else {
+        this.position.copy(next);
+        remaining -= gap;
+        this.currentWpIdx++;
+      }
+    }
+    if (this.currentWpIdx < this.waypoints.length) {
+      this.pathProgress = -(this.position.distanceTo(this.waypoints[this.currentWpIdx]) + this.remainingAtWaypoint[this.currentWpIdx]);
+    }
+    this.group.position.copy(this.position);
+    return distance - remaining;
+  }
+
   /** The most noticeable status, for anything that only cares about one. */
   public get status(): StatusEffectType {
     return this.movementStatus?.effect ?? this.damageStatus?.effect ?? 'none';
@@ -265,8 +365,15 @@ export class Creep {
    * Removes HP. `periodic` marks burn and poison ticks, which never wake a
    * sleeping creep; any direct hit does.
    */
-  public takeDamage(amount: number, source: Tower | null = null, periodic = false): boolean {
-    if (!this.alive || this.captureLocked) return false;
+  public takeDamage(amount: number, source: Tower | null = null, periodic = false, heavy = false): boolean {
+    if (!this.alive || this.untouchable) return false;
+    if (this.barrier > 0) {
+      // A Barrier turns everything aside; only a Heavy hit wears it down.
+      if (heavy && !periodic) this.barrier = Math.max(0, this.barrier - amount);
+      this.barrierStruckAt = this.simulationTime;
+      return false;
+    }
+    if (!periodic) this.lastHitAt = this.simulationTime;
     if (!periodic && this.movementStatus?.effect === 'sleep') this.movementStatus = null;
     // Overkill earns nothing: only the HP actually removed counts.
     if (source) this.credit(source, Math.min(amount, this.hp));
@@ -286,7 +393,7 @@ export class Creep {
 
   /** Returns true when the status took hold. */
   public applyStatus(effect: StatusEffectType, duration: number, source: Tower | null = null): boolean {
-    if (effect === 'none' || !this.alive || this.captureLocked) return false;
+    if (effect === 'none' || !this.alive || this.untouchable || this.barrier > 0) return false;
 
     if (isDamageStatus(effect)) {
       this.damageStatus = { effect, timer: duration, source };
@@ -349,7 +456,7 @@ export class Creep {
 
   /** Weak enough for a ball, and not already fainted or inside one. */
   public get catchable(): boolean {
-    return this.alive && !this.captureLocked && this.hpFraction <= CATCH_HP_FRACTION;
+    return this.alive && !this.untouchable && this.hpFraction <= CATCH_HP_FRACTION;
   }
 
   /** Height above the creep's origin where screen tags should sit: just over the HP bar. */
@@ -518,7 +625,7 @@ export class Creep {
       }
       if (hold.timer <= 0) this.movementStatus = null;
     }
-    this.speed *= 1 - this.auraSlow;
+    this.speed *= (1 - this.auraSlow) * (1 + this.haste);
 
     // Spend the entire movement budget across sampled segments. Dense curves
     // must not slow creeps down by discarding leftover distance at every point.
@@ -555,14 +662,16 @@ export class Creep {
       this.pathProgress = -(this.position.distanceTo(this.waypoints[this.currentWpIdx]) + this.remainingAtWaypoint[this.currentWpIdx]);
     }
     this.group.position.copy(this.position);
-    this.gait.update(this.animPokemon.mesh, this.position.distanceTo(this.lastPosition), dt);
+    // The gait strides in the model's own units, which a grown Titan's are not.
+    this.gait.update(this.animPokemon.mesh, this.position.distanceTo(this.lastPosition) / this.modelScale, dt);
     this.lastPosition.copy(this.position);
 
     // Rendering follows combat state without changing movement or damage timing.
     this.entranceTimer -= dt;
     this.hitAnimationTimer -= dt;
-    const animation = this.entranceTimer > 0
-      ? 'entrance'
+    if (this.pose && (this.pose.timer -= dt) <= 0) this.pose = null;
+    const animation = this.pose ? this.pose.state
+      : this.entranceTimer > 0 ? 'entrance'
       : this.hitAnimationTimer > 0 ? 'hit' : 'walk';
     this.animPokemon.update(time, dt, animation);
   }

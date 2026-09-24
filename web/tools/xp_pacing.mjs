@@ -17,6 +17,7 @@ const result = await build({
     contents: [
       "export { WaveManager } from './src/td/WaveManager.ts';",
       "export { CUPS, CUP_ORDER } from './src/td/Cups.ts';",
+      "export { STADIUM_MAPS } from './src/td/MapCatalog.ts';",
       "export { knockoutPool, levelScale, levelForXp, xpForLevel, WAVE_CLEAR_SHARE } from './src/td/progression/Stats.ts';",
       "export { getSpecies, speciesForCreepName } from './src/td/progression/Species.ts';",
       "export { rentalLevel } from './src/td/progression/Rentals.ts';",
@@ -28,16 +29,17 @@ const result = await build({
 });
 const {
   WaveManager, CUPS, CUP_ORDER, knockoutPool, levelScale, levelForXp, xpForLevel, WAVE_CLEAR_SHARE,
-  getSpecies, speciesForCreepName, rentalLevel, Vector3,
+  getSpecies, speciesForCreepName, rentalLevel, Vector3, STADIUM_MAPS,
 } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`);
 
 const TEAM_SIZE = Number(process.argv[2] ?? 6);
 /** Matches MatchProgress's fallback for creeps without a species entry. */
 const FALLBACK_EXP_YIELD = 60;
 
-/** Every creep a round sends, as the game queues it. */
+/** Every creep a round sends, as the game queues it, on the cup's first course (finals included). */
 function roundSpawns(cup, round) {
-  const waves = new WaveManager([[new Vector3(0, 0, 0), new Vector3(1, 0, 0)]], { trigger() {} }, cup);
+  const map = STADIUM_MAPS.find(m => m.cup === cup.id);
+  const waves = new WaveManager([[new Vector3(0, 0, 0), new Vector3(1, 0, 0)]], { trigger() {} }, cup, undefined, map?.typeWeights, map?.id);
   waves.currentWaveIndex = round - 1;
   waves.startNextWave();
   return waves.spawnQueue.map(entry => entry.config);
@@ -55,7 +57,7 @@ function climb(cup, entryLevel) {
       const match = speciesForCreepName(creep.name);
       const expYield = match ? getSpecies(match.speciesId).expYield : FALLBACK_EXP_YIELD;
       const threat = creep.threat ?? (creep.isBoss ? 'titan' : 'normal');
-      const pool = knockoutPool(expYield, creep.level, threat);
+      const pool = knockoutPool(expYield, creep.level, threat) * cup.xpScale;
       wavePool += pool;
       waveLevel = creep.level;
       xp = Math.min(cap, xp + Math.max(1, Math.round(pool / TEAM_SIZE * levelScale(levelForXp(xp), creep.level))));

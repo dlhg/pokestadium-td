@@ -538,4 +538,30 @@ export const MOVES: Record<string, MoveDefinition> = {
     statusEffect: 'burn', statusChance: 0.5, statusDuration: 4.0,
     fxType: 'flamethrower', description: 'A whirling vortex of flame around the tower that steadily burns.',
   },
+
+  // ---- Titan lines -------------------------------------------------------
+  poison_sting: {
+    id: 'poison_sting', name: 'Poison Sting', type: 'Poison', basePower: 12, attackSpeed: 2.2,
+    delivery: 'projectile', range: 11, projectileSpeed: 46, splashRadius: 0,
+    statusEffect: 'poison', statusChance: 0.2, statusDuration: 4,
+    fxType: 'razor_leaf', description: 'Quick stings that may poison.',
+  },
+  twineedle: {
+    id: 'twineedle', name: 'Twineedle', type: 'Bug', basePower: 20, attackSpeed: 2.0,
+    delivery: 'projectile', range: 11, projectileSpeed: 50, splashRadius: 0,
+    statusEffect: 'poison', statusChance: 0.2, statusDuration: 5,
+    fxType: 'razor_leaf', description: 'A pair of poison barbs, fired as one.',
+  },
+  swift: {
+    id: 'swift', name: 'Swift', type: 'Normal', basePower: 22, attackSpeed: 1.5,
+    delivery: 'projectile', range: 14, projectileSpeed: 60, splashRadius: 0,
+    statusEffect: 'none', statusChance: 0, statusDuration: 0,
+    fxType: 'psychic_wave', description: 'Star-shaped rays that never miss.',
+  },
+  drill_peck: {
+    id: 'drill_peck', name: 'Drill Peck', type: 'Flying', basePower: 44, attackSpeed: 1.1,
+    delivery: 'projectile', heavy: true, range: 13, projectileSpeed: 44, splashRadius: 0,
+    statusEffect: 'none', statusChance: 0, statusDuration: 0,
+    fxType: 'impact', description: 'A spinning, corkscrew peck that drills through armor.',
+  },
 };

@@ -5,7 +5,7 @@ can enter only if its level is at or below the cup's entry limit. During the mat
 it levels up, but no higher than the cup's level cap, and that XP is kept.
 Rentals fill team slots when you don't own enough eligible Pokémon.
 
-Status: **phases 1–5 shipped.** Phase 1 added cup data, creep levels, the XP cap,
+Status: **phases 1–5 shipped; win rounds since shortened (see `match-length.md`).** Phase 1 added cup data, creep levels, the XP cap,
 the catch clamp and map select. Phase 2 added entry rules, cup locks and the
 team-select changes. Phase 3 added rentals. Phase 4 added the report and panel text.
 Phase 5 retuned the XP curve to hit the cap-timing target below. This extends
@@ -51,10 +51,13 @@ evolutions happen at 16–30, and final ones at 32–50.
 
 | Cup | Maps | Entry | Cap | Creep levels | Win round |
 | --- | --- | --- | --- | --- | --- |
-| Little | Viridian Gardens, Mt. Moon Pass | ≤ 10 | 20 | 3 → 20 | 40 |
-| Poké | Cerulean Crossing, Power Plant | ≤ 22 | 32 | 12 → 32 | 60 |
-| Great | Indigo Plateau, Bell Tower | ≤ 34 | 42 | 22 → 42 | 80 |
-| Prime | Mt. Silver Crown, Seafoam Islands | ≤ 50 | 50 | 32 → 50 | 80 |
+| Little | Viridian Gardens, Mt. Moon Pass | ≤ 10 | 20 | 3 → 20 | 20 |
+| Poké | Cerulean Crossing, Power Plant | ≤ 22 | 32 | 12 → 32 | 25 |
+| Great | Indigo Plateau, Bell Tower | ≤ 34 | 42 | 22 → 42 | 30 |
+| Prime | Mt. Silver Crown, Seafoam Islands | ≤ 50 | 50 | 32 → 50 | 30 |
+
+Win rounds were 40 / 60 / 80 / 80 until `match-length.md` shortened them;
+that doc owns win rounds, difficulty bands, starting money and pay from here.
 
 Each cup has two maps. Mt. Moon's long, forgiving route moves down to the Little Cup,
 and Power Plant and Bell Tower each move down one cup from their old "hard" label.

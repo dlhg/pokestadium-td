@@ -641,7 +641,9 @@ export function rankTargets(
   const ranked: { creep: Creep; metric: number }[] = [];
 
   for (const creep of creeps) {
-    if (!creep.alive || creep.captureLocked) continue;
+    if (!creep.alive || creep.untouchable) continue;
+    // A faded Titan can't be aimed at by anyone; fields and auras don't aim.
+    if (creep.untargetable && !untargeted) continue;
     if (!canTargetPhantoms && creep.hasTrait('phantom')) continue;
     if (groundOnly && creep.hasTrait('airborne')) continue;
     // Reach is measured across the ground; standing above the lane extends it.

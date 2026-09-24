@@ -21,6 +21,8 @@ export class StadiumAnnouncer {
     boss_spawn: { cooldown: 0, chance: 1 }, boss_defeat: { cooldown: 0, chance: 1 },
     elite_spawn: { cooldown: 12_000, chance: 1 }, elite_defeat: { cooldown: 12_000, chance: 0.7 },
     mystery_round: { cooldown: 0, chance: 1 },
+    final_start: { cooldown: 0, chance: 1 }, final_round: { cooldown: 0, chance: 1 },
+    titan_ability: { cooldown: 5_000, chance: 1 },
     victory: { cooldown: 0, chance: 1 }, game_over: { cooldown: 0, chance: 1 },
     tower_evolve: { cooldown: 15_000, chance: 0.6 }, wave_cleared: { cooldown: 22_000, chance: 0.2 },
     capture_throw: { cooldown: 0, chance: 1 },
@@ -122,6 +124,15 @@ export class StadiumAnnouncer {
           { text: "A MYSTERY ROUND! NO ONE KNOWS WHAT'S COMING!", intensity: 'epic' },
           { text: `SOMETHING'S DIFFERENT THIS ROUND — ${detail || 'STAY SHARP'}!`, intensity: 'epic' },
         ];
+      case 'final_start':
+        return [
+          { text: `THE FINAL BEGINS! ${detail || 'FIVE ROUNDS TO GLORY'}!`, intensity: 'epic' },
+          { text: `IT'S THE FINAL! ${detail || 'EVERYTHING COMES DOWN TO THIS'}!`, intensity: 'epic' },
+        ];
+      case 'titan_ability':
+        return [{ text: detail || 'THE TITAN MAKES ITS MOVE!', intensity: 'epic' }];
+      case 'final_round':
+        return [{ text: `${detail || 'THE FINAL CONTINUES'}!`, intensity: 'epic' }];
       case 'elite_spawn':
         return [{ text: `AN ELITE ${detail || 'CHALLENGER'} JOINS THE ASSAULT!`, intensity: 'high' }];
       case 'elite_defeat':
